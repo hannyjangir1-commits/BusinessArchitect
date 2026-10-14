@@ -131,7 +131,24 @@ cp .env.example .env
 
 ## Local Development Setup
 
-### 1. Backend Setup
+### One-Click Windows Launcher (Recommended for Windows)
+
+Simply double-click `run_app.bat` at the repository root to automatically:
+1. Validate Python (3.10+) and Node.js/npm prerequisites.
+2. Verify backend and frontend dependencies without silent overwrites.
+3. Start the FastAPI backend on `http://127.0.0.1:8000`.
+4. Start the Vite frontend dev server on `http://127.0.0.1:5173`.
+5. Poll `/api/health` and wait for complete service readiness.
+6. Automatically open Google Chrome at `http://localhost:5173`.
+
+To safely shut down the backend and frontend without terminating unrelated processes:
+Double-click `stop_app.bat`.
+
+---
+
+### Manual Setup
+
+#### 1. Backend Setup
 ```bash
 cd server
 python -m venv .venv
