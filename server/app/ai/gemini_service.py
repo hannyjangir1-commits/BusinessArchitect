@@ -15,6 +15,8 @@ from app.ai.prompts import (
 
 logger = logging.getLogger(__name__)
 
+import re
+
 # Fallback candidate models in order of speed and stability
 MODEL_CANDIDATES = [
     "gemini-3.5-flash-lite",
@@ -31,7 +33,16 @@ class GeminiAIService:
     def _get_client(self) -> genai.Client:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is not configured in backend environment.")
-        return genai.Client(api_key=self.api_key)
+        http_options = types.HttpOptions(
+            timeout=60000,
+            retry_options=types.HttpRetryOptions(
+                attempts=3,
+                initial_delay=1.0,
+                max_delay=5.0,
+                http_status_codes=[503, 429, 500]
+            )
+        )
+        return genai.Client(api_key=self.api_key, http_options=http_options)
 
     def _execute_json_prompt(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         """Execute a structured generation prompt across model candidates with JSON response validation."""
@@ -51,6 +62,9 @@ class GeminiAIService:
                     contents=user_prompt,
                     config=config
                 )
+                if not response or not response.text:
+                    raise ValueError(f"Empty response returned from model {model_name}")
+
                 raw_text = response.text.strip()
                 # Clean up if markdown fences leaked
                 if raw_text.startswith("```json"):
@@ -60,6 +74,12 @@ class GeminiAIService:
                 if raw_text.endswith("```"):
                     raw_text = raw_text[:-3]
                 raw_text = raw_text.strip()
+
+                # Fallback regex extraction if model output conversational preamble
+                if not (raw_text.startswith("{") or raw_text.startswith("[")):
+                    match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', raw_text)
+                    if match:
+                        raw_text = match.group(0).strip()
 
                 parsed = json.loads(raw_text)
                 return parsed

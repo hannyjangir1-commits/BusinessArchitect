@@ -32,11 +32,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     }
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include' // Send HTTP-only session cookie
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout for long-running AI requests
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include', // Send HTTP-only session cookie
+      signal: options.signal || controller.signal
+    });
+  } catch (fetchErr: any) {
+    if (fetchErr.name === 'AbortError') {
+      throw new Error('Request timed out after 90 seconds. Please check your connection and retry.');
+    }
+    throw fetchErr;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (response.status === 401) {
     // Session expired or unauthenticated

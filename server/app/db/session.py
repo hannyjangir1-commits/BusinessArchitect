@@ -16,6 +16,8 @@ else:
     engine_kwargs["pool_size"] = 10
     engine_kwargs["max_overflow"] = 20
     engine_kwargs["pool_recycle"] = 300
+    if "sslmode" not in db_url.lower():
+        engine_kwargs["connect_args"] = {"sslmode": "require"}
 
 engine = create_engine(db_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

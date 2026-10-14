@@ -105,6 +105,7 @@ def create_task(
     return task
 
 @router.put("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_csrf)])
+@router.patch("/{task_id}", response_model=TaskResponse, dependencies=[Depends(verify_csrf)])
 def update_task(
     task_id: str,
     req: TaskUpdateRequest,

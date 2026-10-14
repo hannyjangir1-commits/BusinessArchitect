@@ -1,9 +1,11 @@
+import threading
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.all_models import ModuleContent, ModuleVersion
 
 MAX_VERSIONS_LIMIT = 5
+_version_lock = threading.Lock()
 
 class VersionService:
     @staticmethod
@@ -39,59 +41,62 @@ class VersionService:
         Save a new version.
         Enforces MAX_VERSIONS_LIMIT (5). If 5 already exist, raises 409 Conflict
         so the frontend can prompt the user to replace or delete an existing version.
+        Guarantees strict concurrency protection via mutex lock.
         """
-        versions = VersionService.get_versions(db, module.id)
-        if len(versions) >= MAX_VERSIONS_LIMIT:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": "VERSION_LIMIT_EXCEEDED",
-                    "message": f"This section already has the maximum of {MAX_VERSIONS_LIMIT} saved versions. Choose a version to replace or delete.",
-                    "existing_versions": [
-                        {
-                            "id": v.id,
-                            "version_number": v.version_number,
-                            "version_name": v.version_name,
-                            "change_summary": v.change_summary,
-                            "is_active": v.is_active,
-                            "created_at": v.created_at.isoformat()
-                        }
-                        for v in versions
-                    ]
-                }
+        with _version_lock:
+            versions = VersionService.get_versions(db, module.id)
+            if len(versions) >= MAX_VERSIONS_LIMIT:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "VERSION_LIMIT_EXCEEDED",
+                        "message": f"This section already has the maximum of {MAX_VERSIONS_LIMIT} saved versions. Choose a version to replace or delete.",
+                        "existing_versions": [
+                            {
+                                "id": v.id,
+                                "version_number": v.version_number,
+                                "version_name": v.version_name,
+                                "change_summary": v.change_summary,
+                                "is_active": v.is_active,
+                                "created_at": v.created_at.isoformat()
+                            }
+                            for v in versions
+                        ]
+                    }
+                )
+
+            # Deactivate previous active versions
+            for v in versions:
+                v.is_active = False
+
+            next_number = (max([v.version_number for v in versions]) + 1) if versions else 1
+            default_prefix = {
+                "bmc": "BMC",
+                "tech_stack": "Tech Stack",
+                "idea_validator": "Validator",
+                "market_research": "Market Research",
+                "execution_roadmap": "Roadmap",
+                "overview": "Overview"
+            }.get(module.module_type, "Version")
+            version_name = custom_name or f"{default_prefix} V{next_number}"
+
+            new_version = ModuleVersion(
+                module_content_id=module.id,
+                version_number=next_number,
+                version_name=version_name,
+                data=data,
+                change_summary=change_summary or f"Created {version_name}",
+                is_active=True
             )
+            db.add(new_version)
+            db.commit()
+            db.refresh(new_version)
 
-        # Deactivate previous active versions
-        for v in versions:
-            v.is_active = False
+            # Set as active version on module
+            module.active_version_id = new_version.id
+            db.commit()
+            return new_version
 
-        next_number = (max([v.version_number for v in versions]) + 1) if versions else 1
-        default_prefix = {
-            "bmc": "BMC",
-            "tech_stack": "Tech Stack",
-            "idea_validator": "Validator",
-            "market_research": "Market Research",
-            "execution_roadmap": "Roadmap",
-            "overview": "Overview"
-        }.get(module.module_type, "Version")
-
-        version_name = custom_name or f"{default_prefix} V{next_number}"
-
-        new_version = ModuleVersion(
-            module_content_id=module.id,
-            version_number=next_number,
-            version_name=version_name,
-            data=data,
-            change_summary=change_summary,
-            is_active=True
-        )
-        db.add(new_version)
-        db.flush()
-
-        module.active_version_id = new_version.id
-        db.commit()
-        db.refresh(new_version)
-        return new_version
 
     @staticmethod
     def resolve_conflict_and_replace(
