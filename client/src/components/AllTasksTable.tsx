@@ -248,6 +248,7 @@ export const AllTasksTable: React.FC<Props> = ({
                       onChange={(e) => handleStatusChange(t.id, e.target.value)}
                     >
                       <option value="Pending">Pending</option>
+                      <option value="Ongoing">Ongoing</option>
                       <option value="In Progress">In Progress</option>
                       <option value="Finished">Finished</option>
                     </select>
@@ -370,6 +371,7 @@ export const AllTasksTable: React.FC<Props> = ({
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     >
                       <option value="Pending">Pending</option>
+                      <option value="Ongoing">Ongoing</option>
                       <option value="In Progress">In Progress</option>
                       <option value="Finished">Finished</option>
                     </select>

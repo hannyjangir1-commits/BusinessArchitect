@@ -95,7 +95,8 @@ class VersionRenameRequest(BaseModel):
 
 class VersionConflictResolveRequest(BaseModel):
     replace_version_id: str  # The existing version to remove/replace to keep <= 5 versions
-    new_data: Dict[str, Any]
+    new_data: Optional[Dict[str, Any]] = None
+    instruction: Optional[str] = None
     new_version_name: Optional[str] = None
     change_summary: Optional[str] = None
 

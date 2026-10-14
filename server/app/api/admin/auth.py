@@ -241,10 +241,22 @@ def admin_logout(
 @router.get("/me", response_model=AdminSessionResponse)
 def admin_get_me(
     request: Request,
+    response: Response,
     current_admin: User = Depends(require_admin)
 ):
     token = request.cookies.get(settings.COOKIE_NAME) or ""
     csrf_token = generate_csrf_token(token) if token else ""
+    if token and csrf_token:
+        max_age = settings.SESSION_EXPIRE_DAYS * 86400
+        response.set_cookie(
+            key=settings.CSRF_COOKIE_NAME,
+            value=csrf_token,
+            max_age=max_age,
+            httponly=False,
+            secure=settings.COOKIE_SECURE,
+            samesite=settings.COOKIE_SAMESITE,
+            path="/"
+        )
     perms = _get_permissions_for_role(current_admin.role)
     user_resp = AdminUserResponse(
         id=current_admin.id,

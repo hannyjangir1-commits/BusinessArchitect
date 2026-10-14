@@ -5,6 +5,7 @@ import { MilestoneCards } from './MilestoneCards';
 import { AllTasksTable } from './AllTasksTable';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
+import { DependenciesPanel } from './DependenciesPanel';
 import { Calendar, GitPullRequest, Milestone, ListTodo, Sparkles, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -124,21 +125,68 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
       {/* Main Grid: Left Column + Right AI Assistant */}
       <div className="workspace-grid">
         <div className="workspace-main-column">
-          {/* Gantt Chart Component */}
-          <GanttChart tasks={tasks} />
+          {activeSubTab === 'gantt' && (
+            <>
+              {/* Gantt Chart Component */}
+              <GanttChart tasks={tasks} />
 
-          {/* 30-Day, 60-Day, 90-Day Milestone Cards */}
-          <MilestoneCards summary={summary} />
+              {/* 30-Day, 60-Day, 90-Day Milestone Cards */}
+              <MilestoneCards summary={summary} />
 
-          {/* All Tasks Table */}
-          <AllTasksTable
-            tasks={tasks}
-            onAddTask={onAddTask}
-            onUpdateTask={onUpdateTask}
-            onDeleteTask={onDeleteTask}
-            onRegenerate={onGenerate}
-            isLoading={isLoading}
-          />
+              {/* All Tasks Table */}
+              <AllTasksTable
+                tasks={tasks}
+                onAddTask={onAddTask}
+                onUpdateTask={onUpdateTask}
+                onDeleteTask={onDeleteTask}
+                onRegenerate={onGenerate}
+                isLoading={isLoading}
+              />
+            </>
+          )}
+
+          {activeSubTab === 'tasks' && (
+            <AllTasksTable
+              tasks={tasks}
+              onAddTask={onAddTask}
+              onUpdateTask={onUpdateTask}
+              onDeleteTask={onDeleteTask}
+              onRegenerate={onGenerate}
+              isLoading={isLoading}
+            />
+          )}
+
+          {activeSubTab === 'milestones' && (
+            <>
+              <MilestoneCards summary={summary} />
+              <div className="card" style={{ padding: 20 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Milestone size={18} color="#6366f1" /> Key Milestone Deliverables
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+                  {tasks.filter(t => t.deliverables).map(t => (
+                    <div key={t.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1' }}>{t.task_code}</span>
+                        <span className={`badge-priority ${t.priority.toLowerCase()}`}>{t.priority}</span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>{t.title}</div>
+                      <div style={{ fontSize: 12, color: '#059669', background: '#ecfdf5', padding: '6px 10px', borderRadius: 6 }}>
+                        <b>Deliverable:</b> {t.deliverables}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 8 }}>
+                        Target: {t.end_date} • Phase: {t.phase}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeSubTab === 'dependencies' && (
+            <DependenciesPanel tasks={tasks} />
+          )}
         </div>
 
         {/* Contextual AI Assistant Panel on the right matching screenshot */}

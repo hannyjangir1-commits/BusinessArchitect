@@ -108,36 +108,40 @@ class VersionService:
         change_summary: Optional[str] = None
     ) -> ModuleVersion:
         """User explicitly chosen version to replace when 5-version limit is reached."""
-        target = db.query(ModuleVersion).filter(
-            ModuleVersion.id == replace_version_id,
-            ModuleVersion.module_content_id == module.id
-        ).first()
+        with _version_lock:
+            target = db.query(ModuleVersion).filter(
+                ModuleVersion.id == replace_version_id,
+                ModuleVersion.module_content_id == module.id
+            ).first()
 
-        if not target:
-            raise HTTPException(status_code=404, detail="Target version to replace not found")
+            if not target:
+                raise HTTPException(status_code=404, detail="Target version to replace not found")
 
-        # Deactivate all
-        versions = VersionService.get_versions(db, module.id)
-        for v in versions:
-            v.is_active = False
+            # Deactivate all
+            versions = VersionService.get_versions(db, module.id)
+            for v in versions:
+                v.is_active = False
 
-        # Update target version in-place with new data and name
-        target.data = new_data
-        if new_name:
-            target.version_name = new_name
-        target.change_summary = change_summary or "Replaced existing version"
-        target.is_active = True
-        module.active_version_id = target.id
+            # Update target version in-place with new data and name
+            target.data = new_data
+            if new_name:
+                target.version_name = new_name
+            target.change_summary = change_summary or "Replaced existing version"
+            target.is_active = True
+            module.active_version_id = target.id
 
-        db.commit()
-        db.refresh(target)
-        return target
+            db.commit()
+            db.refresh(target)
+            return target
 
     @staticmethod
-    def rename_version(db: Session, version_id: str, new_name: str) -> ModuleVersion:
-        v = db.query(ModuleVersion).filter(ModuleVersion.id == version_id).first()
+    def rename_version(db: Session, module: ModuleContent, version_id: str, new_name: str) -> ModuleVersion:
+        v = db.query(ModuleVersion).filter(
+            ModuleVersion.id == version_id,
+            ModuleVersion.module_content_id == module.id
+        ).first()
         if not v:
-            raise HTTPException(status_code=404, detail="Version not found")
+            raise HTTPException(status_code=404, detail="Version not found in this module")
         v.version_name = new_name.strip()
         db.commit()
         db.refresh(v)

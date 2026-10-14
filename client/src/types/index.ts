@@ -136,7 +136,7 @@ export interface RoadmapTask {
   start_date: string;
   end_date: string;
   priority: 'Critical' | 'High' | 'Medium' | 'Low';
-  status: 'Pending' | 'In Progress' | 'Finished';
+  status: 'Pending' | 'Ongoing' | 'In Progress' | 'Finished';
   dependencies: string[];
   deliverables?: string;
   effort?: string;

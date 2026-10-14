@@ -128,7 +128,18 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     return {"message": "Successfully logged out"}
 
 @router.get("/me", response_model=SessionResponse)
-def get_me(request: Request, current_user: User = Depends(get_current_user)):
+def get_me(request: Request, response: Response, current_user: User = Depends(get_current_user)):
     token = request.cookies.get(settings.COOKIE_NAME) or ""
     csrf_token = generate_csrf_token(token) if token else ""
+    if token and csrf_token:
+        max_age = settings.SESSION_EXPIRE_DAYS * 86400
+        response.set_cookie(
+            key=settings.CSRF_COOKIE_NAME,
+            value=csrf_token,
+            max_age=max_age,
+            httponly=False,
+            secure=settings.COOKIE_SECURE,
+            samesite=settings.COOKIE_SAMESITE,
+            path="/"
+        )
     return SessionResponse(user=UserResponse.model_validate(current_user), csrf_token=csrf_token)

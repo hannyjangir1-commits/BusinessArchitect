@@ -217,9 +217,21 @@ def cmd_save_pids():
         pass
 
 
+def is_app_process(pid: int) -> bool:
+    """Validate that the process belongs to AI Business Architect."""
+    try:
+        cmd = f'powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter \\"ProcessId = {pid}\\").CommandLine"'
+        out = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL, text=True).strip().lower()
+        if any(marker in out for marker in ("businessarchitect", "uvicorn", "vite", "app.main:app")):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def cmd_stop():
-    """Safely terminate ONLY the backend (port 8000) and frontend (port 5173) processes."""
-    pids_to_kill = set()
+    """Safely terminate ONLY verified AI Business Architect processes."""
+    stored_pids = set()
 
     # 1. Read stored PIDs if file exists
     if PID_FILE.exists():
@@ -227,24 +239,31 @@ def cmd_stop():
             with open(PID_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 for pid in data.get("backend_pids", []):
-                    pids_to_kill.add(pid)
+                    stored_pids.add(int(pid))
                 for pid in data.get("frontend_pids", []):
-                    pids_to_kill.add(pid)
+                    stored_pids.add(int(pid))
         except Exception:
             pass
 
     # 2. Inspect active port listeners on 8000 and 5173
     current_backend = get_listening_pids(BACKEND_PORT)
     current_frontend = get_listening_pids(FRONTEND_PORT)
-    pids_to_kill.update(current_backend)
-    pids_to_kill.update(current_frontend)
+
+    all_candidate_pids = set(stored_pids)
+    all_candidate_pids.update(current_backend)
+    all_candidate_pids.update(current_frontend)
 
     stopped_count = 0
 
-    for pid in list(pids_to_kill):
+    for pid in list(all_candidate_pids):
         pname = get_process_info(pid)
-        # Strict validation: Only stop python/node processes to avoid killing unrelated apps
-        if pname in ("python.exe", "pythonw.exe", "node.exe", "cmd.exe"):
+        if not pname:
+            continue
+
+        # Verify identity: must either be in stored PIDs or match app command line
+        is_verified = (pid in stored_pids) or is_app_process(pid)
+
+        if is_verified and pname in ("python.exe", "pythonw.exe", "node.exe", "cmd.exe"):
             try:
                 subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", str(pid)],
@@ -252,12 +271,12 @@ def cmd_stop():
                     stderr=subprocess.DEVNULL,
                     check=False
                 )
-                print(f"[OK] Stopped {pname} service (PID {pid})")
+                print(f"[OK] Safely stopped {pname} service (PID {pid})")
                 stopped_count += 1
             except Exception as e:
                 print(f"[WARNING] Could not terminate PID {pid}: {e}")
         elif pname:
-            print(f"[SKIP] PID {pid} is '{pname}', not a recognized AI Business Architect service.")
+            print(f"[SKIP] PID {pid} is '{pname}', unverified ownership. Preserving process.")
 
     # Clean up PID file
     if PID_FILE.exists():

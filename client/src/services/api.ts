@@ -3,10 +3,12 @@ import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, Copilo
 let csrfTokenCache = '';
 
 export function getCsrfToken(): string {
-  if (csrfTokenCache) return csrfTokenCache;
-  const match = document.cookie.match(new RegExp('(^|;\\s*)aba_csrf=([^;]+)'));
-  if (match) {
-    csrfTokenCache = decodeURIComponent(match[2]);
+  if (typeof document !== 'undefined' && document.cookie) {
+    const match = document.cookie.match(/(?:^|;\s*)aba_csrf=([^;]+)/);
+    if (match) {
+      csrfTokenCache = decodeURIComponent(match[1]);
+      return csrfTokenCache;
+    }
   }
   return csrfTokenCache;
 }
@@ -15,7 +17,15 @@ export function setCsrfToken(token: string) {
   csrfTokenCache = token;
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export function clearCsrfToken() {
+  csrfTokenCache = '';
+}
+
+interface RequestOptions extends RequestInit {
+  _isCsrfRetry?: boolean;
+}
+
+async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const headers = new Headers(options.headers || {});
 
@@ -25,8 +35,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   // Inject CSRF token on mutating requests
   const method = (options.method || 'GET').toUpperCase();
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const token = getCsrfToken();
+  const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+
+  if (isMutating) {
+    let token = getCsrfToken();
+    if (!token && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register') && !endpoint.includes('/auth/me')) {
+      try {
+        const authMeUrl = endpoint.startsWith('/api/admin') ? '/api/admin/auth/me' : '/api/auth/me';
+        const meRes = await fetch(authMeUrl, { credentials: 'include' });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.csrf_token) {
+            setCsrfToken(meData.csrf_token);
+            token = meData.csrf_token;
+          }
+        }
+      } catch {
+        // Fallback to whatever token is available
+      }
+    }
     if (token) {
       headers.set('X-CSRF-Token', token);
     }
@@ -54,13 +81,54 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (response.status === 401) {
     // Session expired or unauthenticated
+    clearCsrfToken();
     if (!endpoint.includes('/auth/me')) {
       window.dispatchEvent(new CustomEvent('auth:expired'));
     }
   }
 
+  // Bounded safe retry on CSRF token mismatch
+  if (response.status === 403 && !options._isCsrfRetry) {
+    let errorDetail = '';
+    try {
+      const errClone = response.clone();
+      const errJson = await errClone.json();
+      errorDetail = (errJson.detail || errJson.message || '').toString();
+    } catch {
+      try {
+        const errClone = response.clone();
+        errorDetail = await errClone.text();
+      } catch {
+        // ignore
+      }
+    }
+
+    if (errorDetail.toLowerCase().includes('csrf')) {
+      clearCsrfToken();
+      const authMeUrl = endpoint.startsWith('/api/admin') ? '/api/admin/auth/me' : '/api/auth/me';
+      try {
+        const meRes = await fetch(authMeUrl, { credentials: 'include' });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.csrf_token) {
+            setCsrfToken(meData.csrf_token);
+            const retryHeaders = new Headers(options.headers || {});
+            retryHeaders.set('X-CSRF-Token', meData.csrf_token);
+            return await request<T>(endpoint, {
+              ...options,
+              headers: retryHeaders,
+              _isCsrfRetry: true
+            });
+          }
+        }
+      } catch {
+        // Fall through to standard error throw
+      }
+    }
+  }
+
   if (!response.ok) {
-    let errorDetail = 'An unexpected error occurred';
+    let errorDetail: any = 'An unexpected error occurred';
     try {
       const errJson = await response.json();
       errorDetail = errJson.detail || errJson.message || JSON.stringify(errJson);
@@ -70,6 +138,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const err = new Error(typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail));
     (err as any).status = response.status;
     (err as any).data = errorDetail;
+    if (typeof errorDetail === 'string' && errorDetail.toLowerCase().includes('csrf')) {
+      (err as any).isCsrfError = true;
+    }
     throw err;
   }
 
@@ -146,11 +217,20 @@ export const api = {
         body: JSON.stringify({ instruction })
       }),
 
-    resolveConflict: (projectId: string, moduleType: string, replaceVersionId: string, newData: any, newVersionName?: string, changeSummary?: string): Promise<ModuleDetail> =>
+    resolveConflict: (
+      projectId: string,
+      moduleType: string,
+      replaceVersionId: string,
+      instruction?: string,
+      newData?: any,
+      newVersionName?: string,
+      changeSummary?: string
+    ): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}/resolve-conflict`, {
         method: 'POST',
         body: JSON.stringify({
           replace_version_id: replaceVersionId,
+          instruction: instruction,
           new_data: newData,
           new_version_name: newVersionName,
           change_summary: changeSummary
@@ -238,15 +318,23 @@ export const api = {
 
   admin: {
     auth: {
-      login: (username: string, password: string) =>
-        request<{ user: any; csrf_token: string; permissions: string[] }>('/api/admin/auth/login', {
+      login: async (username: string, password: string) => {
+        const res = await request<{ user: any; csrf_token: string; permissions: string[] }>('/api/admin/auth/login', {
           method: 'POST',
           body: JSON.stringify({ username, password })
-        }),
-      logout: () =>
-        request('/api/admin/auth/logout', { method: 'POST' }),
-      getMe: () =>
-        request<{ user: any; csrf_token: string; permissions: string[] }>('/api/admin/auth/me'),
+        });
+        if (res.csrf_token) setCsrfToken(res.csrf_token);
+        return res;
+      },
+      logout: async () => {
+        await request('/api/admin/auth/logout', { method: 'POST' });
+        clearCsrfToken();
+      },
+      getMe: async () => {
+        const res = await request<{ user: any; csrf_token: string; permissions: string[] }>('/api/admin/auth/me');
+        if (res.csrf_token) setCsrfToken(res.csrf_token);
+        return res;
+      },
       changePassword: (data: { current_password: string; new_password: string; confirm_new_password: string }) =>
         request('/api/admin/auth/change-password', {
           method: 'POST',

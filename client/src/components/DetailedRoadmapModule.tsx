@@ -1,18 +1,29 @@
 import React from 'react';
-import { Project, RoadmapTask } from '../types';
+import { Project, RoadmapTask, ModuleDetail } from '../types';
+import { VersionToolbar } from './VersionToolbar';
 import { ListTodo, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 
 interface Props {
   project: Project;
+  moduleDetail?: ModuleDetail | null;
   tasks: RoadmapTask[];
   onUpdateStatus: (taskId: string, status: string) => Promise<void>;
+  onRenameVersion?: (newName: string) => Promise<void>;
+  onDeleteVersion?: (versionId: string) => Promise<void>;
+  onRestoreVersion?: (versionId: string) => Promise<void>;
+  onExportPdf?: () => void;
   isLoading: boolean;
 }
 
 export const DetailedRoadmapModule: React.FC<Props> = ({
   project,
+  moduleDetail,
   tasks,
   onUpdateStatus,
+  onRenameVersion,
+  onDeleteVersion,
+  onRestoreVersion,
+  onExportPdf,
   isLoading
 }) => {
   // Dynamically group tasks by Month periods based on start dates
@@ -45,6 +56,20 @@ export const DetailedRoadmapModule: React.FC<Props> = ({
             <p>Chronological delivery breakdown grouped by execution intervals</p>
           </div>
         </div>
+
+        {onRenameVersion && onDeleteVersion && onRestoreVersion && onExportPdf && (
+          <VersionToolbar
+            moduleType="detailed_roadmap"
+            moduleTitle="Detailed Roadmap"
+            activeVersionName={moduleDetail?.active_version_name}
+            activeVersionNumber={moduleDetail?.active_version_number}
+            versions={moduleDetail?.versions || []}
+            onRename={onRenameVersion}
+            onDelete={onDeleteVersion}
+            onRestore={onRestoreVersion}
+            onExportPdf={onExportPdf}
+          />
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -104,12 +129,12 @@ export const DetailedRoadmapModule: React.FC<Props> = ({
                       <span style={{ fontSize: 11, color: '#94a3b8' }}>Phase: {t.phase}</span>
                       <select
                         className="status-select"
-                        value={t.status}
+                        value={t.status === 'In Progress' ? 'Ongoing' : t.status}
                         onChange={(e) => onUpdateStatus(t.id, e.target.value)}
                         disabled={isLoading}
                       >
                         <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
+                        <option value="Ongoing">Ongoing</option>
                         <option value="Finished">Finished</option>
                       </select>
                     </div>

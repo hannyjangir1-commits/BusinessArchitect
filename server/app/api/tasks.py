@@ -72,6 +72,85 @@ def get_roadmap_summary(
         overall_progress=overall_progress
     )
 
+from datetime import datetime
+
+VALID_PRIORITIES = {"Critical", "High", "Medium", "Low"}
+VALID_STATUSES = {"Pending", "Ongoing", "In Progress", "Finished"}
+
+def _validate_dates(start_date: str, end_date: str):
+    try:
+        s = datetime.strptime(start_date, "%Y-%m-%d").date()
+        e = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Expected YYYY-MM-DD."
+        )
+    if e < s:
+        raise HTTPException(
+            status_code=400,
+            detail=f"End date ({end_date}) cannot be earlier than start date ({start_date})."
+        )
+
+def _validate_task_dependencies(
+    db: Session,
+    project_id: str,
+    task_code: str,
+    dependencies: List[str],
+    current_task_id: Optional[str] = None
+):
+    if task_code in dependencies:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Self-dependency error: task {task_code} cannot depend on itself."
+        )
+
+    # Get all project tasks
+    all_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project_id).all()
+    code_set = {t.task_code for t in all_tasks if t.id != current_task_id}
+    code_set.add(task_code)
+
+    # Check non-existent dependencies
+    for dep in dependencies:
+        if dep not in code_set:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dependency reference '{dep}' does not exist in this project."
+            )
+
+    # Build dependency graph to detect circular chains
+    graph: dict = {}
+    for t in all_tasks:
+        if t.id == current_task_id:
+            graph[task_code] = dependencies
+        else:
+            graph[t.task_code] = t.dependencies or []
+    if task_code not in graph:
+        graph[task_code] = dependencies
+
+    visited: dict = {}  # 0 = unvisited, 1 = visiting, 2 = visited
+    cycle_chain: list = []
+
+    def dfs(node: str, path: list) -> bool:
+        visited[node] = 1
+        for neighbor in graph.get(node, []):
+            if visited.get(neighbor) == 1:
+                cycle_chain.extend(path + [node, neighbor])
+                return True
+            if visited.get(neighbor, 0) == 0:
+                if dfs(neighbor, path + [node]):
+                    return True
+        visited[node] = 2
+        return False
+
+    for node in graph:
+        if visited.get(node, 0) == 0:
+            if dfs(node, []):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Circular dependency detected: {' -> '.join(cycle_chain)}"
+                )
+
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_csrf)])
 def create_task(
     req: TaskCreateRequest,
@@ -83,6 +162,36 @@ def create_task(
     if not task_code:
         count = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).count()
         task_code = f"TSK-{str(count + 1).zfill(2)}"
+    else:
+        # Check duplicate task code in the same project
+        dup = db.query(RoadmapTask).filter(
+            RoadmapTask.project_id == project.id,
+            RoadmapTask.task_code == task_code
+        ).first()
+        if dup:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Task code '{task_code}' already exists in this project."
+            )
+
+    # Validate priority & status
+    if req.priority and req.priority not in VALID_PRIORITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid priority '{req.priority}'. Allowed: {', '.join(VALID_PRIORITIES)}"
+        )
+    status_val = "Ongoing" if req.status == "In Progress" else (req.status or "Pending")
+    if status_val not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{req.status}'. Allowed: Pending, Ongoing, Finished"
+        )
+
+    # Validate dates
+    _validate_dates(req.start_date, req.end_date)
+
+    # Validate dependencies & cycle detection
+    _validate_task_dependencies(db, project.id, task_code, req.dependencies or [])
 
     task = RoadmapTask(
         project_id=project.id,
@@ -94,8 +203,8 @@ def create_task(
         start_date=req.start_date,
         end_date=req.end_date,
         priority=req.priority,
-        status=req.status,
-        dependencies=req.dependencies,
+        status=status_val,
+        dependencies=req.dependencies or [],
         deliverables=req.deliverables,
         effort=req.effort
     )
@@ -120,8 +229,48 @@ def update_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    if req.task_code is not None:
-        task.task_code = req.task_code
+    new_task_code = req.task_code or task.task_code
+    if req.task_code and req.task_code != task.task_code:
+        dup = db.query(RoadmapTask).filter(
+            RoadmapTask.project_id == project.id,
+            RoadmapTask.task_code == req.task_code,
+            RoadmapTask.id != task_id
+        ).first()
+        if dup:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Task code '{req.task_code}' already exists in this project."
+            )
+
+    new_start = req.start_date or task.start_date
+    new_end = req.end_date or task.end_date
+    _validate_dates(new_start, new_end)
+
+    if req.priority:
+        if req.priority not in VALID_PRIORITIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid priority '{req.priority}'. Allowed: {', '.join(VALID_PRIORITIES)}"
+            )
+        task.priority = req.priority
+
+    if req.status:
+        status_val = "Ongoing" if req.status == "In Progress" else req.status
+        if status_val not in VALID_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status '{req.status}'. Allowed: Pending, Ongoing, Finished"
+            )
+        task.status = status_val
+
+    new_deps = req.dependencies if req.dependencies is not None else (task.dependencies or [])
+    _validate_task_dependencies(db, project.id, new_task_code, new_deps, current_task_id=task.id)
+
+    task.task_code = new_task_code
+    task.start_date = new_start
+    task.end_date = new_end
+    task.dependencies = new_deps
+
     if req.phase is not None:
         task.phase = req.phase
     if req.title is not None:
@@ -130,16 +279,6 @@ def update_task(
         task.description = req.description
     if req.timeline is not None:
         task.timeline = req.timeline
-    if req.start_date is not None:
-        task.start_date = req.start_date
-    if req.end_date is not None:
-        task.end_date = req.end_date
-    if req.priority is not None:
-        task.priority = req.priority
-    if req.status is not None:
-        task.status = req.status
-    if req.dependencies is not None:
-        task.dependencies = req.dependencies
     if req.deliverables is not None:
         task.deliverables = req.deliverables
     if req.effort is not None:

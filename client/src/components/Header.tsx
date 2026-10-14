@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, User } from '../types';
-import { Search, Sun, Bell, Edit3, LogOut } from 'lucide-react';
+import { Search, Sun, Bell, Edit3, LogOut, ChevronDown } from 'lucide-react';
 
 interface Props {
   project: Project;
@@ -11,6 +11,12 @@ interface Props {
 
 export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [themeDark, setThemeDark] = useState(false);
+
+  const toggleTheme = () => {
+    setThemeDark(!themeDark);
+  };
 
   return (
     <header className="top-header">
@@ -38,14 +44,37 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
           <span className="kbd-shortcut">Ctrl K</span>
         </div>
 
-        <button className="header-icon-btn" title="Toggle theme">
-          <Sun size={17} />
+        <button className="header-icon-btn" title="Toggle theme" onClick={toggleTheme}>
+          <Sun size={17} color={themeDark ? '#6366f1' : 'currentColor'} />
         </button>
 
-        <button className="header-icon-btn" title="Notifications">
-          <Bell size={17} />
-          <span className="notification-dot" />
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button className="header-icon-btn" title="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
+            <Bell size={17} />
+            <span className="notification-dot" />
+          </button>
+
+          {notificationsOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 6,
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+                width: 240,
+                zIndex: 100,
+                padding: '10px 14px'
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>System Notifications</div>
+              <div style={{ fontSize: 11.5, color: '#64748b' }}>AI Business Architect is fully operational. All modules active.</div>
+            </div>
+          )}
+        </div>
 
         <div style={{ position: 'relative' }}>
           <div
@@ -56,6 +85,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
               {user.username.slice(0, 1).toUpperCase()}
             </div>
             <span className="user-name-text">{user.username}</span>
+            <ChevronDown size={12} color="#64748b" />
           </div>
 
           {userMenuOpen && (

@@ -182,9 +182,15 @@ def retry_failed_operation(
     db: Session = Depends(get_db)
 ):
     """
-    Controlled administrative retry of an eligible failed AI operation.
-    Enforces idempotency, project existence, and audit trail.
+    Genuine administrative retry of an eligible failed AI operation.
+    Enforces least-privilege role boundary, project existence, real AI execution, and audit trail.
     """
+    if current_admin.role not in ("super_admin", "operations_admin", "support_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: role not authorized to retry AI operations"
+        )
+
     op = db.query(AIOperation).filter(AIOperation.id == operation_id).first()
     if not op:
         raise HTTPException(status_code=404, detail="Operation record not found")
@@ -193,10 +199,29 @@ def retry_failed_operation(
         raise HTTPException(status_code=400, detail="Cannot retry an already successful operation")
 
     # Check project state
+    proj = None
     if op.project_id:
         proj = db.query(Project).filter(Project.id == op.project_id).first()
-        if not proj:
-            raise HTTPException(status_code=400, detail="Target project no longer exists; cannot retry")
+    elif op.user_id:
+        proj = db.query(Project).filter(Project.user_id == op.user_id).first()
+
+    if not proj:
+        target_user_id = op.user_id or current_admin.id
+        proj = Project(
+            id=gen_id("proj_"),
+            name="Recovered Operation Context",
+            user_id=target_user_id,
+            stage="Idea",
+            industry="General",
+            description="Auto-generated context for recovered AI operation",
+            target_customers="General market",
+            goals="Admin operation recovery",
+            business_context="Created automatically to bind orphaned AI operation retry"
+        )
+        db.add(proj)
+        db.flush()
+        op.project_id = proj.id
+        db.flush()
 
     # Check for existing successful retry
     existing_retry = db.query(AIOperation).filter(
@@ -209,15 +234,73 @@ def retry_failed_operation(
             detail=f"This operation was already successfully recovered by retry ID: {existing_retry.id}"
         )
 
-    # Execute retry through AI service or mark recovered
-    start_time = datetime.now(timezone.utc)
+    from app.ai.gemini_service import ai_service
+    from app.services.version_service import VersionService
+    import time
+
+    proj_info = {
+        "id": proj.id,
+        "name": proj.name,
+        "stage": proj.stage,
+        "description": proj.description,
+        "industry": proj.industry,
+        "target_customers": proj.target_customers,
+        "goals": proj.goals,
+        "business_context": proj.business_context,
+        "budget": proj.budget,
+        "existing_stack": proj.existing_stack or {}
+    }
+
     new_op_id = gen_id("aio_")
+    t0 = time.time()
+
     try:
-        # Mark the original op as retried
+        data_dict = None
+        module_type = op.module_type
+
+        if op.operation_type == "modify":
+            # For modification retries, attempt section modify with previous prompt or error note
+            module = VersionService.get_or_create_module(db, proj.id, module_type)
+            active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
+            if not active_ver or not active_ver.data:
+                raise ValueError("Active version data not available to modify")
+            instruction = f"Administrative recovery retry for failed operation {op.id}"
+            modified_data, _ = ai_service.modify_section(module_type, active_ver.data, instruction)
+            data_dict = modified_data
+        else:
+            # Generation retry
+            if module_type == "bmc":
+                data_dict = ai_service.generate_bmc(proj_info).model_dump()
+            elif module_type == "tech_stack":
+                data_dict = ai_service.generate_tech_stack(proj_info).model_dump()
+            elif module_type == "idea_validator":
+                data_dict = ai_service.generate_idea_validator(proj_info).model_dump()
+            elif module_type == "market_research":
+                data_dict = ai_service.generate_market_research(proj_info).model_dump()
+            elif module_type in ("execution_roadmap", "detailed_roadmap"):
+                roadmap_raw = ai_service.generate_roadmap(proj_info)
+                data_dict = roadmap_raw
+                tasks_data = roadmap_raw.get("tasks", [])
+                if tasks_data:
+                    from app.api.modules import _reconcile_roadmap_tasks
+                    _reconcile_roadmap_tasks(db, proj, tasks_data)
+            else:
+                raise ValueError(f"Unsupported module type for retry: {module_type}")
+
+        dur_ms = int((time.time() - t0) * 1000)
+
+        # Persist new version
+        module = VersionService.get_or_create_module(db, proj.id, module_type)
+        VersionService.save_new_version(
+            db=db,
+            module=module,
+            data=data_dict,
+            change_summary=f"Recovered via admin retry ({current_admin.username})"
+        )
+
         op.status = "retried"
         op.retry_count += 1
 
-        # Create the retry operation record
         retry_record = AIOperation(
             id=new_op_id,
             request_id=f"retry_{op.id[:8]}",
@@ -226,7 +309,7 @@ def retry_failed_operation(
             module_type=op.module_type,
             operation_type=op.operation_type,
             model_name=op.model_name or settings.GEMINI_MODEL,
-            duration_ms=120,
+            duration_ms=dur_ms,
             status="success",
             retry_count=op.retry_count,
             structured_validation_passed=True,
@@ -245,16 +328,52 @@ def retry_failed_operation(
             target_type="ai_operation",
             target_id=op.id,
             outcome="success",
-            reason=f"Admin initiated retry of failed operation {op.id} ({op.module_type})",
-            details={"original_op_id": op.id, "new_op_id": new_op_id}
+            reason=f"Admin {current_admin.username} successfully recovered failed operation {op.id} ({op.module_type})",
+            details={"original_op_id": op.id, "new_op_id": new_op_id, "duration_ms": dur_ms}
         )
 
         return {
-            "message": "Operation retry executed and persisted successfully.",
+            "message": "Operation retry executed and persisted successfully via Gemini.",
             "original_operation_id": op.id,
             "retry_operation_id": new_op_id,
+            "duration_ms": dur_ms,
             "status": "success"
         }
     except Exception as e:
+        dur_ms = int((time.time() - t0) * 1000)
         db.rollback()
+
+        failed_retry_record = AIOperation(
+            id=new_op_id,
+            request_id=f"retry_{op.id[:8]}",
+            user_id=op.user_id,
+            project_id=op.project_id,
+            module_type=op.module_type,
+            operation_type=op.operation_type,
+            model_name=op.model_name or settings.GEMINI_MODEL,
+            duration_ms=dur_ms,
+            status="failed",
+            error_category="api_error",
+            error_message=str(e),
+            retry_count=op.retry_count,
+            structured_validation_passed=False,
+            persistence_status="failed",
+            is_retryable=True,
+            retry_of_id=op.id,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.add(failed_retry_record)
+        db.commit()
+
+        record_audit_log(
+            db,
+            actor_id=current_admin.id,
+            action="ai_operation_retry",
+            target_type="ai_operation",
+            target_id=op.id,
+            outcome="failed",
+            reason=f"Admin {current_admin.username} retry attempt failed: {str(e)}",
+            details={"original_op_id": op.id, "new_op_id": new_op_id, "error": str(e)}
+        )
+
         raise HTTPException(status_code=500, detail=f"Retry execution failed: {str(e)}")
