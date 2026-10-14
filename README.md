@@ -210,3 +210,61 @@ The repository includes a production-ready multi-stage `Dockerfile` and `render.
    - `APP_ENV`: `production`
    - `COOKIE_SECURE`: `true`
 6. Click **Deploy Web Service**.
+
+---
+
+## Level 3 Enterprise Admin Control Center
+
+The application features a production-ready, data-backed **Enterprise Admin Control Center** accessible at `/admin/login` and `/admin`.
+
+### 1. Initial Bootstrap Administrator Provisioning
+The platform supports secure, idempotent server-side administrator initialization via environment variables:
+- `ADMIN_BOOTSTRAP_ENABLED=true`
+- `ADMIN_BOOTSTRAP_USERNAME=HannyAdmin`
+- `ADMIN_BOOTSTRAP_PASSWORD=Hanny@BusinessArchitect`
+
+**Security Constraints**:
+1. Plaintext credentials are **never committed** to git, frontend builds, or database migrations.
+2. The initial administrator is initialized idempotently on application startup: if the administrator record already exists, its password is **not overwritten or reset**.
+3. Passwords are encrypted exclusively with **Argon2id** (RFC 9106 parameters).
+4. Plaintext credentials or hashes are never returned by any API or exposed to logs.
+5. Ordinary users (`role="user"`) and anonymous callers are strictly blocked from all `/api/admin/*` endpoints and `/admin/*` frontend views with HTTP 403/401.
+
+### 2. Mandatory Credential Rotation Procedure
+Because bootstrap credentials are used for initial provisioning, administrators must rotate credentials before public exposure:
+1. Log into `/admin/login` using the bootstrap credentials.
+2. Navigate to **Administration** → **Admin Account** (`/admin/account`).
+3. Click **Rotate Administrator Password**.
+4. Enter current password and new password meeting the complexity policy (minimum 8 characters with letters and numbers).
+5. Upon confirmation, all other active sessions across browsers are automatically terminated, and the event is recorded in the server-side audit trail.
+
+### 3. Enterprise Admin Features & Navigation Groups
+
+| Group | Module | Route | Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Overview** | **Admin Dashboard** | `/admin` | Real KPI cards (Users, Projects, AI, Infra, Security), dynamic time filters (`24h`, `7d`, `30d`, `90d`), SVG trend series, and operational alerts ordered by severity. |
+| **Application** | **User Directory** | `/admin/users` | Server-side pagination, search, status filters (`all`, `active`, `suspended`), account suspension/reactivation with reason, session revocation, and safe deletion. |
+| | **Projects Console** | `/admin/projects` | Search, stage filtering, project metadata, module usage summaries, owner transfer workflow, and safe transactional deletion. |
+| **AI Operations** | **Gemini Operations** | `/admin/ai-operations` | Filter operations by module/status, p50/p95 latency metrics, sanitized error classification, and idempotent retry. |
+| | **AI Quality & Reliability** | `/admin/ai-quality` | Output validation tracking (BMC 9 blocks, Tech Stack, Roadmap dependencies, version limits). |
+| **Analytics** | **Product Analytics** | `/admin/analytics` | 6-step conversion funnel (Register → Project → BMC → Stack → Roadmap → Export) and module adoption rates. |
+| | **Reports & Exports** | `/admin/reports` | Spreadsheet formula-sanitized CSV exports (`=`, `+`, `-`, `@` sanitization) and ReportLab PDF executive summaries. |
+| **Infrastructure** | **System Health** | `/admin/system-health` | Subsystem liveness/readiness, DB latency ms, Alembic revision, and sanitized log explorer. |
+| | **Database & Migrations** | `/admin/database` | Engine diagnostics, connection pool stats, core table record counts, and migration status. |
+| | **Data Integrity Scan** | `/admin/data-integrity` | Invariant scan (orphans, cyclic tasks, >5 versions) and atomic transactional repair. |
+| | **Maintenance Center** | `/admin/maintenance` | Global maintenance toggle with reason and expired session database housekeeping. |
+| **Security** | **Security Center** | `/admin/security` | Real-time security incident explorer, severity filters, active session listing, and session revocation. |
+| | **Audit Trail** | `/admin/audit-logs` | Server-side immutable audit log of administrative actions, identity updates, and setting mutations. |
+| **Administration**| **Configuration Center**| `/admin/configuration` | Validated runtime parameters (AI timeouts, retry count, alert thresholds) and masked deployment secret verification. |
+| | **Admin Account** | `/admin/account` | Administrator identity profile, Argon2id security posture, password rotation, and session management. |
+
+### 4. Running Tests
+```bash
+# Backend pytest suite (42 unit, integration, and security tests)
+cd server
+pytest -v
+
+# Frontend production build verification
+cd client
+npm run build
+```

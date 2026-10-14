@@ -29,6 +29,11 @@ class Settings:
     COOKIE_SAMESITE: str = "lax"
     SESSION_EXPIRE_DAYS: int = 7
 
+    # Admin Provisioning
+    INITIAL_ADMIN_USERNAME: str = os.getenv("INITIAL_ADMIN_USERNAME", "HannyAdmin")
+    INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD", "Hanny@BusinessArchitect")
+    INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL", "admin@businessarchitect.internal")
+
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./dev_database.db")
 

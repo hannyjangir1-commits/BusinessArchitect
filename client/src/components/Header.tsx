@@ -77,6 +77,30 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
               <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontSize: 11, color: '#64748b' }}>
                 Signed in as <b>{user.username}</b>
               </div>
+              {user.role && user.role !== 'user' && (
+                <button
+                  onClick={() => {
+                    window.history.pushState({}, '', '/admin');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#6366f1',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                  }}
+                >
+                  <Search size={14} /> Admin Center
+                </button>
+              )}
               <button
                 onClick={onLogout}
                 style={{

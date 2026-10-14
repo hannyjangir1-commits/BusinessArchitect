@@ -234,5 +234,157 @@ export const api = {
       link.click();
       document.body.removeChild(link);
     }
+  },
+
+  admin: {
+    auth: {
+      login: (username: string, password: string) =>
+        request<{ user: any; csrf_token: string; permissions: string[] }>('/api/admin/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username, password })
+        }),
+      logout: () =>
+        request('/api/admin/auth/logout', { method: 'POST' }),
+      getMe: () =>
+        request<{ user: any; csrf_token: string; permissions: string[] }>('/api/admin/auth/me'),
+      changePassword: (data: { current_password: string; new_password: string; confirm_new_password: string }) =>
+        request('/api/admin/auth/change-password', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        })
+    },
+    dashboard: {
+      getStats: (params: Record<string, string> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/dashboard/stats${qs ? `?${qs}` : ''}`);
+      },
+      getTrends: (params: Record<string, string> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/dashboard/trends${qs ? `?${qs}` : ''}`);
+      }
+    },
+    users: {
+      list: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/users${qs ? `?${qs}` : ''}`);
+      },
+      get: (userId: string) =>
+        request<any>(`/api/admin/users/${userId}`),
+      suspend: (userId: string, reason: string) =>
+        request<any>(`/api/admin/users/${userId}/suspend`, {
+          method: 'POST',
+          body: JSON.stringify({ reason })
+        }),
+      reactivate: (userId: string) =>
+        request<any>(`/api/admin/users/${userId}/reactivate`, { method: 'POST' }),
+      revokeSessions: (userId: string) =>
+        request<any>(`/api/admin/users/${userId}/revoke-sessions`, { method: 'POST' }),
+      delete: (userId: string, confirmUsername: string) =>
+        request<any>(`/api/admin/users/${userId}?confirm_username=${encodeURIComponent(confirmUsername)}`, {
+          method: 'DELETE'
+        })
+    },
+    projects: {
+      list: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/projects${qs ? `?${qs}` : ''}`);
+      },
+      get: (projectId: string) =>
+        request<any>(`/api/admin/projects/${projectId}`),
+      transfer: (projectId: string, newOwnerUsername: string) =>
+        request<any>(`/api/admin/projects/${projectId}/transfer`, {
+          method: 'POST',
+          body: JSON.stringify({ new_owner_username: newOwnerUsername })
+        }),
+      delete: (projectId: string, confirmProjectName: string) =>
+        request<any>(`/api/admin/projects/${projectId}?confirm_project_name=${encodeURIComponent(confirmProjectName)}`, {
+          method: 'DELETE'
+        })
+    },
+    aiOps: {
+      list: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/ai-operations${qs ? `?${qs}` : ''}`);
+      },
+      getStats: () =>
+        request<any>('/api/admin/ai-operations/stats'),
+      getQuality: () =>
+        request<any>('/api/admin/ai-operations/quality'),
+      retry: (operationId: string) =>
+        request<any>(`/api/admin/ai-operations/${operationId}/retry`, { method: 'POST' })
+    },
+    analytics: {
+      getOverview: () =>
+        request<any>('/api/admin/analytics/overview'),
+      listEvents: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/analytics/events${qs ? `?${qs}` : ''}`);
+      }
+    },
+    system: {
+      getHealth: () =>
+        request<any>('/api/admin/system/health'),
+      getDatabase: () =>
+        request<any>('/api/admin/system/database'),
+      getLogs: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/system/logs${qs ? `?${qs}` : ''}`);
+      }
+    },
+    integrity: {
+      scan: () =>
+        request<any>('/api/admin/integrity/scan'),
+      repair: (action: string, confirmation = true) =>
+        request<any>('/api/admin/integrity/repair', {
+          method: 'POST',
+          body: JSON.stringify({ action, confirmation })
+        })
+    },
+    security: {
+      listEvents: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/security/events${qs ? `?${qs}` : ''}`);
+      },
+      listSessions: () =>
+        request<any>('/api/admin/security/sessions'),
+      revokeSession: (sessionId: string) =>
+        request<any>(`/api/admin/security/sessions/${sessionId}/revoke`, { method: 'POST' }),
+      revokeAllSessions: () =>
+        request<any>('/api/admin/security/sessions/revoke-all', { method: 'POST' })
+    },
+    audit: {
+      list: (params: Record<string, any> = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request<any>(`/api/admin/audit-logs${qs ? `?${qs}` : ''}`);
+      }
+    },
+    config: {
+      get: () =>
+        request<any>('/api/admin/configuration'),
+      update: (settings: Record<string, string>) =>
+        request<any>('/api/admin/configuration', {
+          method: 'POST',
+          body: JSON.stringify({ settings })
+        })
+    },
+    maintenance: {
+      getStatus: () =>
+        request<any>('/api/admin/maintenance/status'),
+      toggle: (enabled: boolean, reason?: string) =>
+        request<any>('/api/admin/maintenance/toggle', {
+          method: 'POST',
+          body: JSON.stringify({ enabled, reason })
+        }),
+      pruneSessions: () =>
+        request<any>('/api/admin/maintenance/prune-sessions', { method: 'POST' })
+    },
+    reports: {
+      downloadCsv: (reportType: string) => {
+        window.open(`/api/admin/reports/export-csv?report_type=${reportType}`, '_blank');
+      },
+      downloadPdf: () => {
+        window.open('/api/admin/reports/summary-pdf', '_blank');
+      }
+    }
   }
 };

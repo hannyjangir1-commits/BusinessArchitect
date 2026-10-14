@@ -4,6 +4,9 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  role?: string;
+  is_suspended?: boolean;
+  last_active_at?: string;
   created_at: string;
 }
 

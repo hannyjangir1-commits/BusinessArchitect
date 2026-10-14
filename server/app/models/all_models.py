@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Text, Boolean, Integer, DateTime, ForeignKey, JSON
+    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -16,12 +16,18 @@ class User(Base):
     username = Column(String(64), unique=True, nullable=False, index=True)
     email = Column(String(128), unique=True, nullable=False, index=True)
     hashed_password = Column(String(256), nullable=False)
+    role = Column(String(32), default="user", nullable=False)  # "user", "super_admin", "operations_admin", "support_admin", "security_admin", "auditor"
+    is_suspended = Column(Boolean, default=False, nullable=False)
+    suspended_at = Column(DateTime, nullable=True)
+    suspension_reason = Column(Text, nullable=True)
+    last_active_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     terms_accepted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    audit_logs = relationship("AuditLog", back_populates="actor")
 
 class Session(Base):
     __tablename__ = "sessions"
@@ -117,3 +123,80 @@ class CopilotMessage(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     project = relationship("Project", back_populates="copilot_messages")
+
+class AIOperation(Base):
+    __tablename__ = "ai_operations"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("aio_"))
+    request_id = Column(String(64), nullable=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    module_type = Column(String(64), nullable=False, index=True)  # bmc, tech_stack, idea_validator, market_research, execution_roadmap, copilot
+    operation_type = Column(String(64), nullable=False)           # generate, modify, chat
+    model_name = Column(String(64), nullable=False)
+    duration_ms = Column(Integer, nullable=False)
+    status = Column(String(32), nullable=False, index=True)       # success, failed, timeout, retried
+    retry_count = Column(Integer, default=0, nullable=False)
+    error_category = Column(String(64), nullable=True, index=True) # quota, timeout, parse_error, network, validation, api_error
+    error_message = Column(Text, nullable=True)
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    structured_validation_passed = Column(Boolean, default=True, nullable=False)
+    persistence_status = Column(String(32), default="persisted", nullable=False)  # persisted, failed, unattempted
+    is_retryable = Column(Boolean, default=False, nullable=False)
+    retry_of_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("evt_"))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    event_name = Column(String(64), nullable=False, index=True)
+    event_category = Column(String(64), default="application", nullable=False)
+    metadata_json = Column(JSON, nullable=True, default=dict)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+
+class SecurityEvent(Base):
+    __tablename__ = "security_events"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("sec_"))
+    event_type = Column(String(64), nullable=False, index=True)  # login_success, login_failure, unauthorized_access, csrf_rejected, session_revocation, password_change, account_suspension
+    severity = Column(String(32), default="info", nullable=False)  # info, low, medium, high, critical
+    actor_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    target_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    ip_address = Column(String(64), nullable=True)
+    user_agent = Column(String(256), nullable=True)
+    request_path = Column(String(256), nullable=True)
+    details = Column(JSON, nullable=True, default=dict)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("aud_"))
+    actor_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    action = Column(String(64), nullable=False, index=True)  # user_suspend, user_reactivate, user_delete, config_update, system_repair, ai_retry, maintenance_toggle, session_revoked
+    target_type = Column(String(64), nullable=False)         # user, project, system_setting, ai_operation, data_repair, session
+    target_id = Column(String(64), nullable=True)
+    outcome = Column(String(32), default="success", nullable=False)  # success, failed, denied
+    reason = Column(Text, nullable=True)
+    details = Column(JSON, nullable=True, default=dict)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+
+    actor = relationship("User", back_populates="audit_logs")
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("set_"))
+    key = Column(String(64), unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=False)
+    value_type = Column(String(32), default="string", nullable=False)  # string, int, float, boolean, json
+    category = Column(String(64), default="general", nullable=False)   # ai, security, maintenance, alerts, retention
+    description = Column(Text, nullable=True)
+    is_secret = Column(Boolean, default=False, nullable=False)
+    updated_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

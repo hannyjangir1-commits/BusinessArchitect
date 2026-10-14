@@ -53,7 +53,68 @@ def get_current_user(
             detail="User not found"
         )
 
+    # Enforce account suspension strictly across all endpoints
+    if getattr(user, "is_suspended", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been suspended. Please contact administrative support."
+        )
+
+    # Update last_active_at timestamp safely
+    try:
+        user.last_active_at = now
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return user
+
+ADMIN_ROLES = {"super_admin", "operations_admin", "support_admin", "security_admin", "auditor"}
+
+def require_admin(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    """Ensure the authenticated user has an authorized administrative role."""
+    if not user.role or user.role not in ADMIN_ROLES:
+        # Record unauthorized access security incident
+        try:
+            from app.models.all_models import SecurityEvent, gen_id
+            ip = request.client.host if request.client else "unknown"
+            sec_event = SecurityEvent(
+                id=gen_id("sec_"),
+                event_type="unauthorized_admin_access",
+                severity="high",
+                actor_id=user.id,
+                target_user_id=None,
+                ip_address=ip,
+                user_agent=request.headers.get("User-Agent", "")[:255],
+                request_path=str(request.url.path)[:255],
+                details={"attempted_role": user.role, "required_roles": list(ADMIN_ROLES)},
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(sec_event)
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: administrative privileges required."
+        )
+    return user
+
+def require_roles(*allowed_roles: str):
+    """Factory dependency to enforce specific administrative roles."""
+    def role_checker(user: User = Depends(require_admin)) -> User:
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: requires one of the following roles: {', '.join(allowed_roles)}"
+            )
+        return user
+    return role_checker
 
 def verify_csrf(
     request: Request,

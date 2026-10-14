@@ -1,7 +1,9 @@
+import time
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.core.config import settings
 from app.models.all_models import Project, ModuleContent, ModuleVersion, RoadmapTask
 from app.schemas.modules import (
     ModuleDetailResponse, VersionItemResponse, VersionRenameRequest,
@@ -11,6 +13,7 @@ from app.services.version_service import VersionService
 from app.services.pdf_service import PDFService
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
+from app.core.telemetry import record_ai_operation, record_analytics_event
 
 router = APIRouter(prefix="/projects/{project_id}/modules", tags=["Modules & Version Control"])
 
@@ -66,6 +69,7 @@ def generate_module(
     """Generates structured content for the specified module using Gemini AI and creates a version."""
     proj_info = _get_project_dict(project)
     module = VersionService.get_or_create_module(db, project.id, module_type)
+    t0 = time.time()
 
     try:
         if module_type == "bmc":
@@ -119,6 +123,26 @@ def generate_module(
             change_summary="Initial AI generation via Gemini"
         )
 
+        dur_ms = int((time.time() - t0) * 1000)
+        record_ai_operation(
+            db,
+            user_id=project.user_id,
+            project_id=project.id,
+            module_type=module_type,
+            operation_type="generate",
+            model_name=settings.GEMINI_MODEL,
+            duration_ms=dur_ms,
+            status="success",
+            structured_validation_passed=True,
+            persistence_status="persisted"
+        )
+        record_analytics_event(
+            db,
+            user_id=project.user_id,
+            project_id=project.id,
+            event_name=f"{module_type}_generated"
+        )
+
         versions = VersionService.get_versions(db, module.id)
         return ModuleDetailResponse(
             module_type=module_type,
@@ -132,6 +156,24 @@ def generate_module(
     except HTTPException:
         raise
     except Exception as e:
+        dur_ms = int((time.time() - t0) * 1000)
+        err_msg = str(e)
+        err_cat = "timeout" if "timeout" in err_msg.lower() else ("parse_error" if "json" in err_msg.lower() or "validation" in err_msg.lower() else "api_error")
+        record_ai_operation(
+            db,
+            user_id=project.user_id,
+            project_id=project.id,
+            module_type=module_type,
+            operation_type="generate",
+            model_name=settings.GEMINI_MODEL,
+            duration_ms=dur_ms,
+            status="timeout" if "timeout" in err_msg.lower() else "failed",
+            error_category=err_cat,
+            error_message=err_msg,
+            structured_validation_passed=False,
+            persistence_status="failed",
+            is_retryable=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Gemini generation failed: {str(e)}"
@@ -166,6 +208,7 @@ def modify_module_with_ai(
     if not active_ver:
         raise HTTPException(status_code=404, detail="Active version data not found")
 
+    t0 = time.time()
     try:
         new_data, change_summary = ai_service.modify_section(
             module_type=module_type,
@@ -180,6 +223,26 @@ def modify_module_with_ai(
             change_summary=change_summary
         )
 
+        dur_ms = int((time.time() - t0) * 1000)
+        record_ai_operation(
+            db,
+            user_id=project.user_id,
+            project_id=project.id,
+            module_type=module_type,
+            operation_type="modify",
+            model_name=settings.GEMINI_MODEL,
+            duration_ms=dur_ms,
+            status="success",
+            structured_validation_passed=True,
+            persistence_status="persisted"
+        )
+        record_analytics_event(
+            db,
+            user_id=project.user_id,
+            project_id=project.id,
+            event_name=f"{module_type}_modified"
+        )
+
         versions = VersionService.get_versions(db, module.id)
         return ModuleDetailResponse(
             module_type=module_type,
@@ -192,6 +255,24 @@ def modify_module_with_ai(
     except HTTPException:
         raise
     except Exception as e:
+        dur_ms = int((time.time() - t0) * 1000)
+        err_msg = str(e)
+        err_cat = "timeout" if "timeout" in err_msg.lower() else "api_error"
+        record_ai_operation(
+            db,
+            user_id=project.user_id,
+            project_id=project.id,
+            module_type=module_type,
+            operation_type="modify",
+            model_name=settings.GEMINI_MODEL,
+            duration_ms=dur_ms,
+            status="timeout" if "timeout" in err_msg.lower() else "failed",
+            error_category=err_cat,
+            error_message=err_msg,
+            structured_validation_passed=False,
+            persistence_status="failed",
+            is_retryable=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI modification failed: {str(e)}"

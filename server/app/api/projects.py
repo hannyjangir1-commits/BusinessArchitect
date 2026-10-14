@@ -7,6 +7,7 @@ from app.schemas.project import (
     ProjectCreateRequest, ProjectUpdateRequest, ProjectResponse, ActiveModuleUpdateRequest
 )
 from app.api.deps import get_current_user, get_user_project, verify_csrf
+from app.core.telemetry import record_analytics_event
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -68,6 +69,9 @@ def create_project(
     db.add(project)
     db.commit()
     db.refresh(project)
+
+    record_analytics_event(db, user_id=current_user.id, project_id=project.id, event_name="project_created")
+
     return _format_project_response(project, db)
 
 @router.get("/{project_id}", response_model=ProjectResponse)

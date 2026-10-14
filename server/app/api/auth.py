@@ -7,6 +7,7 @@ from app.core.security import hash_password, verify_password, generate_session_t
 from app.models.all_models import User, Session as DBSession
 from app.schemas.auth import UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse
 from app.api.deps import get_current_user
+from app.core.telemetry import record_analytics_event, record_security_event
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -68,24 +69,49 @@ def register(req: UserRegisterRequest, response: Response, db: Session = Depends
     db.commit()
     db.refresh(user)
 
+    record_analytics_event(db, user_id=user.id, event_name="registration_completed")
+
     csrf_token = _set_auth_cookies(response, session_token)
     return SessionResponse(user=UserResponse.model_validate(user), csrf_token=csrf_token)
 
 @router.post("/login", response_model=SessionResponse)
-def login(req: UserLoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(req: UserLoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     # Support login with either email or username
     user = db.query(User).filter(
         (User.email == req.email_or_username) | (User.username == req.email_or_username)
     ).first()
 
+    ip = request.client.host if request.client else "unknown"
+
     if not user or not verify_password(req.password, user.hashed_password):
+        record_security_event(
+            db,
+            event_type="login_failure",
+            severity="low",
+            ip_address=ip,
+            request_path="/api/auth/login",
+            details={"attempted": req.email_or_username}
+        )
         raise HTTPException(status_code=401, detail="Invalid email/username or password")
+
+    if getattr(user, "is_suspended", False):
+        record_security_event(
+            db,
+            event_type="suspended_user_login_attempt",
+            severity="medium",
+            actor_id=user.id,
+            ip_address=ip,
+            request_path="/api/auth/login"
+        )
+        raise HTTPException(status_code=403, detail="Account has been suspended. Please contact administrative support.")
 
     session_token = generate_session_token()
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.SESSION_EXPIRE_DAYS)
     sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
     db.add(sess)
     db.commit()
+
+    record_analytics_event(db, user_id=user.id, event_name="login_completed")
 
     csrf_token = _set_auth_cookies(response, session_token)
     return SessionResponse(user=UserResponse.model_validate(user), csrf_token=csrf_token)

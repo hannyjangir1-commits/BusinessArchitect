@@ -36,6 +36,8 @@ class UserResponse(BaseModel):
     id: str
     username: str
     email: str
+    role: str = "user"
+    is_suspended: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

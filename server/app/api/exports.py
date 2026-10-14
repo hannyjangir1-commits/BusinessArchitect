@@ -5,6 +5,7 @@ from app.db.session import get_db
 from app.models.all_models import Project, ModuleContent, ModuleVersion, RoadmapTask
 from app.services.pdf_service import PDFService
 from app.api.deps import get_user_project
+from app.core.telemetry import record_analytics_event
 
 router = APIRouter(prefix="/projects/{project_id}/export", tags=["Exports"])
 
@@ -64,6 +65,7 @@ def export_full_project_pdf(
     try:
         pdf_bytes = PDFService.generate_full_project_pdf(proj_dict, modules_data, tasks_list)
         filename = f"{_slugify(project.name)}_enterprise_blueprint.pdf"
+        record_analytics_event(db, user_id=project.user_id, project_id=project.id, event_name="export_pdf")
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

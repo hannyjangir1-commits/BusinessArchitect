@@ -49,6 +49,30 @@ export const DashboardPage: React.FC<Props> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {user.role && user.role !== 'user' && (
+            <button
+              onClick={() => {
+                window.history.pushState({}, '', '/admin');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                backgroundColor: '#ede9fe',
+                border: '1px solid #c4b5fd',
+                borderRadius: 8,
+                color: '#6d28d9',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              <Cpu size={14} /> Admin Center
+            </button>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: '#f1f5f9', borderRadius: 8 }}>
             <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#1e293b', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {user.username.slice(0, 1).toUpperCase()}

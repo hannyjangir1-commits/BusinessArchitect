@@ -4,19 +4,34 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import engine, SessionLocal
+from app.core.admin_provisioning import provision_initial_admin
 from app.api import auth, projects, modules, tasks, copilot, exports
+from app.api.admin import admin_router
 
 # In development with SQLite, ensure tables exist; in production, Alembic handles migrations
 if settings.APP_ENV == "development" and "sqlite" in settings.DATABASE_URL:
     Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Safe, idempotent startup admin provisioning
+    try:
+        with SessionLocal() as db:
+            provision_initial_admin(db)
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").error(f"Admin provisioning failed during startup: {e}")
+    yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Enterprise Blueprint & AI Business Architect API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS setup for local development and same-origin / cross-origin deployments
@@ -36,6 +51,7 @@ api_v1.include_router(modules.router)
 api_v1.include_router(tasks.router)
 api_v1.include_router(copilot.router)
 api_v1.include_router(exports.router)
+api_v1.include_router(admin_router)
 
 @api_v1.get("/health")
 def api_health():

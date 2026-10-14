@@ -15,12 +15,19 @@ import { DetailedRoadmapModule } from './components/DetailedRoadmapModule';
 import { BlueprintCopilotModule } from './components/BlueprintCopilotModule';
 import { NewProjectWizard } from './components/NewProjectWizard';
 import { VersionConflictModal } from './components/VersionConflictModal';
+import { AdminApp } from './admin/AdminApp';
+import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { Loader2 } from 'lucide-react';
 import './styles/index.css';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
+
+  // Admin Portal State
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => window.location.pathname.startsWith('/admin'));
+  const [adminUser, setAdminUser] = useState<any | null>(null);
+  const [adminAuthChecking, setAdminAuthChecking] = useState<boolean>(() => window.location.pathname.startsWith('/admin'));
 
   // Projects & Navigation
   const [projects, setProjects] = useState<Project[]>([]);
@@ -73,12 +80,48 @@ export const App: React.FC = () => {
     };
     checkAuth();
 
+    // Check Admin Authentication if on admin route
+    const checkAdminAuth = async () => {
+      if (window.location.pathname.startsWith('/admin')) {
+        if (window.location.pathname === '/admin/login') {
+          setAdminAuthChecking(false);
+          return;
+        }
+        try {
+          const res = await api.admin.auth.getMe();
+          if (res && res.user) {
+            setAdminUser(res.user);
+          } else {
+            setAdminUser(null);
+          }
+        } catch {
+          setAdminUser(null);
+        } finally {
+          setAdminAuthChecking(false);
+        }
+      }
+    };
+    checkAdminAuth();
+
     const handleAuthExpired = () => {
       setCurrentUser(null);
       setCurrentProject(null);
     };
     window.addEventListener('auth:expired', handleAuthExpired);
-    return () => window.removeEventListener('auth:expired', handleAuthExpired);
+
+    const handlePopState = () => {
+      const onAdmin = window.location.pathname.startsWith('/admin');
+      setIsAdminRoute(onAdmin);
+      if (onAdmin) {
+        checkAdminAuth();
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('auth:expired', handleAuthExpired);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
 
   const loadProjects = async () => {
@@ -329,6 +372,44 @@ export const App: React.FC = () => {
       alert(err.message || 'Failed to delete project');
     }
   };
+
+  // Admin Portal Routing
+  if (isAdminRoute) {
+    if (adminAuthChecking) {
+      return (
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0f1d', color: '#ffffff', gap: 12 }}>
+          <Loader2 size={24} className="animate-spin" color="#6366f1" />
+          <span>Authenticating Admin Control Center...</span>
+        </div>
+      );
+    }
+
+    if (!adminUser || window.location.pathname === '/admin/login') {
+      return (
+        <AdminLoginPage
+          onLoginSuccess={(session) => {
+            setAdminUser(session.user);
+            window.history.pushState({}, '', '/admin');
+            setIsAdminRoute(true);
+          }}
+        />
+      );
+    }
+
+    return (
+      <AdminApp
+        adminUser={adminUser}
+        initialPath={window.location.pathname}
+        onLogout={async () => {
+          try {
+            await api.admin.auth.logout();
+          } catch {}
+          setAdminUser(null);
+          window.history.pushState({}, '', '/admin/login');
+        }}
+      />
+    );
+  }
 
   // Loading Screen
   if (authChecking) {

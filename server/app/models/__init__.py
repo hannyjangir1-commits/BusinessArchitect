@@ -1,6 +1,7 @@
 from app.db.base import Base
 from app.models.all_models import (
-    User, Session, Project, ModuleContent, ModuleVersion, RoadmapTask, CopilotMessage
+    User, Session, Project, ModuleContent, ModuleVersion, RoadmapTask, CopilotMessage,
+    AIOperation, AnalyticsEvent, SecurityEvent, AuditLog, SystemSetting
 )
 
 __all__ = [
@@ -11,5 +12,10 @@ __all__ = [
     "ModuleContent",
     "ModuleVersion",
     "RoadmapTask",
-    "CopilotMessage"
+    "CopilotMessage",
+    "AIOperation",
+    "AnalyticsEvent",
+    "SecurityEvent",
+    "AuditLog",
+    "SystemSetting"
 ]
