@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, CopilotMessage } from '../types';
-import { Bot, Send, User, Sparkles, Loader2, ArrowDownCircle } from 'lucide-react';
+import { Bot, Send, User, Sparkles, Loader2 } from 'lucide-react';
 
 interface Props {
   project: Project;

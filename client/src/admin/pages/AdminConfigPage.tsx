@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
-  Sliders, ShieldCheck, KeyRound, Cpu, RefreshCw,
-  Loader2, CheckCircle2, AlertTriangle, Save, Lock, Info
+  Sliders, Cpu, RefreshCw,
+  Loader2, CheckCircle2, AlertTriangle, Save, Lock
 } from 'lucide-react';
 
 export const AdminConfigPage: React.FC = () => {

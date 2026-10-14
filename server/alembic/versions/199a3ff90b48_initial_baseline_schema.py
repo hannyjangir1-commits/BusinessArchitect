@@ -21,8 +21,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema to create initial baseline tables if not present."""
     conn = op.get_bind()
-    inspector = sa.inspect(conn)
-    existing_tables = inspector.get_table_names()
+    try:
+        inspector = sa.inspect(conn)
+        existing_tables = inspector.get_table_names() if inspector else []
+    except Exception:
+        existing_tables = []
 
     if 'users' not in existing_tables:
         op.create_table(

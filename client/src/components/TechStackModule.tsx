@@ -2,6 +2,7 @@ import React from 'react';
 import { Project, ModuleDetail, TechStackData } from '../types';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
+import { ArchitectureInfographic } from './ArchitectureInfographic';
 import { Cpu, Sparkles, Layers, ShieldCheck, Server, Database, Cloud, Terminal, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -28,6 +29,22 @@ export const TechStackModule: React.FC<Props> = ({
   isLoading
 }) => {
   const techData = moduleDetail?.data;
+
+  const handleDownloadSvg = () => {
+    const svgEl = document.querySelector('.workspace-main-column svg');
+    if (!svgEl) return;
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(svgEl);
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_tech_stack_architecture.svg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   if (!techData) {
     return (
@@ -89,11 +106,20 @@ export const TechStackModule: React.FC<Props> = ({
           onDelete={onDeleteVersion}
           onRestore={onRestoreVersion}
           onExportPdf={onExportPdf}
+          onExportSvg={handleDownloadSvg}
         />
       </div>
 
       <div className="workspace-grid">
         <div className="workspace-main-column">
+          {/* Dedicated Vector SVG Architecture Blueprint Infographic */}
+          <ArchitectureInfographic
+            techData={techData}
+            projectName={project.name}
+            versionName={moduleDetail.active_version_name}
+            onDownloadSvg={handleDownloadSvg}
+          />
+
           {/* Architectural Summary Banner */}
           <div className="card" style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderLeft: '4px solid #6366f1' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -101,17 +127,18 @@ export const TechStackModule: React.FC<Props> = ({
                 Architectural Blueprint
               </span>
               <span className="stage-badge-purple">
-                Pattern: {techData.architecture_pattern || 'Modular Monolith'}
+                Pattern: {techData?.architecture_pattern || 'Modular Monolith'}
               </span>
             </div>
             <p style={{ fontSize: 13.5, color: '#1e293b', lineHeight: 1.5 }}>
-              {techData.summary}
+              {techData?.summary || 'Production architectural blueprint.'}
             </p>
           </div>
 
           {/* Tiered Architectural Infographic Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-            {techData.recommendations.map((item, idx) => {
+            {(techData?.recommendations || []).map((item, idx) => {
+              if (!item) return null;
               const Icon = categoryIcons[item.category] || Cpu;
               return (
                 <div key={idx} className="card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>

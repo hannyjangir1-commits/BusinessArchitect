@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
-import { X, KeyRound, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { X, KeyRound, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 interface AdminChangePasswordModalProps {
   onClose: () => void;

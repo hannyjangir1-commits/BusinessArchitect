@@ -1,21 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Project, User } from '../types';
-import { Search, Sun, Bell, Edit3, LogOut, ChevronDown } from 'lucide-react';
+import { Search, Sun, Moon, Bell, Edit3, LogOut, ChevronDown, UserCheck, Shield } from 'lucide-react';
+import { ProfileModal } from './ProfileModal';
+import { LogoutConfirmModal } from './LogoutConfirmModal';
 
 interface Props {
   project: Project;
   user: User;
-  onLogout: () => void;
+  onLogout: () => Promise<void>;
   onEditProject?: () => void;
 }
 
 export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [themeDark, setThemeDark] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('aba_theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const toggleTheme = () => {
-    setThemeDark(!themeDark);
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    localStorage.setItem('aba_theme', nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } finally {
+      setIsLoggingOut(false);
+      setLogoutModalOpen(false);
+    }
   };
 
   return (
@@ -40,16 +64,29 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
       <div className="header-right">
         <div className="search-input-box">
           <Search size={15} color="#94a3b8" />
-          <input type="text" placeholder="Search projects, tasks, or modules..." />
-          <span className="kbd-shortcut">Ctrl K</span>
+          <input
+            type="text"
+            placeholder="Search within this project..."
+            aria-label="Search within project"
+          />
         </div>
 
-        <button className="header-icon-btn" title="Toggle theme" onClick={toggleTheme}>
-          <Sun size={17} color={themeDark ? '#6366f1' : 'currentColor'} />
+        <button
+          className="header-icon-btn"
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          onClick={toggleTheme}
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? <Moon size={17} color="#a5b4fc" /> : <Sun size={17} color="#64748b" />}
         </button>
 
         <div style={{ position: 'relative' }}>
-          <button className="header-icon-btn" title="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
+          <button
+            className="header-icon-btn"
+            title="Notifications"
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            aria-label="Notifications"
+          >
             <Bell size={17} />
             <span className="notification-dot" />
           </button>
@@ -65,13 +102,13 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                 border: '1px solid #e2e8f0',
                 borderRadius: 8,
                 boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
-                width: 240,
+                width: 260,
                 zIndex: 100,
-                padding: '10px 14px'
+                padding: '12px 14px'
               }}
             >
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>System Notifications</div>
-              <div style={{ fontSize: 11.5, color: '#64748b' }}>AI Business Architect is fully operational. All modules active.</div>
+              <div style={{ fontSize: 11.5, color: '#64748b' }}>AI Business Architect is operational. All blueprint synthesis engines ready.</div>
             </div>
           )}
         </div>
@@ -80,6 +117,9 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
           <div
             className="user-profile-badge"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
+            role="button"
+            tabIndex={0}
+            aria-label="User menu"
           >
             <div className="user-avatar-circle">
               {user.username.slice(0, 1).toUpperCase()}
@@ -99,7 +139,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                 border: '1px solid #e2e8f0',
                 borderRadius: 8,
                 boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
-                width: 170,
+                width: 200,
                 zIndex: 100,
                 padding: 4
               }}
@@ -107,9 +147,34 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
               <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontSize: 11, color: '#64748b' }}>
                 Signed in as <b>{user.username}</b>
               </div>
+
+              <button
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  setProfileModalOpen(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#334155',
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <UserCheck size={14} color="#6366f1" /> Profile & Settings
+              </button>
+
               {user.role && user.role !== 'user' && (
                 <button
                   onClick={() => {
+                    setUserMenuOpen(false);
                     window.history.pushState({}, '', '/admin');
                     window.dispatchEvent(new PopStateEvent('popstate'));
                   }}
@@ -128,11 +193,15 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                     textAlign: 'left'
                   }}
                 >
-                  <Search size={14} /> Admin Center
+                  <Shield size={14} /> Admin Center
                 </button>
               )}
+
               <button
-                onClick={onLogout}
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  setLogoutModalOpen(true);
+                }}
                 style={{
                   width: '100%',
                   padding: '9px 12px',
@@ -145,7 +214,8 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                   fontSize: 12.5,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  textAlign: 'left'
+                  textAlign: 'left',
+                  borderTop: '1px solid #f1f5f9'
                 }}
               >
                 <LogOut size={14} /> Log Out
@@ -154,6 +224,26 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
           )}
         </div>
       </div>
+
+      {/* User Profile & Preferences Modal */}
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        user={user}
+        onThemeChange={(newTheme) => {
+          setTheme(newTheme);
+          document.documentElement.setAttribute('data-theme', newTheme);
+        }}
+        currentTheme={theme}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        isLoading={isLoggingOut}
+      />
     </header>
   );
 };

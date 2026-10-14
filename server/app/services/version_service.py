@@ -107,32 +107,63 @@ class VersionService:
         new_name: Optional[str] = None,
         change_summary: Optional[str] = None
     ) -> ModuleVersion:
-        """User explicitly chosen version to replace when 5-version limit is reached."""
+        """
+        User explicitly chosen version to replace when 5-version limit is reached.
+        Preserves historical immutability: deletes the user-selected version to vacate
+        a slot, then creates a new version record without mutating historical snapshots.
+        """
         with _version_lock:
-            target = db.query(ModuleVersion).filter(
-                ModuleVersion.id == replace_version_id,
-                ModuleVersion.module_content_id == module.id
-            ).first()
+            try:
+                target = db.query(ModuleVersion).filter(
+                    ModuleVersion.id == replace_version_id,
+                    ModuleVersion.module_content_id == module.id
+                ).first()
 
-            if not target:
-                raise HTTPException(status_code=404, detail="Target version to replace not found")
+                if not target:
+                    raise HTTPException(status_code=404, detail="Target version to replace not found")
 
-            # Deactivate all
-            versions = VersionService.get_versions(db, module.id)
-            for v in versions:
-                v.is_active = False
+                target_name = target.version_name
 
-            # Update target version in-place with new data and name
-            target.data = new_data
-            if new_name:
-                target.version_name = new_name
-            target.change_summary = change_summary or "Replaced existing version"
-            target.is_active = True
-            module.active_version_id = target.id
+                # Deactivate all existing versions
+                versions = VersionService.get_versions(db, module.id)
+                for v in versions:
+                    v.is_active = False
 
-            db.commit()
-            db.refresh(target)
-            return target
+                # Delete the selected version to vacate slot (preserving remaining snapshots untouched)
+                db.delete(target)
+                db.flush()
+
+                # Create brand-new version record
+                remaining = VersionService.get_versions(db, module.id)
+                next_num = (max([v.version_number for v in remaining]) + 1) if remaining else 1
+                default_prefix = {
+                    "bmc": "BMC",
+                    "tech_stack": "Tech Stack",
+                    "idea_validator": "Validator",
+                    "market_research": "Market Research",
+                    "execution_roadmap": "Roadmap",
+                    "overview": "Overview"
+                }.get(module.module_type, "Version")
+                v_name = new_name or f"{default_prefix} V{next_num}"
+
+                new_ver = ModuleVersion(
+                    module_content_id=module.id,
+                    version_number=next_num,
+                    version_name=v_name,
+                    data=new_data,
+                    change_summary=change_summary or f"Created {v_name} (replaced {target_name})",
+                    is_active=True
+                )
+                db.add(new_ver)
+                db.flush()
+
+                module.active_version_id = new_ver.id
+                db.commit()
+                db.refresh(new_ver)
+                return new_ver
+            except Exception:
+                db.rollback()
+                raise
 
     @staticmethod
     def rename_version(db: Session, module: ModuleContent, version_id: str, new_name: str) -> ModuleVersion:

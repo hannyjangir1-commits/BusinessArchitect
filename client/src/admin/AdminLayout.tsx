@@ -3,7 +3,6 @@ import { api } from '../services/api';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminChangePasswordModal } from './AdminChangePasswordModal';
-import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface AdminLayoutProps {
   currentPath: string;
@@ -32,7 +31,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           status: h.status,
           latency_ms: h.database_latency_ms
         });
-      } catch (e) {
+      } catch {
         setSystemHealth({ status: 'unhealthy', latency_ms: -1 });
       }
     };

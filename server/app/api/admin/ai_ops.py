@@ -95,8 +95,8 @@ def get_ai_operations_stats(
     timeout_count = db.query(func.count(AIOperation.id)).filter(AIOperation.status == "timeout").scalar() or 0
     retried_count = db.query(func.count(AIOperation.id)).filter(AIOperation.retry_count > 0).scalar() or 0
 
-    success_rate = round((success_count / total * 100), 1) if total > 0 else 100.0
-    failure_rate = round((failed_count / total * 100), 1) if total > 0 else 0.0
+    success_rate = round((success_count / total * 100), 1) if total > 0 else None
+    failure_rate = round((failed_count / total * 100), 1) if total > 0 else None
 
     durations = [op.duration_ms for op in db.query(AIOperation.duration_ms).filter(AIOperation.duration_ms != None).all()]
     if durations:
@@ -127,7 +127,7 @@ def get_ai_operations_stats(
             "module_type": r.module_type,
             "total": r.total,
             "success": int(r.success or 0),
-            "success_rate": round(int(r.success or 0) / r.total * 100, 1) if r.total > 0 else 100.0,
+            "success_rate": round(int(r.success or 0) / r.total * 100, 1) if r.total > 0 else None,
             "avg_duration_ms": round(float(r.avg_dur or 0), 0)
         }
         for r in mod_rows
@@ -198,30 +198,19 @@ def retry_failed_operation(
     if op.status == "success":
         raise HTTPException(status_code=400, detail="Cannot retry an already successful operation")
 
-    # Check project state
-    proj = None
-    if op.project_id:
-        proj = db.query(Project).filter(Project.id == op.project_id).first()
-    elif op.user_id:
-        proj = db.query(Project).filter(Project.user_id == op.user_id).first()
-
-    if not proj:
-        target_user_id = op.user_id or current_admin.id
-        proj = Project(
-            id=gen_id("proj_"),
-            name="Recovered Operation Context",
-            user_id=target_user_id,
-            stage="Idea",
-            industry="General",
-            description="Auto-generated context for recovered AI operation",
-            target_customers="General market",
-            goals="Admin operation recovery",
-            business_context="Created automatically to bind orphaned AI operation retry"
+    # Verify genuine project context exists; never create a synthetic project
+    if not op.project_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot retry operation: original operation has no associated project context."
         )
-        db.add(proj)
-        db.flush()
-        op.project_id = proj.id
-        db.flush()
+
+    proj = db.query(Project).filter(Project.id == op.project_id).first()
+    if not proj:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot retry operation: original project no longer exists."
+        )
 
     # Check for existing successful retry
     existing_retry = db.query(AIOperation).filter(

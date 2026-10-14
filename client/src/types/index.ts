@@ -67,6 +67,7 @@ export interface BMCData {
 
 export interface TechItem {
   technology: string;
+  name?: string;
   category: string;
   purpose: string;
   suitability: string;
@@ -79,6 +80,8 @@ export interface TechStackData {
   architecture_pattern: string;
   recommendations: TechItem[];
 }
+
+export type TechRecommendation = TechItem;
 
 export interface ValidationRisk {
   risk: string;

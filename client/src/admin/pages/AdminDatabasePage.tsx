@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Database, ShieldCheck, RefreshCw, Loader2, Table2 } from 'lucide-react';
+import { RefreshCw, Loader2, Table2 } from 'lucide-react';
 
 export const AdminDatabasePage: React.FC = () => {
   const [data, setData] = useState<any | null>(null);

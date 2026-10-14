@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
-  FolderKanban, ArrowLeft, Layers, CheckSquare, MessageSquare,
-  Cpu, Clock, User, Calendar, Loader2
+  ArrowLeft, Layers, CheckSquare, MessageSquare,
+  Cpu, Loader2
 } from 'lucide-react';
 
 interface AdminProjectDetailPageProps {

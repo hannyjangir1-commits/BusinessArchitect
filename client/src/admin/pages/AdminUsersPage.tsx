@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
-  Users, Search, Filter, Shield, AlertTriangle, CheckCircle,
-  Ban, RotateCcw, Key, Trash2, ExternalLink, Loader2, RefreshCw
+  Users, Search, Filter, CheckCircle,
+  Ban, Key, Trash2, Loader2, RefreshCw
 } from 'lucide-react';
 
 interface AdminUsersPageProps {
@@ -27,7 +27,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
   const [confirmUsername, setConfirmUsername] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -45,11 +45,11 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, search, statusFilter]);
 
   useEffect(() => {
     fetchUsers();
-  }, [page, statusFilter]);
+  }, [fetchUsers]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +125,12 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
           </p>
         </div>
       </div>
+
+      {error && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
+          {error}
+        </div>
+      )}
 
       {/* Toolbar: Search, Filters, Refresh */}
       <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px 20px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>

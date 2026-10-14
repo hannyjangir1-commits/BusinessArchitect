@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { CheckCircle2, AlertOctagon, RefreshCw, Loader2, Cpu, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Loader2 } from 'lucide-react';
 
 export const AdminAIQualityPage: React.FC = () => {
   const [quality, setQuality] = useState<any | null>(null);

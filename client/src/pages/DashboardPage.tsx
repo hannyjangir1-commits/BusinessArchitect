@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project, User } from '../types';
-import { Layers, Plus, Search, Calendar, ArrowRight, Trash2, LayoutDashboard, Compass, Cpu, LogOut } from 'lucide-react';
+import { Layers, Plus, Search, ArrowRight, Trash2, Cpu, LogOut } from 'lucide-react';
+import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
 
 interface Props {
   user: User;
@@ -8,7 +9,7 @@ interface Props {
   onOpenProject: (projectId: string) => void;
   onCreateNewProject: () => void;
   onDeleteProject: (projectId: string) => Promise<void>;
-  onLogout: () => void;
+  onLogout: () => Promise<void> | void;
 }
 
 export const DashboardPage: React.FC<Props> = ({
@@ -20,6 +21,8 @@ export const DashboardPage: React.FC<Props> = ({
   onLogout
 }) => {
   const [search, setSearch] = useState('');
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -80,7 +83,7 @@ export const DashboardPage: React.FC<Props> = ({
             <span style={{ fontSize: 12.5, fontWeight: 600, color: '#334155' }}>{user.username}</span>
           </div>
 
-          <button onClick={onLogout} className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }}>
+          <button onClick={() => setLogoutModalOpen(true)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }}>
             <LogOut size={13} /> Log Out
           </button>
         </div>
@@ -224,6 +227,21 @@ export const DashboardPage: React.FC<Props> = ({
           </div>
         )}
       </main>
+
+      <LogoutConfirmModal
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        onConfirm={async () => {
+          setIsLoggingOut(true);
+          try {
+            await onLogout();
+          } finally {
+            setIsLoggingOut(false);
+            setLogoutModalOpen(false);
+          }
+        }}
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

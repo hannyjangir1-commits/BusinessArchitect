@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Project } from '../types';
 import {
-  Layers, ChevronLeft, Edit2, LayoutDashboard, Compass, Cpu, CheckCircle2,
+  Layers, ChevronLeft, ChevronRight, Edit2, LayoutDashboard, Compass, Cpu, CheckCircle2,
   TrendingUp, Calendar, ListTodo, Bot, ArrowRight, Plus, Check
 } from 'lucide-react';
 
@@ -24,6 +24,8 @@ export const Sidebar: React.FC<Props> = ({
   onExportFullPdf,
   moduleVersionBadges = {}
 }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'bmc', label: 'Business Model Canvas', icon: Compass },
@@ -36,53 +38,69 @@ export const Sidebar: React.FC<Props> = ({
   ];
 
   return (
-    <aside className="sidebar">
-      {/* Brand Header */}
-      <div className="sidebar-header">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      {/* Brand Header with Expand/Collapse Toggle */}
+      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div className="brand-logo">
-          <div className="brand-icon-box">
+          <div className="brand-icon-box" title="AI Business Architect">
             <Layers size={20} />
           </div>
-          <div className="brand-titles">
-            <h1>AI Business Architect</h1>
-            <span>ENTERPRISE BLUEPRINT</span>
-          </div>
+          {!isCollapsed && (
+            <div className="brand-titles">
+              <h1>AI Business Architect</h1>
+              <span>ENTERPRISE BLUEPRINT</span>
+            </div>
+          )}
         </div>
+
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#94a3b8',
+            cursor: 'pointer',
+            padding: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4
+          }}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
       </div>
 
       {/* Back to Dashboard */}
-      <button onClick={onBackToDashboard} className="back-to-dashboard-btn">
+      <button
+        onClick={onBackToDashboard}
+        className="back-to-dashboard-btn"
+        title="Back to Dashboard"
+      >
         <ChevronLeft size={16} />
-        <span>Back to Dashboard</span>
+        {!isCollapsed && <span>Back to Dashboard</span>}
       </button>
 
-      {/* Current Project Summary Pill Card */}
-      <div className="project-summary-card">
-        <div className="project-summary-header">
-          <div className="project-name-edit">
-            <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {currentProject.name}
+      {/* Current Project Summary Header (without the progress bar card as per spec) */}
+      {!isCollapsed && (
+        <div className="project-summary-card" style={{ padding: '10px 14px' }}>
+          <div className="project-summary-header" style={{ marginBottom: 0 }}>
+            <div className="project-name-edit">
+              <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                {currentProject.name}
+              </span>
+              <Edit2 size={12} color="#94a3b8" />
+            </div>
+            <span className="stage-pill-small">
+              {currentProject.stage.includes('Growth') ? 'Growth' : currentProject.stage}
             </span>
-            <Edit2 size={12} color="#94a3b8" />
           </div>
-          <span className="stage-pill-small">
-            {currentProject.stage.includes('Growth') ? 'Growth Stage' : currentProject.stage}
-          </span>
         </div>
-        <div className="project-progress-bar-container">
-          <div className="project-progress-track">
-            <div
-              className="project-progress-fill"
-              style={{ width: `${currentProject.progress_percentage || 50}%` }}
-            />
-          </div>
-          <span className="project-progress-text">
-            {currentProject.progress_percentage || 50}%
-          </span>
-        </div>
-      </div>
+      )}
 
-      {/* Vertical Navigation Items */}
+      {/* Vertical Navigation Items without redundant sidebar version badges */}
       <nav className="sidebar-nav">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -92,23 +110,27 @@ export const Sidebar: React.FC<Props> = ({
           return (
             <button
               key={item.id}
+              data-module-id={item.id}
               className={`nav-item ${isActive ? 'active' : ''}`}
               onClick={() => onSelectModule(item.id)}
+              title={item.label}
+              aria-label={item.label}
             >
               <div className="nav-item-left">
                 <Icon size={17} />
-                <span>{item.label}</span>
+                {!isCollapsed && <span>{item.label}</span>}
               </div>
-              <div className="nav-item-right">
-                <span className="version-badge">{badge.version}</span>
-                {isActive ? (
-                  <span className="status-dot-active" />
-                ) : badge.isGenerated ? (
-                  <span className="status-dot-green"><Check size={10} strokeWidth={3} /></span>
-                ) : (
-                  <span className="status-dot-gray" />
-                )}
-              </div>
+              {!isCollapsed && (
+                <div className="nav-item-right">
+                  {isActive ? (
+                    <span className="status-dot-active" />
+                  ) : badge.isGenerated ? (
+                    <span className="status-dot-green"><Check size={10} strokeWidth={3} /></span>
+                  ) : (
+                    <span className="status-dot-gray" />
+                  )}
+                </div>
+              )}
             </button>
           );
         })}
@@ -116,22 +138,32 @@ export const Sidebar: React.FC<Props> = ({
 
       {/* Sidebar Footer with Export PDF directly above Create New Project */}
       <div className="sidebar-footer">
-        <button onClick={onExportFullPdf} className="export-project-btn">
+        <button
+          onClick={onExportFullPdf}
+          className="export-project-btn"
+          title="Export Project (PDF)"
+        >
           <div className="export-project-btn-left">
             <div style={{ marginTop: 2, color: '#818cf8' }}>
               <Layers size={18} />
             </div>
-            <div className="export-project-btn-titles">
-              <h4>Export Project (PDF)</h4>
-              <p>Export all modules (except history, copilot chat and audit)</p>
-            </div>
+            {!isCollapsed && (
+              <div className="export-project-btn-titles">
+                <h4>Export Project (PDF)</h4>
+                <p>Complete multi-module PDF</p>
+              </div>
+            )}
           </div>
-          <ArrowRight size={15} color="#818cf8" />
+          {!isCollapsed && <ArrowRight size={15} color="#818cf8" />}
         </button>
 
-        <button onClick={onCreateNewProject} className="create-project-btn">
+        <button
+          onClick={onCreateNewProject}
+          className="create-project-btn"
+          title="Create New Project"
+        >
           <Plus size={16} />
-          <span>Create New Project</span>
+          {!isCollapsed && <span>Create New Project</span>}
         </button>
       </div>
     </aside>

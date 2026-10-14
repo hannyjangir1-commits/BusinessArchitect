@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
-  User, ArrowLeft, Shield, FolderKanban, ShieldAlert,
-  ClipboardList, CheckCircle, Ban, Clock, Loader2, Calendar
+  ArrowLeft, FolderKanban, ShieldAlert,
+  ClipboardList, CheckCircle, Ban, Loader2
 } from 'lucide-react';
 
 interface AdminUserDetailPageProps {

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../services/api';
 import { AdminLayout } from './AdminLayout';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';

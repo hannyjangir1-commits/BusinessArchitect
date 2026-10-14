@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
-  Wrench, ShieldAlert, CheckCircle2, AlertTriangle,
+  Wrench, CheckCircle2, AlertTriangle,
   RefreshCw, Loader2, Power, Trash2, Calendar
 } from 'lucide-react';
 
@@ -12,7 +12,7 @@ export const AdminMaintenancePage: React.FC = () => {
   const [reason, setReason] = useState<string>('Scheduled system maintenance and upgrade');
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.admin.maintenance.getStatus();
@@ -23,11 +23,11 @@ export const AdminMaintenancePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStatus();
-  }, []);
+  }, [fetchStatus]);
 
   const handleToggle = async (enable: boolean) => {
     const actionText = enable ? 'ENABLE' : 'DISABLE';

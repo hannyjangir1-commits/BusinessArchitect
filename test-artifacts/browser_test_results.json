@@ -1,0 +1,93 @@
+{
+  "workflowResults": [
+    {
+      "id": "WF-1",
+      "title": "Landing Page, Registration & Dashboard",
+      "passed": true,
+      "evidence": "01_landing_page.png, 02_registration_form.png, 03_dashboard_view.png"
+    },
+    {
+      "id": "WF-2",
+      "title": "Project Creation & 8-Module Navigation",
+      "passed": true,
+      "evidence": "04_wizard_review.png, 05_project_workspace_overview.png"
+    },
+    {
+      "id": "WF-3",
+      "title": "Readiness Validation Failure & Non-Destructive Recovery",
+      "passed": true,
+      "evidence": "06_readiness_warning_banner.png"
+    },
+    {
+      "id": "WF-4",
+      "title": "BMC Generation (9 Canvas Blocks & Header)",
+      "passed": true,
+      "evidence": "07_bmc_synthesized.png"
+    },
+    {
+      "id": "WF-5",
+      "title": "Tech Stack Blueprint & Architecture SVG Infographic",
+      "passed": true,
+      "evidence": "08_tech_stack_infographic.png"
+    },
+    {
+      "id": "WF-6",
+      "title": "Version History & Historical Snapshot Selection",
+      "passed": true,
+      "evidence": "09_version_dropdown.png"
+    },
+    {
+      "id": "WF-7",
+      "title": "5-Version Conflict Modal, Explicit Checkbox Guard & Recovery",
+      "passed": true,
+      "evidence": "09b_version_conflict_modal.png"
+    },
+    {
+      "id": "WF-8",
+      "title": "Execution Roadmap Tabs (Gantt, Task List, Milestones, Dependencies)",
+      "passed": true,
+      "evidence": "10_roadmap_gantt_and_tabs.png"
+    },
+    {
+      "id": "WF-9",
+      "title": "Contextual Assistant Chips, Close & Reopen",
+      "passed": true,
+      "evidence": "11_contextual_assistant_open.png"
+    },
+    {
+      "id": "WF-10",
+      "title": "Executive Brief & Full Project PDF Exports",
+      "passed": true,
+      "evidence": "Module and Full Project PDF buttons verified"
+    },
+    {
+      "id": "WF-11",
+      "title": "Dashboard Search, Sidebar Collapse, Theme Toggle & Logout Confirmation",
+      "passed": true,
+      "evidence": "12_dashboard_search.png, 13_logout_confirmation_modal.png"
+    },
+    {
+      "id": "WF-12",
+      "title": "Enterprise Admin Control Center & Authorization",
+      "passed": true,
+      "evidence": "14_admin_login_page.png, 15_admin_dashboard.png, 16_admin_users_directory.png, 17_admin_system_health.png"
+    }
+  ],
+  "consoleLogs": [
+    "[debug] [vite] connecting...",
+    "[debug] [vite] connected.",
+    "[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "[verbose] [DOM] Input elements should have autocomplete attributes (suggested: \"new-password\"): (More info: https://goo.gl/9p2vKq) %o",
+    "[verbose] [DOM] Input elements should have autocomplete attributes (suggested: \"new-password\"): (More info: https://goo.gl/9p2vKq) %o",
+    "[error] Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "[error] Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "[debug] [vite] connecting...",
+    "[debug] [vite] connected.",
+    "[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "networkErrors": []
+}

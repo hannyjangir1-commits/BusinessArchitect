@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
-  UserCircle2, ShieldCheck, KeyRound, Clock,
-  Calendar, CheckCircle2, AlertTriangle, Loader2, LogOut, Lock
+  UserCircle2, KeyRound,
+  CheckCircle2, AlertTriangle, Loader2, LogOut
 } from 'lucide-react';
 import { AdminChangePasswordModal } from '../AdminChangePasswordModal';
 

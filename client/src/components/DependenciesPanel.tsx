@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RoadmapTask } from '../types';
-import { GitPullRequest, ArrowRight, AlertTriangle, CheckCircle2, Clock, ShieldAlert, Sparkles, Filter } from 'lucide-react';
+import { GitPullRequest, AlertTriangle, CheckCircle2, Clock, Filter } from 'lucide-react';
 
 interface Props {
   tasks: RoadmapTask[];

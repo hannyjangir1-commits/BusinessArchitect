@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
   ShieldCheck, ShieldAlert, KeyRound, Ban, RefreshCw,
-  Loader2, Trash2, CheckCircle2, AlertTriangle, Users
+  Loader2
 } from 'lucide-react';
 
 export const AdminSecurityPage: React.FC = () => {
@@ -13,7 +13,7 @@ export const AdminSecurityPage: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchSecurityData = async () => {
+  const fetchSecurityData = useCallback(async () => {
     setLoading(true);
     try {
       const [eventsRes, sessionsRes] = await Promise.all([
@@ -32,11 +32,11 @@ export const AdminSecurityPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, severityFilter]);
 
   useEffect(() => {
     fetchSecurityData();
-  }, [page, severityFilter]);
+  }, [fetchSecurityData]);
 
   const handleRevokeSession = async (sessionId: string) => {
     if (!confirm('Revoke this session immediately?')) return;

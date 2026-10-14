@@ -1,7 +1,7 @@
 import React from 'react';
 import { api } from '../../services/api';
 import {
-  FileSpreadsheet, FileText, Download, ShieldCheck,
+  FileText, Download, ShieldCheck,
   Users, FolderKanban, Cpu, ClipboardList
 } from 'lucide-react';
 

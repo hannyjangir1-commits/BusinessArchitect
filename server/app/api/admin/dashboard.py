@@ -99,8 +99,8 @@ def get_dashboard_stats(
     timeout_ai_ops = ai_query.filter(AIOperation.status == "timeout").count()
     retried_ai_ops = ai_query.filter(AIOperation.retry_count > 0).count()
 
-    success_rate = round((successful_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else 100.0
-    failure_rate = round((failed_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else 0.0
+    success_rate = round((successful_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else None
+    failure_rate = round((failed_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else None
 
     # Latencies
     durations = [op.duration_ms for op in ai_query.filter(AIOperation.duration_ms != None).all()]

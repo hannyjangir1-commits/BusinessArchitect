@@ -135,7 +135,20 @@ def test_ai_operations_explorer_and_retry(admin_client, db):
     """Verify AI operations listing, quality stats, and controlled retry."""
     user = db.query(User).filter(User.username == "HannyAdmin").first()
 
-    # Insert simulated failed operation
+    # Create genuine project context for failed operation
+    proj = Project(
+        id=gen_id("proj_"),
+        name="Admin Recovery Blueprint",
+        user_id=user.id,
+        stage="Idea / MVP",
+        industry="Enterprise Software",
+        description="Testing real admin recovery workflow with project context",
+        target_customers="Enterprise IT Managers"
+    )
+    db.add(proj)
+    db.commit()
+
+    # Insert simulated failed operation associated with genuine project
     failed_op = record_ai_operation(
         db,
         module_type="bmc",
@@ -144,6 +157,7 @@ def test_ai_operations_explorer_and_retry(admin_client, db):
         duration_ms=4500,
         status="failed",
         user_id=user.id,
+        project_id=proj.id,
         error_category="timeout",
         error_message="HTTP connection timed out after 30s",
         structured_validation_passed=False,

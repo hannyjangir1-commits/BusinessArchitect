@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Sparkles, Compass, Cpu, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Mail, User, AlertCircle, Loader2 } from 'lucide-react';
+import { Layers, Sparkles, Compass, Cpu, Calendar, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { SessionData } from '../types';
 

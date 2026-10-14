@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { VersionItem } from '../types';
-import { AlertTriangle, Trash2, Check, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface Props {
   moduleTitle: string;
@@ -23,9 +23,12 @@ export const VersionConflictModal: React.FC<Props> = ({
   const [selectedVersionId, setSelectedVersionId] = useState<string>(
     existingVersions.length > 0 ? existingVersions[0].id : ''
   );
+  const [confirmedDeletion, setConfirmedDeletion] = useState<boolean>(false);
+
+  const selectedVersion = existingVersions.find(v => v.id === selectedVersionId);
 
   const handleConfirm = async () => {
-    if (!selectedVersionId) return;
+    if (!selectedVersionId || !confirmedDeletion) return;
     await onResolveReplace(selectedVersionId);
   };
 
@@ -63,7 +66,10 @@ export const VersionConflictModal: React.FC<Props> = ({
             {existingVersions.map((v) => (
               <div
                 key={v.id}
-                onClick={() => setSelectedVersionId(v.id)}
+                onClick={() => {
+                  setSelectedVersionId(v.id);
+                  setConfirmedDeletion(false);
+                }}
                 style={{
                   border: `2px solid ${selectedVersionId === v.id ? '#6366f1' : '#e2e8f0'}`,
                   borderRadius: 8,
@@ -90,13 +96,24 @@ export const VersionConflictModal: React.FC<Props> = ({
               </div>
             ))}
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#b91c1c', fontWeight: 600, cursor: 'pointer', marginTop: 14, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }}>
+            <input
+              type="checkbox"
+              id="confirm-permanent-deletion-checkbox"
+              checked={confirmedDeletion}
+              onChange={(e) => setConfirmedDeletion(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: '#dc2626', cursor: 'pointer' }}
+            />
+            <span>I confirm that <u>{selectedVersion?.version_name || 'the selected version'}</u> will be permanently removed to free up a slot for the new version.</span>
+          </label>
         </div>
 
         <div className="modal-footer">
           <button onClick={onCancel} className="btn-secondary" disabled={isLoading}>
             Cancel
           </button>
-          <button onClick={handleConfirm} className="btn-primary" disabled={isLoading || !selectedVersionId}>
+          <button onClick={handleConfirm} className="btn-primary" disabled={isLoading || !selectedVersionId || !confirmedDeletion}>
             <RefreshCw size={14} /> Confirm & Replace Selected Version
           </button>
         </div>

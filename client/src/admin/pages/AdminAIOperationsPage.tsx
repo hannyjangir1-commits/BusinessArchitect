@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
-  Cpu, RotateCw, Filter, Search, CheckCircle2, XCircle,
-  Clock, AlertTriangle, RefreshCw, Loader2, ArrowRight
+  Cpu, RotateCw, Filter, CheckCircle2,
+  RefreshCw, Loader2
 } from 'lucide-react';
 
 export const AdminAIOperationsPage: React.FC = () => {
@@ -17,7 +17,7 @@ export const AdminAIOperationsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [listRes, statsRes] = await Promise.all([
@@ -38,11 +38,11 @@ export const AdminAIOperationsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, statusFilter, moduleFilter]);
 
   useEffect(() => {
     fetchData();
-  }, [page, statusFilter, moduleFilter]);
+  }, [fetchData]);
 
   const handleRetry = async (opId: string) => {
     if (!confirm('Execute controlled administrative retry for this failed operation?')) return;

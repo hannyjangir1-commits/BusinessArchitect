@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
-  Activity, CheckCircle2, AlertTriangle, XCircle, Clock,
-  Database, Cpu, Server, RefreshCw, Loader2, Search, Filter
+  RefreshCw, Loader2, Search
 } from 'lucide-react';
 
 export const AdminSystemHealthPage: React.FC = () => {
@@ -13,7 +12,7 @@ export const AdminSystemHealthPage: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [subsystemFilter, setSubsystemFilter] = useState<string>('all');
 
-  const fetchSystemData = async () => {
+  const fetchSystemData = useCallback(async () => {
     setLoading(true);
     try {
       const [hRes, lRes] = await Promise.all([
@@ -31,11 +30,11 @@ export const AdminSystemHealthPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [logSearch, severityFilter, subsystemFilter]);
 
   useEffect(() => {
     fetchSystemData();
-  }, [severityFilter, subsystemFilter]);
+  }, [fetchSystemData]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

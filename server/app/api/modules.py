@@ -11,6 +11,7 @@ from app.schemas.modules import (
     BMCData, TechStackData, IdeaValidatorData, MarketResearchData
 )
 from app.services.version_service import VersionService
+from app.services.readiness_service import ReadinessValidationService
 from app.services.pdf_service import PDFService
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
@@ -131,7 +132,20 @@ def generate_module(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    """Generates structured content for the specified module using Gemini AI and creates a version."""
+    # Enforce input readiness validation before invoking AI service
+    is_ready, missing_fields, error_msgs = ReadinessValidationService.validate_project_readiness(project, module_type)
+    if not is_ready:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "READINESS_VALIDATION_FAILED",
+                "message": "Project details are insufficient or invalid for AI blueprint synthesis.",
+                "missing_fields": missing_fields,
+                "reasons": error_msgs,
+                "action_required": "Please update your project parameters in the Overview module before generating."
+            }
+        )
+
     proj_info = _get_project_dict(project)
     module = VersionService.get_or_create_module(db, project.id, module_type)
     t0 = time.time()
@@ -251,6 +265,27 @@ def modify_module_with_ai(
     active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
     if not active_ver:
         raise HTTPException(status_code=404, detail="Active version data not found")
+
+    versions = VersionService.get_versions(db, module.id)
+    if len(versions) >= 5:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "VERSION_LIMIT_EXCEEDED",
+                "message": "This section already has the maximum of 5 saved versions. Choose a version to replace or delete.",
+                "existing_versions": [
+                    {
+                        "id": v.id,
+                        "version_number": v.version_number,
+                        "version_name": v.version_name,
+                        "change_summary": v.change_summary,
+                        "is_active": v.is_active,
+                        "created_at": v.created_at.isoformat()
+                    }
+                    for v in versions
+                ]
+            }
+        )
 
     t0 = time.time()
     try:

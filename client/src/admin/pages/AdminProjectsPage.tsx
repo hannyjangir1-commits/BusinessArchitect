@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
   FolderKanban, Search, Filter, Trash2, ArrowRightLeft,
-  ExternalLink, Loader2, RefreshCw, Layers, CheckSquare
+  Loader2, RefreshCw, Layers, CheckSquare
 } from 'lucide-react';
 
 interface AdminProjectsPageProps {
@@ -27,7 +27,7 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
   const [confirmProjectName, setConfirmProjectName] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -45,11 +45,11 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, search, stageFilter]);
 
   useEffect(() => {
     fetchProjects();
-  }, [page, stageFilter]);
+  }, [fetchProjects]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +104,12 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
           </p>
         </div>
       </div>
+
+      {error && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
+          {error}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px 20px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>

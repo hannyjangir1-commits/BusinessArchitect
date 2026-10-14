@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Shield, KeyRound, LogOut, RefreshCw, ChevronRight,
-  User as UserIcon, Bell, CheckCircle2, AlertTriangle, XCircle
+  User as UserIcon
 } from 'lucide-react';
 
 interface AdminHeaderProps {

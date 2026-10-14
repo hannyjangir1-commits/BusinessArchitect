@@ -17,7 +17,7 @@ import { NewProjectWizard } from './components/NewProjectWizard';
 import { VersionConflictModal } from './components/VersionConflictModal';
 import { AdminApp } from './admin/AdminApp';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle, X } from 'lucide-react';
 import './styles/index.css';
 
 export const App: React.FC = () => {
@@ -63,6 +63,19 @@ export const App: React.FC = () => {
     pendingInstruction?: string;
   } | null>(null);
 
+  // Readiness Validation and Operation Progress State
+  const [readinessError, setReadinessError] = useState<{
+    moduleType: string;
+    message: string;
+    missingFields: string[];
+    reasons: string[];
+  } | null>(null);
+
+  const [progressState, setProgressState] = useState<{
+    stageText: string;
+    progressPercent: number;
+  } | null>(null);
+
   // Dynamic Badges & Race-Condition Guard Refs
   const activeProjectIdRef = React.useRef<string | null>(null);
   const activeModuleTypeRef = React.useRef<string>('execution_roadmap');
@@ -89,6 +102,15 @@ export const App: React.FC = () => {
       }
     }));
   };
+
+  const loadProjects = React.useCallback(async () => {
+    try {
+      const projs = await api.projects.list();
+      setProjects(projs);
+    } catch (e) {
+      console.error('Failed to load projects', e);
+    }
+  }, []);
 
   // 1. Initial Authentication Check
   useEffect(() => {
@@ -149,16 +171,7 @@ export const App: React.FC = () => {
       window.removeEventListener('auth:expired', handleAuthExpired);
       window.removeEventListener('popstate', handlePopState);
     };
-  }, []);
-
-  const loadProjects = async () => {
-    try {
-      const projs = await api.projects.list();
-      setProjects(projs);
-    } catch (e) {
-      console.error('Failed to load projects', e);
-    }
-  };
+  }, [loadProjects]);
 
   // 2. Open Project & Restore Navigation Memory (Part 25)
   const handleOpenProject = async (projectId: string) => {
@@ -250,10 +263,63 @@ export const App: React.FC = () => {
     }
   };
 
-  // 5. Generate Module via Gemini
+  // 5. Generate Module via Gemini with Readiness Validation and Progress Milestones
   const handleGenerateModule = async (moduleType: string) => {
     if (!currentProject) return;
+    setReadinessError(null);
     setModuleLoading(true);
+
+    const stageSequence: Record<string, { text: string; pct: number }[]> = {
+      bmc: [
+        { text: 'Checking project input readiness...', pct: 15 },
+        { text: 'Analyzing business context and customer segments...', pct: 35 },
+        { text: 'Developing nine business model canvas blocks...', pct: 60 },
+        { text: 'Validating canvas structural schema...', pct: 85 },
+        { text: 'Saving new version and rendering interactive canvas...', pct: 95 }
+      ],
+      tech_stack: [
+        { text: 'Checking technical prerequisites and stage...', pct: 15 },
+        { text: 'Evaluating system architecture patterns...', pct: 35 },
+        { text: 'Selecting components and evaluating trade-offs...', pct: 60 },
+        { text: 'Validating technology recommendations...', pct: 85 },
+        { text: 'Saving version and synthesizing architecture diagram...', pct: 95 }
+      ],
+      idea_validator: [
+        { text: 'Verifying venture concept readiness...', pct: 20 },
+        { text: 'Evaluating customer demand and operational feasibility...', pct: 50 },
+        { text: 'Synthesizing market risks and scoring viability...', pct: 80 },
+        { text: 'Saving validation report...', pct: 95 }
+      ],
+      market_research: [
+        { text: 'Checking market research scope and vertical...', pct: 20 },
+        { text: 'Analyzing competitive landscape and market dynamics...', pct: 50 },
+        { text: 'Structuring competitor profiles and strategic gaps...', pct: 80 },
+        { text: 'Saving market research analysis...', pct: 95 }
+      ],
+      execution_roadmap: [
+        { text: 'Analyzing project milestones and deliverables...', pct: 20 },
+        { text: 'Sequencing execution phases and workstreams...', pct: 45 },
+        { text: 'Validating task dependency graphs and timelines...', pct: 70 },
+        { text: 'Reconciling tasks and committing roadmap version...', pct: 95 }
+      ],
+      detailed_roadmap: [
+        { text: 'Analyzing sprint deliverables...', pct: 20 },
+        { text: 'Sequencing phase tasks...', pct: 50 },
+        { text: 'Validating dependencies and saving roadmap...', pct: 90 }
+      ]
+    };
+
+    const stages = stageSequence[moduleType] || stageSequence.execution_roadmap;
+    let stageIdx = 0;
+    setProgressState({ stageText: stages[0].text, progressPercent: stages[0].pct });
+
+    const progressTimer = setInterval(() => {
+      stageIdx++;
+      if (stageIdx < stages.length) {
+        setProgressState({ stageText: stages[stageIdx].text, progressPercent: stages[stageIdx].pct });
+      }
+    }, 1800);
+
     try {
       const updated = await api.modules.generate(currentProject.id, moduleType);
       setModuleDetail(updated);
@@ -271,8 +337,19 @@ export const App: React.FC = () => {
         }));
       }
     } catch (err: any) {
-      alert(err.message || 'Gemini generation failed');
+      if (err.status === 422 && err.data?.error === 'READINESS_VALIDATION_FAILED') {
+        setReadinessError({
+          moduleType,
+          message: err.data.message || 'Project details are insufficient for AI blueprint synthesis.',
+          missingFields: err.data.missing_fields || [],
+          reasons: err.data.reasons || []
+        });
+      } else {
+        alert(err.message || 'Gemini generation failed');
+      }
     } finally {
+      clearInterval(progressTimer);
+      setProgressState(null);
       setModuleLoading(false);
     }
   };
@@ -293,11 +370,18 @@ export const App: React.FC = () => {
         setSummary(sum);
       }
     } catch (err: any) {
-      if (err.status === 409 && err.data?.error === 'VERSION_LIMIT_EXCEEDED') {
+      const errObj = typeof err.data === 'string' ? (() => { try { return JSON.parse(err.data); } catch { return {}; } })() : (err.data || {});
+      const isVersionConflict = err.status === 409 && (
+        errObj.error === 'VERSION_LIMIT_EXCEEDED' ||
+        err.data?.error === 'VERSION_LIMIT_EXCEEDED' ||
+        (err.message && err.message.includes('VERSION_LIMIT_EXCEEDED')) ||
+        (err.message && err.message.includes('5 saved versions'))
+      );
+      if (isVersionConflict) {
         // Enforce 5-version limit explicitly: prompt conflict resolution modal
         setConflictData({
           moduleTitle: activeModule.replace('_', ' ').toUpperCase(),
-          existingVersions: err.data.existing_versions || moduleDetail?.versions || [],
+          existingVersions: errObj.existing_versions || err.data?.existing_versions || moduleDetail?.versions || [],
           pendingInstruction: instruction
         });
         setConflictModalOpen(true);
@@ -542,6 +626,93 @@ export const App: React.FC = () => {
 
         {/* Scrollable Workspace Body */}
         <div className="workspace-scroll-area">
+          {/* Readiness Validation Failure Notification Banner */}
+          {readinessError && (
+            <div
+              className="card"
+              style={{
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                padding: '16px 20px',
+                marginBottom: 20,
+                borderRadius: 8
+              }}
+              role="alert"
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ color: '#d97706', marginTop: 2, flexShrink: 0 }}>
+                    <AlertCircle size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, color: '#92400e', margin: 0 }}>
+                      {readinessError.message}
+                    </h4>
+                    <p style={{ fontSize: 12.5, color: '#b45309', margin: '4px 0 8px 0' }}>
+                      The AI blueprint generator requires clear, non-placeholder business parameters to synthesize actionable outputs.
+                    </p>
+                    <ul style={{ margin: '0 0 14px 18px', fontSize: 12.5, color: '#b45309' }}>
+                      {readinessError.reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={() => {
+                        setReadinessError(null);
+                        handleSelectModule('overview');
+                      }}
+                      className="btn-primary"
+                      style={{ fontSize: 12.5, padding: '7px 16px', gap: 6 }}
+                    >
+                      Update Project in Overview &rarr;
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setReadinessError(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#b45309', cursor: 'pointer', padding: 4 }}
+                  title="Dismiss notice"
+                  aria-label="Dismiss notice"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Realistic Progress Milestones Banner */}
+          {progressState && (
+            <div
+              className="card"
+              style={{
+                background: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                padding: '16px 20px',
+                marginBottom: 20,
+                borderRadius: 8
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6366f1', fontSize: 13, fontWeight: 600 }}>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>{progressState.stageText}</span>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1' }}>
+                  {progressState.progressPercent}%
+                </span>
+              </div>
+              <div style={{ width: '100%', height: 6, background: '#ede9fe', borderRadius: 9999, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                    width: `${progressState.progressPercent}%`,
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+              </div>
+            </div>
+          )}
           {activeModule === 'overview' && (
             <OverviewModule
               project={currentProject}

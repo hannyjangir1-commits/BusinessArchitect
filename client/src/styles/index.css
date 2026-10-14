@@ -48,6 +48,19 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
 }
 
+[data-theme="dark"] {
+  --bg-workspace: #0b0f19;
+  --bg-card: #151c2e;
+  --border-color: #222f47;
+  --border-light: #1b263b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+  --sidebar-bg: #070a12;
+  --sidebar-card-bg: #0d1322;
+  --sidebar-border: #151c2e;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -61,6 +74,7 @@ body {
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Scrollbars */
@@ -99,6 +113,36 @@ body {
   height: 100%;
   overflow-y: auto;
   user-select: none;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar.collapsed {
+  width: 72px;
+  min-width: 72px;
+}
+
+.sidebar.collapsed .brand-titles,
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .nav-item-right,
+.sidebar.collapsed .project-summary-card,
+.sidebar.collapsed .back-to-dashboard-btn span,
+.sidebar.collapsed .export-project-btn-titles,
+.sidebar.collapsed .create-project-btn span {
+  display: none !important;
+}
+
+.sidebar.collapsed .brand-logo,
+.sidebar.collapsed .back-to-dashboard-btn,
+.sidebar.collapsed .nav-item,
+.sidebar.collapsed .export-project-btn,
+.sidebar.collapsed .create-project-btn {
+  justify-content: center !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.sidebar.collapsed .nav-item-left {
+  margin: 0 auto;
 }
 
 .sidebar-header {

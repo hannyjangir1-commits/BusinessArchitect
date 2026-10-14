@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
   ClipboardList, Search, RefreshCw, Loader2, CheckCircle2,
@@ -16,7 +16,7 @@ export const AdminAuditLogsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.admin.audit.list({
@@ -34,11 +34,11 @@ export const AdminAuditLogsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search, outcomeFilter, targetFilter]);
 
   useEffect(() => {
     fetchLogs();
-  }, [page, outcomeFilter, targetFilter]);
+  }, [fetchLogs]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
-  ShieldAlert, CheckCircle2, AlertTriangle, Wrench, RefreshCw,
-  Loader2, ShieldCheck, ArrowRight
+  Wrench, RefreshCw, Loader2, ShieldCheck
 } from 'lucide-react';
 
 export const AdminDataIntegrityPage: React.FC = () => {
@@ -80,7 +79,7 @@ export const AdminDataIntegrityPage: React.FC = () => {
             No orphaned projects, dangling module contents, missing active versions, or circular dependencies detected.
           </p>
           <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-            Last scan: {new Date(scanResult?.scanned_at || Date.now()).toLocaleTimeString()}
+            Last scan: {scanResult?.scanned_at ? new Date(scanResult.scanned_at).toLocaleTimeString() : 'Just now'}
           </div>
         </div>
       ) : (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { BarChart3, TrendingUp, Layers, FileSpreadsheet, RefreshCw, Loader2 } from 'lucide-react';
+import { RefreshCw, Loader2 } from 'lucide-react';
 
 export const AdminAnalyticsPage: React.FC = () => {
   const [data, setData] = useState<any | null>(null);

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import {
-  Users, FolderKanban, Cpu, Activity, ShieldAlert,
-  ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, CheckCircle2,
-  TrendingUp, Database, Calendar, Filter, Loader2, RefreshCw
+  Users, FolderKanban, Cpu, AlertTriangle,
+  Database, Loader2, RefreshCw
 } from 'lucide-react';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -13,7 +12,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -28,11 +27,11 @@ export const AdminDashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [range]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [range]);
+  }, [fetchDashboardData]);
 
   if (loading && !stats) {
     return (
@@ -62,7 +61,6 @@ export const AdminDashboardPage: React.FC = () => {
   const projStats = stats?.projects || {};
   const aiStats = stats?.ai || {};
   const infraStats = stats?.infrastructure || {};
-  const secStats = stats?.security || {};
   const alerts = stats?.alerts || [];
   const trendPoints = trends?.points || [];
 

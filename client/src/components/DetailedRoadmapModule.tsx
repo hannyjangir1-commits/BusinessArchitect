@@ -1,7 +1,7 @@
 import React from 'react';
 import { Project, RoadmapTask, ModuleDetail } from '../types';
 import { VersionToolbar } from './VersionToolbar';
-import { ListTodo, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { ListTodo, Clock } from 'lucide-react';
 
 interface Props {
   project: Project;
@@ -53,7 +53,7 @@ export const DetailedRoadmapModule: React.FC<Props> = ({
           </div>
           <div className="module-titles">
             <h2>Detailed Operational Roadmap</h2>
-            <p>Chronological delivery breakdown grouped by execution intervals</p>
+            <p>Chronological delivery breakdown for {project.name}</p>
           </div>
         </div>
 

@@ -31,7 +31,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onNavigate,
   collapsed,
   onToggleCollapse,
-  adminRole
+  adminRole: _adminRole
 }) => {
   const navGroups: NavGroup[] = [
     {

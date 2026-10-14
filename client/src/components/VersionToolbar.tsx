@@ -16,7 +16,7 @@ interface Props {
 }
 
 export const VersionToolbar: React.FC<Props> = ({
-  moduleType,
+  moduleType: _moduleType,
   moduleTitle,
   activeVersionName,
   activeVersionNumber,
