@@ -342,18 +342,21 @@ export const api = {
         })
     },
     dashboard: {
-      getStats: (params: Record<string, string> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+      getStats: (params: Record<string, any> = {}) => {
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/dashboard/stats${qs ? `?${qs}` : ''}`);
       },
-      getTrends: (params: Record<string, string> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+      getTrends: (params: Record<string, any> = {}) => {
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/dashboard/trends${qs ? `?${qs}` : ''}`);
       }
     },
     users: {
       list: (params: Record<string, any> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/users${qs ? `?${qs}` : ''}`);
       },
       get: (userId: string) =>
@@ -374,7 +377,8 @@ export const api = {
     },
     projects: {
       list: (params: Record<string, any> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/projects${qs ? `?${qs}` : ''}`);
       },
       get: (projectId: string) =>
@@ -391,7 +395,8 @@ export const api = {
     },
     aiOps: {
       list: (params: Record<string, any> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/ai-operations${qs ? `?${qs}` : ''}`);
       },
       getStats: () =>
@@ -405,7 +410,8 @@ export const api = {
       getOverview: () =>
         request<any>('/api/admin/analytics/overview'),
       listEvents: (params: Record<string, any> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/analytics/events${qs ? `?${qs}` : ''}`);
       }
     },
@@ -415,7 +421,8 @@ export const api = {
       getDatabase: () =>
         request<any>('/api/admin/system/database'),
       getLogs: (params: Record<string, any> = {}) => {
-        const qs = new URLSearchParams(params).toString();
+        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/system/logs${qs ? `?${qs}` : ''}`);
       }
     },

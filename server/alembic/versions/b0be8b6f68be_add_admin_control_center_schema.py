@@ -120,7 +120,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_analytics_events_user_id'), 'analytics_events', ['user_id'], unique=False)
     with op.batch_alter_table('users', schema=None) as batch_op:
         batch_op.add_column(sa.Column('role', sa.String(length=32), nullable=False, server_default='user'))
-        batch_op.add_column(sa.Column('is_suspended', sa.Boolean(), nullable=False, server_default=sa.text('0')))
+        batch_op.add_column(sa.Column('is_suspended', sa.Boolean(), nullable=False, server_default=sa.false()))
         batch_op.add_column(sa.Column('suspended_at', sa.DateTime(), nullable=True))
         batch_op.add_column(sa.Column('suspension_reason', sa.Text(), nullable=True))
         batch_op.add_column(sa.Column('last_active_at', sa.DateTime(), nullable=False, server_default=sa.func.now()))

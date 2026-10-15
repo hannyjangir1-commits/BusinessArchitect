@@ -340,7 +340,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
               Suspend User: {suspendModalUser.username}
             </h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
-              Suspending this user will immediately revoke all active sessions and block them from signing in or generating AI modules.
+              Suspending this user will immediately revoke all active sessions and block them from signing in or generating blueprint modules.
             </p>
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>

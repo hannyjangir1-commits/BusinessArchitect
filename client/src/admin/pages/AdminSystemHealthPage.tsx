@@ -136,7 +136,7 @@ export const AdminSystemHealthPage: React.FC = () => {
               <option value="all">All Subsystems</option>
               <option value="security">Security</option>
               <option value="audit">Audit</option>
-              <option value="ai_ops">AI Operations</option>
+              <option value="ai_ops">Generation Operations</option>
             </select>
           </div>
         </div>

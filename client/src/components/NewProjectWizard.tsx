@@ -273,11 +273,11 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
               ) : (
                 <>
                   <div>
-                    <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>
                       Existing Technology Stack Selector
                     </h4>
-                    <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                      Select the components currently powering your product. Gemini will evaluate compatibility, scalability, and migration risks without forcing unnecessary rewrites.
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Select the components currently powering your product. The planning engine will evaluate compatibility, scalability, and migration risks without forcing unnecessary rewrites.
                     </p>
                   </div>
 
@@ -347,29 +347,29 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
           {/* STEP 3: Review & Blueprint Confirmation */}
           {currentStep === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16 }}>
-                <h4 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>
+              <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 10, padding: 16 }}>
+                <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)', marginBottom: 12 }}>
                   Blueprint Generation Summary
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', rowGap: 8, fontSize: 13 }}>
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Venture Name:</span>
-                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{name}</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Venture Name:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{name}</span>
 
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Stage:</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Stage:</span>
                   <span><span className="stage-badge-purple">{stage}</span></span>
 
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Industry:</span>
-                  <span>{industry || 'Technology'}</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Industry:</span>
+                  <span style={{ color: 'var(--text-main)' }}>{industry || 'Technology'}</span>
 
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Description:</span>
-                  <span>{description || 'Not specified'}</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Description:</span>
+                  <span style={{ color: 'var(--text-main)' }}>{description || 'Not specified'}</span>
 
                   {stage !== 'Idea / MVP' && (
                     <>
-                      <span style={{ color: '#64748b', fontWeight: 600 }}>Existing Stack:</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Existing Stack:</span>
                       <div>
                         {Object.entries(existingStack).map(([c, list]) => list.length > 0 ? (
-                          <div key={c} style={{ fontSize: 12, color: '#334155' }}>
+                          <div key={c} style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             <b>{c}:</b> {list.join(', ')}
                           </div>
                         ) : null)}
@@ -379,10 +379,10 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                 </div>
               </div>
 
-              <div style={{ padding: 12, background: '#f5f3ff', borderRadius: 8, border: '1px solid #c7d2fe', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ padding: 12, background: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, border: '1px solid rgba(99, 102, 241, 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Sparkles size={18} color="#6366f1" />
-                <span style={{ fontSize: 12.5, color: '#4338ca' }}>
-                  Upon submission, Google Gemini will synthesize the 9-block Business Model Canvas, Technology Architecture recommendations, and Execution Roadmap with interactive Gantt milestones.
+                <span style={{ fontSize: 12.5, color: 'var(--primary)' }}>
+                  Upon submission, Business Architect will synthesize the 9-block Business Model Canvas, Technology Architecture recommendations, and Execution Roadmap with interactive Gantt milestones.
                 </span>
               </div>
             </div>

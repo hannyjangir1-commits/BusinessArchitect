@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Enterprise Blueprint & AI Business Architect API",
+    description="Enterprise Blueprint & Business Architect API",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -55,11 +55,24 @@ api_v1.include_router(admin_router)
 
 @api_v1.get("/health")
 def api_health():
+    db_connected = False
+    try:
+        from sqlalchemy import text
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+            db_connected = True
+    except Exception:
+        db_connected = False
+
+    is_configured = bool(settings.GEMINI_API_KEY)
+
     return {
-        "status": "healthy",
-        "service": "AI Business Architect Backend",
+        "status": "healthy" if db_connected else "degraded",
+        "service": "Business Architect Backend",
         "environment": settings.APP_ENV,
-        "gemini_configured": bool(settings.GEMINI_API_KEY)
+        "database_connected": db_connected,
+        "generation_configured": is_configured,
+        "gemini_configured": is_configured
     }
 
 app.mount("/api", api_v1)
@@ -69,7 +82,7 @@ app.mount("/api", api_v1)
 def root_health():
     return {
         "status": "ok",
-        "service": "AI Business Architect Web Service",
+        "service": "Business Architect Web Service",
         "environment": settings.APP_ENV
     }
 

@@ -151,7 +151,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             <option value="system_setting">System Setting</option>
             <option value="maintenance">Maintenance</option>
             <option value="security">Security</option>
-            <option value="ai_operation">AI Operation</option>
+            <option value="ai_operation">Generation Operation</option>
             <option value="integrity">Integrity</option>
           </select>
 

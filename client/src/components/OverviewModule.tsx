@@ -113,8 +113,8 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
 
         {/* Existing Tech Stack summary if present */}
         {project.existing_stack && Object.keys(project.existing_stack).length > 0 && (
-          <div style={{ marginTop: 18, padding: 14, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>
+          <div style={{ marginTop: 18, padding: 14, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
               Active Technology Infrastructure
             </h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -125,8 +125,8 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
                     style={{
                       fontSize: 11.5,
                       fontWeight: 600,
-                      background: '#ede9fe',
-                      color: '#4338ca',
+                      background: 'rgba(99, 102, 241, 0.15)',
+                      color: 'var(--primary)',
                       padding: '3px 8px',
                       borderRadius: 6
                     }}
@@ -140,8 +140,8 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
         )}
 
         {/* Option A vs Option B Confirmation Bar */}
-        <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#64748b', fontSize: 12.5 }}>
+        <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12.5 }}>
             <AlertTriangle size={16} color="#f59e0b" />
             <span>Select whether to update this project in-place or fork into a separate project.</span>
           </div>

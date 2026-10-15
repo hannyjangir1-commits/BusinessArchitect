@@ -44,6 +44,8 @@ class VersionService:
         Guarantees strict concurrency protection via mutex lock.
         """
         with _version_lock:
+            # Acquire database row-level lock on the parent ModuleContent to serialize concurrent multi-process writes
+            db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
             versions = VersionService.get_versions(db, module.id)
             if len(versions) >= MAX_VERSIONS_LIMIT:
                 raise HTTPException(
@@ -114,6 +116,8 @@ class VersionService:
         """
         with _version_lock:
             try:
+                # Row lock on module row to serialize concurrent writes
+                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
                 target = db.query(ModuleVersion).filter(
                     ModuleVersion.id == replace_version_id,
                     ModuleVersion.module_content_id == module.id
@@ -167,23 +171,27 @@ class VersionService:
 
     @staticmethod
     def rename_version(db: Session, module: ModuleContent, version_id: str, new_name: str) -> ModuleVersion:
-        v = db.query(ModuleVersion).filter(
-            ModuleVersion.id == version_id,
-            ModuleVersion.module_content_id == module.id
-        ).first()
-        if not v:
-            raise HTTPException(status_code=404, detail="Version not found in this module")
-        v.version_name = new_name.strip()
-        db.commit()
-        db.refresh(v)
-        return v
+        with _version_lock:
+            db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+            v = db.query(ModuleVersion).filter(
+                ModuleVersion.id == version_id,
+                ModuleVersion.module_content_id == module.id
+            ).first()
+            if not v:
+                raise HTTPException(status_code=404, detail="Version not found in this module")
+            v.version_name = new_name.strip()
+            db.commit()
+            db.refresh(v)
+            return v
 
     @staticmethod
     def delete_version(db: Session, module: ModuleContent, version_id: str) -> bool:
-        v = db.query(ModuleVersion).filter(
-            ModuleVersion.id == version_id,
-            ModuleVersion.module_content_id == module.id
-        ).first()
+        with _version_lock:
+            db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+            v = db.query(ModuleVersion).filter(
+                ModuleVersion.id == version_id,
+                ModuleVersion.module_content_id == module.id
+            ).first()
         if not v:
             raise HTTPException(status_code=404, detail="Version not found")
 

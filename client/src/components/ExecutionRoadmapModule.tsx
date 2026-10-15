@@ -122,7 +122,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Main Grid: Left Column + Right AI Assistant */}
+      {/* Main Grid: Left Column + Right Blueprint Assistant */}
       <div className="workspace-grid">
         <div className="workspace-main-column">
           {activeSubTab === 'gantt' && (
@@ -189,7 +189,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Contextual AI Assistant Panel on the right matching screenshot */}
+        {/* Contextual Blueprint Assistant Panel on the right matching screenshot */}
         <ContextualAssistant
           moduleTitle="Execution Roadmap"
           moduleType="execution_roadmap"

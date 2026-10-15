@@ -178,7 +178,7 @@ def generate_module(
             db=db,
             module=module,
             data=data_dict,
-            change_summary="Initial AI generation via Gemini"
+            change_summary="Initial blueprint generation"
         )
 
         dur_ms = int((time.time() - t0) * 1000)
@@ -234,7 +234,7 @@ def generate_module(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Gemini generation failed: {str(e)}"
+            detail=f"Generation failed: {str(e)}"
         )
 
 @router.post("/{module_type}/modify", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])

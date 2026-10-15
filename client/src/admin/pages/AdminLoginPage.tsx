@@ -91,7 +91,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
             Enterprise Admin Portal
           </h2>
           <p style={{ fontSize: '13px', color: '#9ca3af', margin: 0 }}>
-            AI Business Architect — Control Center
+            Business Architect — Control Center
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 """
-AI Business Architect — Process Manager & Launcher Helper
+Business Architect — Process Manager & Launcher Helper
 Cross-platform process lifecycle, port inspection, and safe termination utility.
 """
 

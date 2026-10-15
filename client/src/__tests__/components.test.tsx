@@ -78,7 +78,7 @@ describe('ContextualAssistant', () => {
       />
     );
 
-    expect(screen.getByText('AI Assistant')).toBeDefined();
+    expect(screen.getByText('Blueprint Assistant')).toBeDefined();
     expect(screen.getByText('(Business Model Canvas)')).toBeDefined();
 
     // Suggested chips
@@ -103,7 +103,7 @@ describe('ContextualAssistant', () => {
       />
     );
 
-    expect(screen.getByText('AI Assistant')).toBeDefined();
+    expect(screen.getByText('Blueprint Assistant')).toBeDefined();
     expect(screen.getByText('(Technology Stack)')).toBeDefined();
     expect(screen.getByText(/Add authentication layer/i)).toBeDefined();
     expect(screen.getByText(/Evaluate database choice/i)).toBeDefined();

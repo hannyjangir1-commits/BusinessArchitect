@@ -31,16 +31,16 @@ export const AdminAIQualityPage: React.FC = () => {
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
-            AI Quality & Reliability Observability
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
+            Output Quality & Reliability Observability
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             Application-level schema validation tracking, structured output parsing integrity, and module performance
           </p>
         </div>
         <button
           onClick={fetchQuality}
-          style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
+          style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
         >
           <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
           <span>Refresh</span>
@@ -48,9 +48,9 @@ export const AdminAIQualityPage: React.FC = () => {
       </div>
 
       {loading && !quality ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-          <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
-          <p style={{ margin: 0 }}>Evaluating AI validation metrics...</p>
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary)' }} />
+          <p style={{ margin: 0 }}>Evaluating output quality validation metrics...</p>
         </div>
       ) : (
         <>

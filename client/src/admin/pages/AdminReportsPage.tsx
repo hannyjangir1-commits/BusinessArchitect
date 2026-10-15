@@ -25,8 +25,8 @@ export const AdminReportsPage: React.FC = () => {
     },
     {
       id: 'ai_operations',
-      title: 'AI Telemetry Operations Log',
-      desc: 'Granular logs of all Gemini operations, latency (ms), models, and error categories.',
+      title: 'Generation Telemetry Operations Log',
+      desc: 'Granular logs of all generation operations, latency (ms), processing engines, and error categories.',
       format: 'CSV (Formula-Sanitized)',
       icon: Cpu,
       action: () => api.admin.reports.downloadCsv('ai_operations')

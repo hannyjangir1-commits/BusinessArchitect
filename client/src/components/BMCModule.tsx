@@ -37,11 +37,11 @@ export const BMCModule: React.FC<Props> = ({
         <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#ede9fe', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <Compass size={28} />
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
           Business Model Canvas Not Yet Generated
         </h3>
-        <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
-          Generate Alexander Osterwalder's 9-block Business Model Canvas synthesized specifically for {project.name} using Google Gemini AI.
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
+          Generate Alexander Osterwalder's 9-block Business Model Canvas synthesized specifically for {project.name}.
         </p>
         <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
           {isLoading ? <><Loader2 size={16} className="animate-spin" /> Synthesizing Canvas...</> : <><Sparkles size={16} /> Generate Business Model Canvas</>}
@@ -51,15 +51,15 @@ export const BMCModule: React.FC<Props> = ({
   }
 
   const bmcBlocks = [
-    { key: 'key_partnerships', title: '1. Key Partnerships', items: bmcData.key_partnerships, color: '#06b6d4', icon: '🔗' },
-    { key: 'key_activities', title: '2. Key Activities', items: bmcData.key_activities, color: '#3b82f6', icon: '⚡' },
-    { key: 'key_resources', title: '3. Key Resources', items: bmcData.key_resources, color: '#8b5cf6', icon: '🏛️' },
-    { key: 'value_propositions', title: '4. Value Propositions', items: bmcData.value_propositions, color: '#6366f1', icon: '💎' },
-    { key: 'customer_relationships', title: '5. Customer Relationships', items: bmcData.customer_relationships, color: '#ec4899', icon: '🤝' },
-    { key: 'channels', title: '6. Channels', items: bmcData.channels, color: '#f43f5e', icon: '📢' },
-    { key: 'customer_segments', title: '7. Customer Segments', items: bmcData.customer_segments, color: '#fb7185', icon: '👥' },
-    { key: 'cost_structure', title: '8. Cost Structure', items: bmcData.cost_structure, color: '#f59e0b', icon: '⚖️' },
-    { key: 'revenue_streams', title: '9. Revenue Streams', items: bmcData.revenue_streams, color: '#10b981', icon: '💰' }
+    { key: 'key_partnerships', title: '1. Key Partnerships', items: bmcData.key_partnerships, color: '#06b6d4' },
+    { key: 'key_activities', title: '2. Key Activities', items: bmcData.key_activities, color: '#3b82f6' },
+    { key: 'key_resources', title: '3. Key Resources', items: bmcData.key_resources, color: '#8b5cf6' },
+    { key: 'value_propositions', title: '4. Value Propositions', items: bmcData.value_propositions, color: '#6366f1' },
+    { key: 'customer_relationships', title: '5. Customer Relationships', items: bmcData.customer_relationships, color: '#ec4899' },
+    { key: 'channels', title: '6. Channels', items: bmcData.channels, color: '#f43f5e' },
+    { key: 'customer_segments', title: '7. Customer Segments', items: bmcData.customer_segments, color: '#fb7185' },
+    { key: 'cost_structure', title: '8. Cost Structure', items: bmcData.cost_structure, color: '#f59e0b' },
+    { key: 'revenue_streams', title: '9. Revenue Streams', items: bmcData.revenue_streams, color: '#10b981' }
   ];
 
   return (
@@ -134,10 +134,9 @@ export const BMCModule: React.FC<Props> = ({
                   }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 700, color: b.color, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>{b.icon}</span>
                     <span>{b.title}</span>
                   </div>
-                  <ul style={{ paddingLeft: 16, fontSize: 12.5, color: '#334155', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <ul style={{ paddingLeft: 16, fontSize: 12.5, color: 'var(--text-main)', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {(b.items || []).map((it, idx) => (
                       <li key={idx} style={{ lineHeight: 1.4 }}>{it}</li>
                     ))}
@@ -148,7 +147,7 @@ export const BMCModule: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Section-Specific AI Assistant on the right */}
+        {/* Section-Specific Blueprint Assistant on the right */}
         <ContextualAssistant
           moduleTitle="Business Model Canvas"
           moduleType="bmc"

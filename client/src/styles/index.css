@@ -18,6 +18,9 @@
   /* Light workspace theme */
   --bg-workspace: #f8fafc;
   --bg-card: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-input: #ffffff;
+  --bg-subtle: #f1f5f9;
   --border-color: #e2e8f0;
   --border-light: #f1f5f9;
   
@@ -46,11 +49,15 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.25);
 }
 
 [data-theme="dark"] {
   --bg-workspace: #0b0f19;
   --bg-card: #151c2e;
+  --bg-elevated: #1e293b;
+  --bg-input: #111827;
+  --bg-subtle: #1a2236;
   --border-color: #222f47;
   --border-light: #1b263b;
   --text-main: #f8fafc;
@@ -59,6 +66,7 @@
   --sidebar-bg: #070a12;
   --sidebar-card-bg: #0d1322;
   --sidebar-border: #151c2e;
+  --focus-ring: 0 0 0 3px rgba(129, 140, 248, 0.35);
 }
 
 * {
@@ -653,7 +661,7 @@ body {
 }
 
 .btn-secondary {
-  background: #ffffff;
+  background: var(--bg-card);
   color: var(--text-main);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -667,8 +675,9 @@ body {
   transition: all 0.15s ease;
 }
 .btn-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--bg-subtle);
+  border-color: var(--border-color);
+  color: var(--text-main);
 }
 
 .btn-danger {
@@ -696,6 +705,7 @@ body {
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 8px;
+  overflow-x: auto;
 }
 
 .subtab-pill {
@@ -711,17 +721,18 @@ body {
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 .subtab-pill:hover {
   color: var(--text-main);
-  background: #f1f5f9;
+  background: var(--bg-subtle);
 }
 .subtab-pill.active {
   background: var(--primary);
   color: #ffffff;
 }
 
-/* Workspace 2-Column Grid (Content + AI Assistant) */
+/* Workspace 2-Column Grid (Content + Blueprint Assistant) */
 .workspace-grid {
   display: grid;
   grid-template-columns: 1fr 340px;
@@ -747,6 +758,7 @@ body {
   border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-sm);
+  color: var(--text-main);
 }
 
 .card-header-row {
@@ -805,7 +817,7 @@ body {
 
 .milestone-track {
   height: 6px;
-  background: #f1f5f9;
+  background: var(--bg-subtle);
   border-radius: var(--radius-full);
   overflow: hidden;
 }
@@ -835,6 +847,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .filter-chip {
@@ -842,14 +855,18 @@ body {
   font-size: 12px;
   font-weight: 600;
   border-radius: var(--radius-full);
-  background: #f1f5f9;
+  background: var(--bg-subtle);
   color: var(--text-muted);
-  border: none;
+  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.15s ease;
 }
+.filter-chip:hover {
+  color: var(--text-main);
+}
 .filter-chip.active {
   background: var(--primary);
+  border-color: var(--primary);
   color: #ffffff;
 }
 
@@ -874,7 +891,7 @@ body {
 
 .enterprise-table th {
   padding: 10px 12px;
-  background: #f8fafc;
+  background: var(--bg-subtle);
   color: var(--text-muted);
   font-weight: 600;
   font-size: 11.5px;
@@ -891,7 +908,7 @@ body {
 }
 
 .enterprise-table tr:hover {
-  background: #f8fafc;
+  background: var(--bg-subtle);
 }
 
 /* Status & Priority Badges */
@@ -915,8 +932,8 @@ body {
   color: #0284c7;
 }
 .badge-priority.low {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
 }
 
 .badge-timeline {
@@ -924,7 +941,7 @@ body {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: var(--radius-full);
-  background: #f1f5f9;
+  background: var(--bg-subtle);
   color: var(--text-muted);
 }
 
@@ -934,12 +951,13 @@ body {
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
-  background: #ffffff;
+  background: var(--bg-card);
+  color: var(--text-main);
   outline: none;
   cursor: pointer;
 }
 
-/* Contextual AI Assistant Panel */
+/* Contextual Assistant Panel */
 .ai-assistant-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -950,6 +968,7 @@ body {
   box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
+  color: var(--text-main);
 }
 
 .ai-assistant-header {
@@ -985,8 +1004,8 @@ body {
 }
 
 .ai-prompt-box-banner {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 12px;
 }
@@ -1010,7 +1029,7 @@ body {
 }
 
 .ai-chip-btn {
-  background: #ffffff;
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 8px 12px;
@@ -1025,7 +1044,7 @@ body {
 }
 .ai-chip-btn:hover {
   border-color: var(--primary);
-  background: #f5f3ff;
+  background: var(--bg-subtle);
   color: var(--primary);
 }
 
@@ -1044,11 +1063,12 @@ body {
   padding: 8px 12px;
   font-size: 12.5px;
   outline: none;
-  background: #f8fafc;
+  background: var(--bg-subtle);
+  color: var(--text-main);
 }
 .ai-input-field:focus {
   border-color: var(--primary);
-  background: #ffffff;
+  background: var(--bg-card);
 }
 
 .ai-send-btn {
@@ -1072,7 +1092,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -1082,7 +1102,8 @@ body {
 }
 
 .modal-card {
-  background: #ffffff;
+  background: var(--bg-card);
+  color: var(--text-main);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;
@@ -1133,7 +1154,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  background: #f8fafc;
+  background: var(--bg-subtle);
 }
 
 /* Forms */
@@ -1156,11 +1177,12 @@ body {
   font-size: 13.5px;
   font-family: inherit;
   outline: none;
-  background: #ffffff;
+  background: var(--bg-input);
+  color: var(--text-main);
 }
 .form-input:focus, .form-textarea:focus, .form-select:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  box-shadow: var(--focus-ring);
 }
 
 /* Responsive adjustments */
@@ -1170,6 +1192,54 @@ body {
   }
   .ai-assistant-panel {
     position: static;
-    height: 400px;
+    height: auto;
+    min-height: 380px;
+  }
+  .milestones-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-header {
+    padding: 0 16px;
+  }
+  .workspace-scroll-area {
+    padding: 16px 16px 32px 16px;
+  }
+  .search-input-box {
+    width: 180px;
+  }
+  .header-subtitle {
+    display: none;
+  }
+  .module-header-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .module-toolbar {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .modal-card {
+    max-width: 95vw;
+    margin: 10px;
+  }
+  .landing-desktop-nav {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-input-box {
+    display: none;
+  }
+  .header-title-row h2 {
+    font-size: 15px;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

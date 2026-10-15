@@ -48,10 +48,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ]
     },
     {
-      title: 'AI Operations',
+      title: 'Generation Operations',
       items: [
-        { id: 'ai-ops', label: 'Gemini Operations', icon: Cpu, path: '/admin/ai-operations' },
-        { id: 'ai-quality', label: 'AI Quality & Reliability', icon: CheckCircle2, path: '/admin/ai-quality' }
+        { id: 'ai-ops', label: 'Generation Operations', icon: Cpu, path: '/admin/ai-operations' },
+        { id: 'ai-quality', label: 'Output Quality & Reliability', icon: CheckCircle2, path: '/admin/ai-quality' }
       ]
     },
     {

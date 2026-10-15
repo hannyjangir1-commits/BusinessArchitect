@@ -263,7 +263,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // 5. Generate Module via Gemini with Readiness Validation and Progress Milestones
+  // 5. Generate Module with Readiness Validation and Progress Milestones
   const handleGenerateModule = async (moduleType: string) => {
     if (!currentProject) return;
     setReadinessError(null);
@@ -340,12 +340,12 @@ export const App: React.FC = () => {
       if (err.status === 422 && err.data?.error === 'READINESS_VALIDATION_FAILED') {
         setReadinessError({
           moduleType,
-          message: err.data.message || 'Project details are insufficient for AI blueprint synthesis.',
+          message: err.data.message || 'Project details are insufficient for blueprint generation.',
           missingFields: err.data.missing_fields || [],
           reasons: err.data.reasons || []
         });
       } else {
-        alert(err.message || 'Gemini generation failed');
+        alert(err.message || 'Blueprint generation failed. Please try again.');
       }
     } finally {
       clearInterval(progressTimer);
@@ -386,7 +386,7 @@ export const App: React.FC = () => {
         });
         setConflictModalOpen(true);
       } else {
-        alert(err.message || 'AI modification failed');
+        alert(err.message || 'Blueprint modification failed. Please try again.');
       }
     } finally {
       setModuleLoading(false);
@@ -569,7 +569,7 @@ export const App: React.FC = () => {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d121f', color: '#ffffff', gap: 12 }}>
         <Loader2 size={24} className="animate-spin" color="#6366f1" />
-        <span>Loading AI Business Architect...</span>
+        <span>Loading Business Architect...</span>
       </div>
     );
   }
@@ -649,7 +649,7 @@ export const App: React.FC = () => {
                       {readinessError.message}
                     </h4>
                     <p style={{ fontSize: 12.5, color: '#b45309', margin: '4px 0 8px 0' }}>
-                      The AI blueprint generator requires clear, non-placeholder business parameters to synthesize actionable outputs.
+                      The blueprint generator requires clear, non-placeholder business parameters to synthesize actionable outputs.
                     </p>
                     <ul style={{ margin: '0 0 14px 18px', fontSize: 12.5, color: '#b45309' }}>
                       {readinessError.reasons.map((r, i) => (

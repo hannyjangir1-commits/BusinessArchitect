@@ -54,13 +54,13 @@ export const VersionConflictModal: React.FC<Props> = ({
           </div>
 
           {pendingInstruction && (
-            <div style={{ fontSize: 12, color: '#475569', background: '#f8fafc', padding: 10, borderRadius: 6 }}>
-              <b>Pending AI Modification:</b> <i>"{pendingInstruction}"</i>
+            <div style={{ fontSize: 12, color: 'var(--text-main)', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', padding: 10, borderRadius: 6 }}>
+              <b>Pending Modification:</b> <i>"{pendingInstruction}"</i>
             </div>
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>
               Choose a version to replace:
             </div>
             {existingVersions.map((v) => (
@@ -71,27 +71,27 @@ export const VersionConflictModal: React.FC<Props> = ({
                   setConfirmedDeletion(false);
                 }}
                 style={{
-                  border: `2px solid ${selectedVersionId === v.id ? '#6366f1' : '#e2e8f0'}`,
+                  border: `2px solid ${selectedVersionId === v.id ? 'var(--primary)' : 'var(--border-color)'}`,
                   borderRadius: 8,
                   padding: '10px 14px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  background: selectedVersionId === v.id ? '#f5f3ff' : '#ffffff',
+                  background: selectedVersionId === v.id ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-card)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>
                     {v.version_name} {v.is_active && '(Currently Active)'}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     {v.change_summary || 'Initial creation'} • {new Date(v.created_at).toLocaleDateString()}
                   </div>
                 </div>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selectedVersionId === v.id ? '#6366f1' : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {selectedVersionId === v.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#6366f1' }} />}
+                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selectedVersionId === v.id ? 'var(--primary)' : 'var(--border-color)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {selectedVersionId === v.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--primary)' }} />}
                 </div>
               </div>
             ))}

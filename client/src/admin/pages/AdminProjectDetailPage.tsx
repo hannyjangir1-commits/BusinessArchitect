@@ -161,19 +161,19 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
             {copilot_messages_count}
           </div>
           <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
-            Total interactive AI dialogue turns exchanged on this project
+            Total interactive planning dialogue turns exchanged on this project
           </p>
         </div>
       </div>
 
-      {/* Recent AI Operations */}
-      <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0' }}>
-        <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {/* Recent Generation Operations */}
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
+        <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Cpu size={16} style={{ color: '#6366f1' }} />
-          Recent AI Operations on this Project
+          Recent Generation Operations on this Project
         </h4>
         {recent_ai_operations.length === 0 ? (
-          <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>No AI generation operations recorded for this project.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '12px', margin: 0 }}>No generation operations recorded for this project.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {recent_ai_operations.map((op: any) => (

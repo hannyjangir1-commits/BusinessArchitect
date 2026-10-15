@@ -36,20 +36,20 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       {/* Header bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#ffffff', flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Calendar size={18} color="#6366f1" />
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Project Execution Timeline</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>Project Execution Timeline</h3>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#475569' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
             Month View <ChevronDown size={14} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#475569' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)' }}>
             <Calendar size={14} /> Oct 2026 - Mar 2027
           </div>
-          <button style={{ padding: '5px 12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#0f172a', cursor: 'pointer' }}>
+          <button style={{ padding: '5px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
             Today
           </button>
         </div>
@@ -58,9 +58,9 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
       {/* Gantt Interactive Area */}
       <div style={{ display: 'flex', width: '100%', overflowX: 'auto' }}>
         {/* Left Column: Tasks / Phases */}
-        <div style={{ width: 340, minWidth: 340, borderRight: '1px solid #e2e8f0', background: '#ffffff', zIndex: 2 }}>
+        <div style={{ width: 340, minWidth: 340, borderRight: '1px solid var(--border-color)', background: 'var(--bg-card)', zIndex: 2 }}>
           {/* Header row */}
-          <div style={{ display: 'flex', height: 50, borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 600, fontSize: 12, color: '#64748b', alignItems: 'center' }}>
+          <div style={{ display: 'flex', height: 50, borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)', fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', alignItems: 'center' }}>
             <div style={{ flex: 1, paddingLeft: 16 }}>Task / Phase</div>
             <div style={{ width: 65, textAlign: 'center' }}>Start</div>
             <div style={{ width: 65, textAlign: 'center' }}>End</div>
@@ -80,22 +80,22 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
                     display: 'flex',
                     alignItems: 'center',
                     height: 42,
-                    borderBottom: '1px solid #f1f5f9',
+                    borderBottom: '1px solid var(--border-color)',
                     fontSize: 13,
                     fontWeight: 700,
-                    color: '#0f172a',
+                    color: 'var(--text-main)',
                     cursor: 'pointer',
-                    background: '#ffffff',
+                    background: 'var(--bg-card)',
                     transition: 'background 0.15s ease'
                   }}
                 >
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
-                    <span style={{ fontSize: 10, color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{isExpanded ? '▼' : '▶'}</span>
                     <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
                     {p.name}
                   </div>
-                  <div style={{ width: 65, textAlign: 'center', fontSize: 11.5, color: '#64748b', fontWeight: 500 }}>{p.startStr}</div>
-                  <div style={{ width: 65, textAlign: 'center', fontSize: 11.5, color: '#64748b', fontWeight: 500 }}>{p.endStr}</div>
+                  <div style={{ width: 65, textAlign: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{p.startStr}</div>
+                  <div style={{ width: 65, textAlign: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{p.endStr}</div>
                 </div>
 
                 {/* Child Task Rows */}
@@ -106,21 +106,21 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
                       display: 'flex',
                       alignItems: 'center',
                       height: 38,
-                      borderBottom: '1px solid #f8fafc',
+                      borderBottom: '1px solid var(--border-color)',
                       fontSize: 12.5,
-                      color: '#334155',
+                      color: 'var(--text-main)',
                       paddingLeft: 38,
-                      background: '#fafbfc'
+                      background: 'var(--bg-subtle)'
                     }}
                   >
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
                     </div>
-                    <div style={{ width: 65, textAlign: 'center', fontSize: 11, color: '#64748b' }}>
+                    <div style={{ width: 65, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
                       {t.start_date.slice(5)}
                     </div>
-                    <div style={{ width: 65, textAlign: 'center', fontSize: 11, color: '#64748b' }}>
+                    <div style={{ width: 65, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
                       {t.end_date.slice(5)}
                     </div>
                   </div>
@@ -131,11 +131,11 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
         </div>
 
         {/* Right Gantt Canvas */}
-        <div style={{ flex: 1, minWidth: chartWidth, position: 'relative', background: '#ffffff' }}>
+        <div style={{ flex: 1, minWidth: chartWidth, position: 'relative', background: 'var(--bg-card)' }}>
           {/* Header Row Months & Weeks */}
-          <div style={{ height: 50, borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: 50, borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column' }}>
             {/* Months row */}
-            <div style={{ display: 'flex', height: 26, borderBottom: '1px solid #edf2f7' }}>
+            <div style={{ display: 'flex', height: 26, borderBottom: '1px solid var(--border-color)' }}>
               {months.map((m) => (
                 <div
                   key={m}
@@ -143,9 +143,9 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
                     width: colWidth * 4,
                     fontSize: 11.5,
                     fontWeight: 700,
-                    color: '#334155',
+                    color: 'var(--text-main)',
                     textAlign: 'center',
-                    borderRight: '1px solid #e2e8f0',
+                    borderRight: '1px solid var(--border-color)',
                     lineHeight: '26px'
                   }}
                 >
@@ -161,9 +161,9 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
                   style={{
                     width: colWidth,
                     fontSize: 9.5,
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     textAlign: 'center',
-                    borderRight: '1px solid #f1f5f9',
+                    borderRight: '1px solid var(--border-color)',
                     lineHeight: '24px'
                   }}
                 >
@@ -272,7 +272,7 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
       </div>
 
       {/* Legend Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '12px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 11.5, fontWeight: 600, color: '#64748b' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '12px 20px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-subtle)', fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} /> Planning</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3b82f6' }} /> Design</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#8b5cf6' }} /> Development</div>

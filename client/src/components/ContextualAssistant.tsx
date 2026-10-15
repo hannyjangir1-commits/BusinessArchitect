@@ -78,10 +78,10 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             background: '#ffffff',
             boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
           }}
-          title="Reopen Contextual AI Assistant"
+          title="Reopen Contextual Blueprint Assistant"
         >
           <Sparkles size={15} color="#eab308" />
-          <span>Reopen AI Assistant ({moduleTitle})</span>
+          <span>Reopen Blueprint Assistant ({moduleTitle})</span>
         </button>
       </div>
     );
@@ -93,7 +93,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
       <div className="ai-assistant-header">
         <div className="ai-assistant-title">
           <Sparkles size={16} color="#eab308" />
-          <span>AI Assistant</span>
+          <span>Blueprint Assistant</span>
           <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>({moduleTitle})</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
@@ -125,7 +125,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
           <div className="ai-assistant-content">
             <div className="ai-prompt-box-banner">
               <h4>Modify your {moduleTitle.toLowerCase()}</h4>
-              <p>Instruct Gemini AI to adapt this module's parameters, structure, or strategic direction.</p>
+              <p>Instruct Blueprint Assistant to adapt this module's parameters, structure, or strategic direction.</p>
             </div>
 
             {/* Module-Specific Suggestion Chips */}
@@ -143,9 +143,9 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             </div>
 
             {isLoading && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: '#f5f3ff', borderRadius: 8, color: '#6366f1', fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, color: 'var(--primary)', fontSize: 12 }}>
                 <Loader2 size={16} className="animate-spin" />
-                <span>Gemini AI is analyzing and updating your blueprint...</span>
+                <span>Updating your blueprint recommendations...</span>
               </div>
             )}
           </div>
@@ -155,7 +155,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             <input
               type="text"
               className="ai-input-field"
-              placeholder={`Instruct AI to modify ${moduleTitle}...`}
+              placeholder={`Instruct Blueprint Assistant to modify ${moduleTitle}...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}

@@ -14,7 +14,7 @@ else:
     load_dotenv()
 
 class Settings:
-    PROJECT_NAME: str = "AI Business Architect — Enterprise Blueprint"
+    PROJECT_NAME: str = "Business Architect — Enterprise Blueprint"
     APP_ENV: str = os.getenv("APP_ENV", "development")
     IS_PROD: bool = APP_ENV.lower() == "production"
 

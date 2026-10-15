@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title AI Business Architect — Stop Services
+title Business Architect — Stop Services
 cd /d "%~dp0"
 
 echo ==============================================================
-echo        AI Business Architect - Safe Service Shutdown
+echo        Business Architect - Safe Service Shutdown
 echo ==============================================================
 echo(
 
@@ -56,11 +56,11 @@ for /f "tokens=5" %%a in ('netstat -ano -p tcp ^| findstr /R /C:":5173 .*LISTENI
 if exist "%~dp0.app_pids" del /q "%~dp0.app_pids" >nul 2>&1
 
 if %STOPPED% equ 0 (
-    echo [INFO] AI Business Architect is not currently running.
+    echo [INFO] Business Architect is not currently running.
     echo        No active services found on port 8000 or 5173.
 ) else (
     echo(
-    echo [SUCCESS] Successfully stopped %STOPPED% AI Business Architect process(es).
+    echo [SUCCESS] Successfully stopped %STOPPED% Business Architect process(es).
 )
 
 :end_shutdown

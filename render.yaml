@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ai-business-architect
+    name: business-architect
     runtime: docker
     plan: starter
     region: oregon

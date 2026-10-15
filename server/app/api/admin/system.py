@@ -60,10 +60,10 @@ def get_system_health(
             "details": f"Dialect: {engine.dialect.name}, Revision: {alembic_rev}"
         },
         {
-            "name": "Gemini AI Gateway",
+            "name": "Content Generation Service",
             "status": "healthy" if settings.GEMINI_API_KEY else "not_configured",
             "latency_ms": 0.0,
-            "details": f"Model: {settings.GEMINI_MODEL}, Key configured: {bool(settings.GEMINI_API_KEY)}"
+            "details": f"Processing configuration: {settings.GEMINI_MODEL}, Credential status: {'Configured' if settings.GEMINI_API_KEY else 'Missing'}"
         },
         {
             "name": "Session Store",

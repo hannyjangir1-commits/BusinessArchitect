@@ -63,5 +63,5 @@ def send_chat_message(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Blueprint Copilot error: {str(e)}"
+            detail=f"Planning Assistant error: {str(e)}"
         )

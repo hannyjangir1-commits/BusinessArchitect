@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
-import {
-  ShieldCheck, ShieldAlert, KeyRound, Ban, RefreshCw,
-  Loader2
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+
 
 export const AdminSecurityPage: React.FC = () => {
   const [events, setEvents] = useState<any[]>([]);

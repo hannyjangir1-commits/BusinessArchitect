@@ -88,7 +88,6 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
             aria-label="Notifications"
           >
             <Bell size={17} />
-            <span className="notification-dot" />
           </button>
 
           {notificationsOpen && (
@@ -98,17 +97,18 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                 top: '100%',
                 right: 0,
                 marginTop: 6,
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
                 borderRadius: 8,
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+                boxShadow: 'var(--shadow-md)',
                 width: 260,
                 zIndex: 100,
-                padding: '12px 14px'
+                padding: '12px 14px',
+                color: 'var(--text-main)'
               }}
             >
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>System Notifications</div>
-              <div style={{ fontSize: 11.5, color: '#64748b' }}>AI Business Architect is operational. All blueprint synthesis engines ready.</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>System Status</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>System operational. All blueprint planning features ready.</div>
             </div>
           )}
         </div>
@@ -135,16 +135,16 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                 top: '100%',
                 right: 0,
                 marginTop: 6,
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
                 borderRadius: 8,
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+                boxShadow: 'var(--shadow-md)',
                 width: 200,
                 zIndex: 100,
                 padding: 4
               }}
             >
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontSize: 11, color: '#64748b' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-muted)' }}>
                 Signed in as <b>{user.username}</b>
               </div>
 
@@ -161,7 +161,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                   gap: 8,
                   border: 'none',
                   background: 'transparent',
-                  color: '#334155',
+                  color: 'var(--text-main)',
                   fontSize: 12.5,
                   fontWeight: 500,
                   cursor: 'pointer',
@@ -215,7 +215,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                   fontWeight: 600,
                   cursor: 'pointer',
                   textAlign: 'left',
-                  borderTop: '1px solid #f1f5f9'
+                  borderTop: '1px solid var(--border-color)'
                 }}
               >
                 <LogOut size={14} /> Log Out

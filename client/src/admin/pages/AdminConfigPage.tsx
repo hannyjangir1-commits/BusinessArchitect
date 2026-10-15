@@ -66,7 +66,7 @@ export const AdminConfigPage: React.FC = () => {
             Configuration Center
           </h1>
           <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '14px' }}>
-            Manage safe runtime settings, AI service parameters, security limits, and inspect secret configuration status.
+            Manage safe runtime settings, processing service parameters, security limits, and inspect configuration status.
           </p>
         </div>
         <button

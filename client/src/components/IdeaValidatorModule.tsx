@@ -25,11 +25,11 @@ export const IdeaValidatorModule: React.FC<Props> = ({
         <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#ede9fe', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <CheckCircle2 size={28} />
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
           Idea Validation Report Not Yet Generated
         </h3>
-        <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
-          Evaluate the market assumptions, ICP fit, differentiation moat, and risk mitigation roadmap for {project.name} using Gemini AI.
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
+          Evaluate the market assumptions, ICP fit, differentiation moat, and risk mitigation roadmap for {project.name}.
         </p>
         <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
           {isLoading ? <><Loader2 size={16} className="animate-spin" /> Evaluating Feasibility...</> : <><Sparkles size={16} /> Run Idea Validator</>}
@@ -71,16 +71,16 @@ export const IdeaValidatorModule: React.FC<Props> = ({
           <div style={{ fontSize: 36, fontWeight: 900, color: scoreColor }}>
             {score}<span style={{ fontSize: 18, color: '#94a3b8' }}>/100</span>
           </div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', marginTop: 2 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 2 }}>
             Viability Score
           </div>
         </div>
 
-        <div style={{ flex: 1, minWidth: 260, borderLeft: '1px solid #e2e8f0', paddingLeft: 24 }}>
-          <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+        <div style={{ flex: 1, minWidth: 260, borderLeft: '1px solid var(--border-color)', paddingLeft: 24 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>
             Problem Urgency & Customer Fit
           </h4>
-          <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-main)', lineHeight: 1.5 }}>
             {data.problem_clarity}
           </p>
           <div style={{ marginTop: 8, fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
@@ -109,7 +109,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
           </div>
           <ul style={{ paddingLeft: 18, fontSize: 12.5, color: '#334155', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {(data.market_assumptions || []).map((assump, idx) => (
-              <li key={idx} style={{ lineHeight: 1.4 }}>{assump}</li>
+              <li key={idx} style={{ lineHeight: 1.4, color: 'var(--text-main)' }}>{assump}</li>
             ))}
           </ul>
         </div>
@@ -132,13 +132,13 @@ export const IdeaValidatorModule: React.FC<Props> = ({
             <tbody>
               {(data.risks || []).map((r, idx) => (
                 <tr key={idx}>
-                  <td style={{ fontWeight: 600, color: '#0f172a' }}>{r.risk}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{r.risk}</td>
                   <td>
                     <span className={`badge-priority ${r.severity.toLowerCase()}`}>
                       {r.severity}
                     </span>
                   </td>
-                  <td style={{ color: '#334155' }}>{r.mitigation}</td>
+                  <td style={{ color: 'var(--text-main)' }}>{r.mitigation}</td>
                 </tr>
               ))}
             </tbody>
@@ -153,11 +153,11 @@ export const IdeaValidatorModule: React.FC<Props> = ({
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
           {(data.validation_experiments || []).map((exp, idx) => (
-            <div key={idx} style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>
+            <div key={idx} style={{ background: 'var(--bg-subtle)', padding: 14, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
                 Experiment #{idx + 1}: {exp.experiment}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 <b>Metric:</b> {exp.metric}
               </div>
               <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600, marginTop: 4 }}>

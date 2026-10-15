@@ -34,7 +34,7 @@ export const AdminAIOperationsPage: React.FC = () => {
       setTotalPages(listRes.total_pages);
       setStats(statsRes);
     } catch (e: any) {
-      console.error('Failed to load AI operations data', e);
+      console.error('Failed to load generation operations data', e);
     } finally {
       setLoading(false);
     }
@@ -63,10 +63,10 @@ export const AdminAIOperationsPage: React.FC = () => {
       {/* Page Title */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
-            Gemini AI Operations Center
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
+            Generation Operations Center
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             Inspect generation latency percentiles, error classifications, retry rates, and execution telemetry
           </p>
         </div>
@@ -75,9 +75,9 @@ export const AdminAIOperationsPage: React.FC = () => {
       {/* KPI Stats Bar */}
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-          <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Configured Model</div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#4338ca', marginTop: '4px' }}>{stats.configured_model}</div>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Processing Engine</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>{stats.configured_model}</div>
           </div>
           <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Success Rate</div>
@@ -157,14 +157,14 @@ export const AdminAIOperationsPage: React.FC = () => {
       {/* Operations Table */}
       <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-            <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
-            <p style={{ margin: 0 }}>Loading AI operation telemetry...</p>
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary)' }} />
+            <p style={{ margin: 0 }}>Loading operation telemetry...</p>
           </div>
         ) : ops.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <Cpu size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-            <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No AI operations recorded matching criteria</p>
+            <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No generation operations recorded matching criteria</p>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>

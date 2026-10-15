@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title AI Business Architect — Launcher
+title Business Architect — Launcher
 cd /d "%~dp0"
 
 echo ==============================================================
-echo   AI Business Architect - Enterprise Blueprint Launcher
+echo   Business Architect - Enterprise Blueprint Launcher
 echo ==============================================================
 echo(
 

@@ -388,7 +388,7 @@ async function findElementByText(page, selector, text) {
     console.log(`  Conflict Modal Header: "${headerText}"`);
 
     // Verify checkbox guard is unchecked and confirm button is disabled
-    const checkbox = await page.$('#confirm-permanent-deletion-checkbox');
+    const _checkbox = await page.$('#confirm-permanent-deletion-checkbox');
     const confirmBtn = await findButtonByText(page, 'Confirm & Replace Selected Version');
     const isInitiallyDisabled = confirmBtn ? await page.evaluate(el => el.disabled, confirmBtn) : false;
     console.log(`  Confirm button initially disabled: ${isInitiallyDisabled}`);

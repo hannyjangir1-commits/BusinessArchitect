@@ -28,8 +28,8 @@ export const MarketResearchModule: React.FC<Props> = ({
         <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
           Market Research & Competitor Intelligence Not Yet Generated
         </h3>
-        <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
-          Analyze the competitive landscape, market dynamics, and competitive wedge for {project.name} using Gemini AI.
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
+          Analyze the competitive landscape, market dynamics, and competitive wedge for {project.name}.
         </p>
         <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
           {isLoading ? <><Loader2 size={16} className="animate-spin" /> Synthesizing Market Intelligence...</> : <><Sparkles size={16} /> Generate Market Intelligence</>}
@@ -63,10 +63,10 @@ export const MarketResearchModule: React.FC<Props> = ({
       </div>
 
       {/* Provenance Notice */}
-      <div style={{ padding: '10px 14px', background: '#eff6ff', borderRadius: 8, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Info size={16} color="#2563eb" />
-        <span style={{ fontSize: 12, color: '#1e40af' }}>
-          <b>Provenance Note:</b> {data.provenance_note || 'AI-grounded analytical market assessment based on industry benchmarks and disclosed business context.'}
+      <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Info size={16} color="#3b82f6" />
+        <span style={{ fontSize: 12, color: 'var(--text-main)' }}>
+          <b>Provenance Note:</b> {data.provenance_note || 'Structured analytical market assessment based on industry benchmarks and disclosed business context.'}
         </span>
       </div>
 

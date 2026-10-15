@@ -121,7 +121,7 @@ export const TechStackModule: React.FC<Props> = ({
           />
 
           {/* Architectural Summary Banner */}
-          <div className="card" style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderLeft: '4px solid #6366f1' }}>
+          <div className="card" style={{ background: 'var(--bg-card)', borderLeft: '4px solid #6366f1' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#6366f1' }}>
                 Architectural Blueprint
@@ -130,7 +130,7 @@ export const TechStackModule: React.FC<Props> = ({
                 Pattern: {techData?.architecture_pattern || 'Modular Monolith'}
               </span>
             </div>
-            <p style={{ fontSize: 13.5, color: '#1e293b', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13.5, color: 'var(--text-main)', lineHeight: 1.5 }}>
               {techData?.summary || 'Production architectural blueprint.'}
             </p>
           </div>
@@ -144,31 +144,31 @@ export const TechStackModule: React.FC<Props> = ({
                 <div key={idx} className="card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 6, background: '#ede9fe', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 6, background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Icon size={16} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{item.technology}</div>
-                        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{item.category}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>{item.technology}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{item.category}</div>
                       </div>
                     </div>
                     {item.migration_risk && (
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: '#f1f5f9', color: '#475569' }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
                         Risk: {item.migration_risk}
                       </span>
                     )}
                   </div>
 
-                  <div style={{ fontSize: 12.5, color: '#334155', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-main)', lineHeight: 1.4 }}>
                     <b>Purpose:</b> {item.purpose}
                   </div>
 
-                  <div style={{ fontSize: 12, color: '#64748b', background: '#f8fafc', padding: 8, borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)' }}>
                     <b>Suitability:</b> {item.suitability}
                   </div>
 
                   {item.trade_offs && (
-                    <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
                       <i>Trade-offs: {item.trade_offs}</i>
                     </div>
                   )}
@@ -178,7 +178,7 @@ export const TechStackModule: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Section-Specific AI Assistant on the right */}
+        {/* Section-Specific Blueprint Assistant on the right */}
         <ContextualAssistant
           moduleTitle="Technology Stack"
           moduleType="tech_stack"

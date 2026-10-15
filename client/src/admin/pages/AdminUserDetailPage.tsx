@@ -148,7 +148,7 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155', marginTop: '2px' }}>{user.sessions_count} session(s)</div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Total AI Operations</div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Total Generation Operations</div>
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155', marginTop: '2px' }}>{user.ai_ops_count} operations</div>
           </div>
         </div>

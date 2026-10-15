@@ -34,7 +34,7 @@ def upgrade() -> None:
             sa.Column('username', sa.String(length=64), nullable=False),
             sa.Column('email', sa.String(length=128), nullable=False),
             sa.Column('hashed_password', sa.String(length=256), nullable=False),
-            sa.Column('terms_accepted', sa.Boolean(), nullable=False, server_default=sa.text('0')),
+            sa.Column('terms_accepted', sa.Boolean(), nullable=False, server_default=sa.false()),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=False),
             sa.PrimaryKeyConstraint('id')
@@ -100,7 +100,7 @@ def upgrade() -> None:
             sa.Column('version_name', sa.String(length=128), nullable=False),
             sa.Column('data', sa.JSON(), nullable=False),
             sa.Column('change_summary', sa.Text(), nullable=True),
-            sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.ForeignKeyConstraint(['module_content_id'], ['module_contents.id'], ondelete='CASCADE'),
             sa.PrimaryKeyConstraint('id')

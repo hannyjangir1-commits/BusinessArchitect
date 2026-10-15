@@ -73,7 +73,7 @@ export const AdminDashboardPage: React.FC = () => {
             Enterprise Command Center
           </h1>
           <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
-            Live platform metrics, AI generation observability, and operational governance
+            Live platform metrics, generation observability, and operational governance
           </p>
         </div>
 
@@ -143,10 +143,10 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Gemini AI Operations */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        {/* Generation Operations */}
+        <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>AI Success Rate</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Generation Success Rate</span>
             <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Cpu size={16} />
             </div>
@@ -305,11 +305,11 @@ export const AdminDashboardPage: React.FC = () => {
           )}
         </div>
 
-        {/* AI Operations Breakdown */}
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        {/* Generation Operations Breakdown */}
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
           <div style={{ marginBottom: '18px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>AI Operations by Module</h3>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Distribution of Gemini generation and section modification requests</p>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 2px' }}>Generation Operations by Module</h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>Distribution of blueprint generation and section modification requests</p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -331,7 +331,7 @@ export const AdminDashboardPage: React.FC = () => {
               })
             ) : (
               <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
-                No AI generation operations recorded in this period.
+                No generation operations recorded in this period.
               </div>
             )}
           </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
 import {
-  Layers, ChevronLeft, ChevronRight, Edit2, LayoutDashboard, Compass, Cpu, CheckCircle2,
+  Layers, ChevronLeft, ChevronRight, LayoutDashboard, Compass, Cpu, CheckCircle2,
   TrendingUp, Calendar, ListTodo, Bot, ArrowRight, Plus, Check
 } from 'lucide-react';
 
@@ -34,7 +34,7 @@ export const Sidebar: React.FC<Props> = ({
     { id: 'market_research', label: 'Market Research', icon: TrendingUp },
     { id: 'execution_roadmap', label: 'Execution Roadmap', icon: Calendar },
     { id: 'detailed_roadmap', label: 'Detailed Roadmap', icon: ListTodo },
-    { id: 'blueprint_copilot', label: 'Blueprint Copilot', icon: Bot },
+    { id: 'blueprint_copilot', label: 'Planning Assistant', icon: Bot },
   ];
 
   return (
@@ -42,12 +42,12 @@ export const Sidebar: React.FC<Props> = ({
       {/* Brand Header with Expand/Collapse Toggle */}
       <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div className="brand-logo">
-          <div className="brand-icon-box" title="AI Business Architect">
+          <div className="brand-icon-box" title="Business Architect">
             <Layers size={20} />
           </div>
           {!isCollapsed && (
             <div className="brand-titles">
-              <h1>AI Business Architect</h1>
+              <h1>Business Architect</h1>
               <span>ENTERPRISE BLUEPRINT</span>
             </div>
           )}
@@ -83,15 +83,14 @@ export const Sidebar: React.FC<Props> = ({
         {!isCollapsed && <span>Back to Dashboard</span>}
       </button>
 
-      {/* Current Project Summary Header (without the progress bar card as per spec) */}
+      {/* Current Project Summary Header */}
       {!isCollapsed && (
         <div className="project-summary-card" style={{ padding: '10px 14px' }}>
           <div className="project-summary-header" style={{ marginBottom: 0 }}>
             <div className="project-name-edit">
-              <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+              <span style={{ maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
                 {currentProject.name}
               </span>
-              <Edit2 size={12} color="#94a3b8" />
             </div>
             <span className="stage-pill-small">
               {currentProject.stage.includes('Growth') ? 'Growth' : currentProject.stage}

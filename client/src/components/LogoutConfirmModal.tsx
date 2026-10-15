@@ -35,13 +35,14 @@ export const LogoutConfirmModal: React.FC<Props> = ({
     >
       <div
         style={{
-          background: '#ffffff',
+          background: 'var(--bg-card)',
+          color: 'var(--text-main)',
           borderRadius: 12,
           padding: 24,
           maxWidth: 420,
           width: '100%',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          border: '1px solid #e2e8f0'
+          boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--border-color)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
