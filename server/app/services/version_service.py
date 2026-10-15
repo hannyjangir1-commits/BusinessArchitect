@@ -44,60 +44,64 @@ class VersionService:
         Guarantees strict concurrency protection via mutex lock.
         """
         with _version_lock:
-            # Acquire database row-level lock on the parent ModuleContent to serialize concurrent multi-process writes
-            db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
-            versions = VersionService.get_versions(db, module.id)
-            if len(versions) >= MAX_VERSIONS_LIMIT:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={
-                        "error": "VERSION_LIMIT_EXCEEDED",
-                        "message": f"This section already has the maximum of {MAX_VERSIONS_LIMIT} saved versions. Choose a version to replace or delete.",
-                        "existing_versions": [
-                            {
-                                "id": v.id,
-                                "version_number": v.version_number,
-                                "version_name": v.version_name,
-                                "change_summary": v.change_summary,
-                                "is_active": v.is_active,
-                                "created_at": v.created_at.isoformat()
-                            }
-                            for v in versions
-                        ]
-                    }
+            try:
+                # Acquire database row-level lock on the parent ModuleContent to serialize concurrent multi-process writes
+                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                versions = VersionService.get_versions(db, module.id)
+                if len(versions) >= MAX_VERSIONS_LIMIT:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "error": "VERSION_LIMIT_EXCEEDED",
+                            "message": f"This section already has the maximum of {MAX_VERSIONS_LIMIT} saved versions. Choose a version to replace or delete.",
+                            "existing_versions": [
+                                {
+                                    "id": v.id,
+                                    "version_number": v.version_number,
+                                    "version_name": v.version_name,
+                                    "change_summary": v.change_summary,
+                                    "is_active": v.is_active,
+                                    "created_at": v.created_at.isoformat()
+                                }
+                                for v in versions
+                            ]
+                        }
+                    )
+
+                # Deactivate previous active versions
+                for v in versions:
+                    v.is_active = False
+
+                next_number = (max([v.version_number for v in versions]) + 1) if versions else 1
+                default_prefix = {
+                    "bmc": "BMC",
+                    "tech_stack": "Tech Stack",
+                    "idea_validator": "Validator",
+                    "market_research": "Market Research",
+                    "execution_roadmap": "Roadmap",
+                    "overview": "Overview"
+                }.get(module.module_type, "Version")
+                version_name = custom_name or f"{default_prefix} V{next_number}"
+
+                new_version = ModuleVersion(
+                    module_content_id=module.id,
+                    version_number=next_number,
+                    version_name=version_name,
+                    data=data,
+                    change_summary=change_summary or f"Created {version_name}",
+                    is_active=True
                 )
+                db.add(new_version)
+                db.flush()
 
-            # Deactivate previous active versions
-            for v in versions:
-                v.is_active = False
-
-            next_number = (max([v.version_number for v in versions]) + 1) if versions else 1
-            default_prefix = {
-                "bmc": "BMC",
-                "tech_stack": "Tech Stack",
-                "idea_validator": "Validator",
-                "market_research": "Market Research",
-                "execution_roadmap": "Roadmap",
-                "overview": "Overview"
-            }.get(module.module_type, "Version")
-            version_name = custom_name or f"{default_prefix} V{next_number}"
-
-            new_version = ModuleVersion(
-                module_content_id=module.id,
-                version_number=next_number,
-                version_name=version_name,
-                data=data,
-                change_summary=change_summary or f"Created {version_name}",
-                is_active=True
-            )
-            db.add(new_version)
-            db.commit()
-            db.refresh(new_version)
-
-            # Set as active version on module
-            module.active_version_id = new_version.id
-            db.commit()
-            return new_version
+                # Set as active version on module in the same atomic transaction
+                module.active_version_id = new_version.id
+                db.commit()
+                db.refresh(new_version)
+                return new_version
+            except Exception:
+                db.rollback()
+                raise
 
 
     @staticmethod
@@ -172,48 +176,56 @@ class VersionService:
     @staticmethod
     def rename_version(db: Session, module: ModuleContent, version_id: str, new_name: str) -> ModuleVersion:
         with _version_lock:
-            db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
-            v = db.query(ModuleVersion).filter(
-                ModuleVersion.id == version_id,
-                ModuleVersion.module_content_id == module.id
-            ).first()
-            if not v:
-                raise HTTPException(status_code=404, detail="Version not found in this module")
-            v.version_name = new_name.strip()
-            db.commit()
-            db.refresh(v)
-            return v
+            try:
+                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                v = db.query(ModuleVersion).filter(
+                    ModuleVersion.id == version_id,
+                    ModuleVersion.module_content_id == module.id
+                ).first()
+                if not v:
+                    raise HTTPException(status_code=404, detail="Version not found in this module")
+                v.version_name = new_name.strip()
+                db.commit()
+                db.refresh(v)
+                return v
+            except Exception:
+                db.rollback()
+                raise
 
     @staticmethod
     def delete_version(db: Session, module: ModuleContent, version_id: str) -> bool:
         with _version_lock:
-            db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
-            v = db.query(ModuleVersion).filter(
-                ModuleVersion.id == version_id,
-                ModuleVersion.module_content_id == module.id
-            ).first()
-        if not v:
-            raise HTTPException(status_code=404, detail="Version not found")
+            try:
+                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                v = db.query(ModuleVersion).filter(
+                    ModuleVersion.id == version_id,
+                    ModuleVersion.module_content_id == module.id
+                ).first()
+                if not v:
+                    raise HTTPException(status_code=404, detail="Version not found")
 
-        versions = VersionService.get_versions(db, module.id)
-        if len(versions) <= 1:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete the only remaining version of this module."
-            )
+                versions = VersionService.get_versions(db, module.id)
+                if len(versions) <= 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot delete the only remaining version of this module."
+                    )
 
-        was_active = v.is_active or (module.active_version_id == v.id)
-        db.delete(v)
-        db.flush()
+                was_active = v.is_active or (module.active_version_id == v.id)
+                db.delete(v)
+                db.flush()
 
-        if was_active:
-            remaining = [rem for rem in versions if rem.id != version_id]
-            fallback = remaining[-1]
-            fallback.is_active = True
-            module.active_version_id = fallback.id
+                if was_active:
+                    remaining = [rem for rem in versions if rem.id != version_id]
+                    fallback = remaining[-1]
+                    fallback.is_active = True
+                    module.active_version_id = fallback.id
 
-        db.commit()
-        return True
+                db.commit()
+                return True
+            except Exception:
+                db.rollback()
+                raise
 
     @staticmethod
     def restore_version(db: Session, module: ModuleContent, version_id: str) -> ModuleVersion:

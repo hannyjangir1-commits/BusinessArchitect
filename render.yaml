@@ -24,3 +24,5 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false

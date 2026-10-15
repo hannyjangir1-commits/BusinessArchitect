@@ -44,6 +44,16 @@ class GeminiAIService:
         )
         return genai.Client(api_key=self.api_key, http_options=http_options)
 
+    def _get_candidate_models(self) -> List[str]:
+        candidates = []
+        configured = getattr(settings, "GEMINI_MODEL", "").strip()
+        if configured:
+            candidates.append(configured)
+        for m in MODEL_CANDIDATES:
+            if m not in candidates:
+                candidates.append(m)
+        return candidates
+
     def _execute_json_prompt(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         """Execute a structured generation prompt across model candidates with JSON response validation."""
         client = self._get_client()
@@ -55,7 +65,7 @@ class GeminiAIService:
             temperature=0.3
         )
 
-        for model_name in MODEL_CANDIDATES:
+        for model_name in self._get_candidate_models():
             try:
                 response = client.models.generate_content(
                     model=model_name,
@@ -199,7 +209,7 @@ Goals: {project_info.get('goals')}
             temperature=0.7
         )
 
-        for model_name in MODEL_CANDIDATES:
+        for model_name in self._get_candidate_models():
             try:
                 response = client.models.generate_content(
                     model=model_name,

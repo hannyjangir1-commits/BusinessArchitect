@@ -14,32 +14,33 @@ else:
     load_dotenv()
 
 class Settings:
-    PROJECT_NAME: str = "Business Architect — Enterprise Blueprint"
-    APP_ENV: str = os.getenv("APP_ENV", "development")
-    IS_PROD: bool = APP_ENV.lower() == "production"
+    def __init__(self):
+        self.PROJECT_NAME: str = "Business Architect — Enterprise Blueprint"
+        self.APP_ENV: str = os.getenv("APP_ENV", "development")
+        self.IS_PROD: bool = self.APP_ENV.lower() == "production"
 
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8000"))
+        self.HOST: str = os.getenv("HOST", "0.0.0.0")
+        self.PORT: int = int(os.getenv("PORT", "8000"))
 
-    # Security
-    SESSION_SECRET: str = os.getenv("SESSION_SECRET", "super-secret-development-session-key-minimum-32-chars")
-    COOKIE_NAME: str = "aba_session"
-    CSRF_COOKIE_NAME: str = "aba_csrf"
-    COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "false").lower() == "true" or IS_PROD
-    COOKIE_SAMESITE: str = "lax"
-    SESSION_EXPIRE_DAYS: int = 7
+        # Security
+        self.SESSION_SECRET: str = os.getenv("SESSION_SECRET", "super-secret-development-session-key-minimum-32-chars")
+        self.COOKIE_NAME: str = "aba_session"
+        self.CSRF_COOKIE_NAME: str = "aba_csrf"
+        self.COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "false").lower() == "true" or self.IS_PROD
+        self.COOKIE_SAMESITE: str = "lax"
+        self.SESSION_EXPIRE_DAYS: int = 7
 
-    # Admin Provisioning
-    INITIAL_ADMIN_USERNAME: str = os.getenv("INITIAL_ADMIN_USERNAME", "HannyAdmin")
-    INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD", "Hanny@BusinessArchitect")
-    INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL", "admin@businessarchitect.internal")
+        # Admin Provisioning (supports both INITIAL_ADMIN_* and ADMIN_BOOTSTRAP_* aliases)
+        self.INITIAL_ADMIN_USERNAME: str = os.getenv("INITIAL_ADMIN_USERNAME") or os.getenv("ADMIN_BOOTSTRAP_USERNAME", "HannyAdmin")
+        self.INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD") or os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "Hanny@BusinessArchitect")
+        self.INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL") or os.getenv("ADMIN_BOOTSTRAP_EMAIL", "admin@businessarchitect.internal")
 
-    # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./dev_database.db")
+        # Database
+        self.DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./dev_database.db")
 
-    # Gemini AI
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        # Gemini AI
+        self.GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
     # CORS
     @property
@@ -53,6 +54,10 @@ class Settings:
         url = self.DATABASE_URL
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+        # For remote PostgreSQL / Supabase, guarantee sslmode=require if not explicitly specified
+        if url.startswith("postgresql://") and "sslmode" not in url.lower() and "localhost" not in url and "127.0.0.1" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}sslmode=require"
         return url
 
 settings = Settings()

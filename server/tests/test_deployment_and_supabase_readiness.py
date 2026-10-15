@@ -1,5 +1,6 @@
 import os
 import tempfile
+# pyrefly: ignore [missing-import]
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -40,6 +41,11 @@ def test_supabase_database_url_normalization():
     assert normalized.startswith("postgresql://")
     assert "pooler.supabase.com:6543" in normalized
     assert "sslmode=require" in normalized
+
+    # Verify that missing sslmode on remote host is automatically appended
+    test_settings.DATABASE_URL = "postgres://postgres.abc:mypass@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+    auto_ssl = test_settings.get_database_url()
+    assert "sslmode=require" in auto_ssl
 
 
 def test_alembic_fresh_database_upgrade():
@@ -195,4 +201,70 @@ def test_real_postgresql_live_database_integration():
     finally:
         db.close()
         pg_engine.dispose()
+
+
+def test_admin_bootstrap_env_var_aliases(monkeypatch):
+    """Verify that settings correctly honors both ADMIN_BOOTSTRAP_* and INITIAL_ADMIN_* aliases."""
+    monkeypatch.setenv("ADMIN_BOOTSTRAP_USERNAME", "CustomBootstrapAdmin")
+    monkeypatch.setenv("ADMIN_BOOTSTRAP_PASSWORD", "CustomBootstrapSecretPass!")
+    monkeypatch.setenv("ADMIN_BOOTSTRAP_EMAIL", "custom_bootstrap@test.internal")
+    monkeypatch.delenv("INITIAL_ADMIN_USERNAME", raising=False)
+    monkeypatch.delenv("INITIAL_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("INITIAL_ADMIN_EMAIL", raising=False)
+
+    test_settings = Settings()
+    assert test_settings.INITIAL_ADMIN_USERNAME == "CustomBootstrapAdmin"
+    assert test_settings.INITIAL_ADMIN_PASSWORD == "CustomBootstrapSecretPass!"
+    assert test_settings.INITIAL_ADMIN_EMAIL == "custom_bootstrap@test.internal"
+
+
+def test_gemini_configured_model_prioritization(monkeypatch):
+    """Verify that ai_service._get_candidate_models() places the configured model at index 0."""
+    from app.ai.gemini_service import ai_service
+    test_model = "gemini-2.5-flash-custom"
+    monkeypatch.setattr(settings, "GEMINI_MODEL", test_model)
+    candidates = ai_service._get_candidate_models()
+    assert len(candidates) > 1
+    assert candidates[0] == test_model
+
+
+def test_version_delete_atomicity_and_fallback():
+    """Verify that deleting an active version atomically transitions to the latest remaining version."""
+    db = SessionLocal()
+    try:
+        user = db.query(User).first()
+        if not user:
+            user = User(username="del_test_user", email="del@test.com", hashed_password="hashedpassword")
+            db.add(user)
+            db.commit()
+
+        proj = Project(user_id=user.id, name="Delete Version Atomicity Project")
+        db.add(proj)
+        db.commit()
+
+        mod = VersionService.get_or_create_module(db, proj.id, "bmc")
+        v1 = VersionService.save_new_version(db, mod, {"version": 1}, change_summary="V1")
+        v2 = VersionService.save_new_version(db, mod, {"version": 2}, change_summary="V2")
+        assert mod.active_version_id == v2.id
+
+        # Delete active version (v2)
+        success = VersionService.delete_version(db, mod, v2.id)
+        assert success is True
+
+        # Module active_version_id must now atomically point to v1
+        assert mod.active_version_id == v1.id
+        refreshed_v1 = db.query(ModuleVersion).filter(ModuleVersion.id == v1.id).first()
+        assert refreshed_v1.is_active is True
+
+        # Cannot delete the only remaining version (v1)
+        with pytest.raises(Exception) as exc:
+            VersionService.delete_version(db, mod, v1.id)
+        assert "Cannot delete the only remaining version" in str(exc.value)
+
+        # Cleanup
+        db.delete(proj)
+        db.commit()
+    finally:
+        db.close()
+
 
