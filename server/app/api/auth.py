@@ -5,8 +5,11 @@ from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import hash_password, verify_password, generate_session_token, generate_csrf_token
 from app.models.all_models import User, Session as DBSession
-from app.schemas.auth import UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse
-from app.api.deps import get_current_user
+from app.schemas.auth import (
+    UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse,
+    UserProfileUpdateRequest, UserChangePasswordRequest
+)
+from app.api.deps import get_current_user, verify_csrf
 from app.core.telemetry import record_analytics_event, record_security_event
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -143,3 +146,90 @@ def get_me(request: Request, response: Response, current_user: User = Depends(ge
             path="/"
         )
     return SessionResponse(user=UserResponse.model_validate(current_user), csrf_token=csrf_token)
+
+@router.put("/profile", response_model=UserResponse, dependencies=[Depends(verify_csrf)])
+def update_profile(
+    req: UserProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates the authenticated user's profile (username and/or email).
+    Validates uniqueness and case-normalization against existing accounts.
+    """
+    if req.username is not None and req.username != current_user.username:
+        # Check uniqueness
+        existing = db.query(User).filter(
+            User.username == req.username,
+            User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username is already taken")
+        current_user.username = req.username
+
+    if req.email is not None and req.email != current_user.email:
+        # Check uniqueness
+        existing_email = db.query(User).filter(
+            User.email == req.email,
+            User.id != current_user.id
+        ).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email is already in use by another account")
+        current_user.email = req.email
+
+    current_user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(current_user)
+
+    record_analytics_event(db, user_id=current_user.id, event_name="profile_updated")
+    return UserResponse.model_validate(current_user)
+
+@router.post("/change-password", dependencies=[Depends(verify_csrf)])
+def change_password(
+    req: UserChangePasswordRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Allows the authenticated user to change their password securely.
+    Verifies current password via Argon2id, updates the hash, and invalidates other sessions.
+    """
+    if req.new_password != req.confirm_new_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match")
+
+    if not verify_password(req.current_password, current_user.hashed_password):
+        record_security_event(
+            db,
+            event_type="password_change_bad_current",
+            severity="medium",
+            actor_id=current_user.id,
+            request_path="/api/auth/change-password"
+        )
+        raise HTTPException(status_code=400, detail="Current password verification failed")
+
+    # Update password
+    current_user.hashed_password = hash_password(req.new_password)
+    current_user.updated_at = datetime.now(timezone.utc)
+
+    # Invalidate all other active sessions for security except current token
+    current_token = request.cookies.get(settings.COOKIE_NAME)
+    if current_token:
+        db.query(DBSession).filter(
+            DBSession.user_id == current_user.id,
+            DBSession.session_token != current_token
+        ).delete()
+    else:
+        db.query(DBSession).filter(DBSession.user_id == current_user.id).delete()
+
+    db.commit()
+
+    record_security_event(
+        db,
+        event_type="password_changed",
+        severity="info",
+        actor_id=current_user.id,
+        request_path="/api/auth/change-password"
+    )
+
+    return {"message": "Password changed successfully. All other sessions have been invalidated."}

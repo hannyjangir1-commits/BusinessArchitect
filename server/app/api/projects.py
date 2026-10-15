@@ -1,10 +1,12 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.all_models import User, Project, RoadmapTask, ModuleContent, ModuleVersion
 from app.schemas.project import (
-    ProjectCreateRequest, ProjectUpdateRequest, ProjectResponse, ActiveModuleUpdateRequest
+    ProjectCreateRequest, ProjectUpdateRequest, ProjectResponse, ActiveModuleUpdateRequest,
+    BulkDeleteProjectsRequest, BulkDeleteProjectsResponse
 )
 from app.api.deps import get_current_user, get_user_project, verify_csrf
 from app.core.telemetry import record_analytics_event
@@ -16,6 +18,15 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
     tasks_count = len(tasks)
     completed_count = sum(1 for t in tasks if t.status in ("Finished", "Completed"))
     progress_percentage = int((completed_count / tasks_count) * 100) if tasks_count > 0 else 0
+
+    # Determine genuinely generated modules for this specific project
+    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
+    gen_mods = [m.module_type for m in modules if m.active_version_id is not None]
+    if tasks_count > 0:
+        if "execution_roadmap" not in gen_mods:
+            gen_mods.append("execution_roadmap")
+        if "detailed_roadmap" not in gen_mods:
+            gen_mods.append("detailed_roadmap")
 
     return ProjectResponse(
         id=project.id,
@@ -32,6 +43,7 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
         tasks_count=tasks_count,
         completed_tasks_count=completed_count,
         progress_percentage=progress_percentage,
+        generated_modules=gen_mods,
         created_at=project.created_at,
         updated_at=project.updated_at
     )
@@ -47,12 +59,32 @@ def list_projects(
 
     return [_format_project_response(p, db) for p in projects]
 
+MAX_PROJECTS_PER_USER = 10
+
+def _check_and_lock_user_project_limit(db: Session, user_id: str):
+    """
+    Checks user's existing project count with row locking on the User record
+    to strictly serialize concurrent project creation requests.
+    Raises 400 Bad Request if project limit (10) has been reached.
+    """
+    # Lock the user record to prevent race conditions during concurrent project creations
+    db.query(User).filter(User.id == user_id).with_for_update().first()
+    project_count = db.query(func.count(Project.id)).filter(Project.user_id == user_id).scalar() or 0
+    if project_count >= MAX_PROJECTS_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"PROJECT_LIMIT_EXCEEDED: You have reached the maximum allowed limit of {MAX_PROJECTS_PER_USER} projects. Please delete an existing project before creating a new one."
+        )
+
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_csrf)])
 def create_project(
     req: ProjectCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Enforce concurrency-safe 10 project limit per user
+    _check_and_lock_user_project_limit(db, current_user.id)
+
     project = Project(
         user_id=current_user.id,
         name=req.name,
@@ -90,6 +122,9 @@ def update_project(
 ):
     # Option B: Create separate copy
     if req.create_copy:
+        # Enforce project limit if user chooses to create a copy
+        _check_and_lock_user_project_limit(db, current_user.id)
+
         new_project = Project(
             user_id=current_user.id,
             name=req.name or f"{project.name} (Copy)",
@@ -144,6 +179,55 @@ def update_active_module(
     project.active_module = req.active_module
     db.commit()
     return {"message": "Active module navigation saved", "active_module": req.active_module}
+
+@router.post("/bulk-delete", response_model=BulkDeleteProjectsResponse, dependencies=[Depends(verify_csrf)])
+def bulk_delete_projects(
+    req: BulkDeleteProjectsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk deletes multiple projects owned by the authenticated user in an atomic transaction.
+    Cascades to all associated module contents, versions, roadmap tasks, and copilot messages.
+    """
+    # Clean unique list of IDs
+    unique_ids = list(dict.fromkeys(req.project_ids))
+    if not unique_ids:
+        raise HTTPException(status_code=400, detail="No project IDs provided for deletion")
+
+    # Find projects matching requested IDs and owned by the current user
+    projects_to_delete = db.query(Project).filter(
+        Project.id.in_(unique_ids),
+        Project.user_id == current_user.id
+    ).all()
+
+    if len(projects_to_delete) != len(unique_ids):
+        found_ids = {p.id for p in projects_to_delete}
+        missing_ids = [pid for pid in unique_ids if pid not in found_ids]
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"One or more projects not found or unauthorized: {missing_ids}"
+        )
+
+    deleted_ids = []
+    try:
+        for proj in projects_to_delete:
+            deleted_ids.append(proj.id)
+            db.delete(proj)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete projects: {str(e)}"
+        )
+
+    return BulkDeleteProjectsResponse(
+        deleted_count=len(deleted_ids),
+        deleted_ids=deleted_ids,
+        message=f"Successfully deleted {len(deleted_ids)} project(s)."
+    )
 
 @router.delete("/{project_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_csrf)])
 def delete_project(

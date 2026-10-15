@@ -181,7 +181,17 @@ export const api = {
       const res = await request<SessionData>('/api/auth/me');
       if (res.csrf_token) setCsrfToken(res.csrf_token);
       return res;
-    }
+    },
+    updateProfile: (data: { username?: string; email?: string }): Promise<any> =>
+      request('/api/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      }),
+    changePassword: (data: { current_password: string; new_password: string; confirm_new_password: string }): Promise<any> =>
+      request('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      })
   },
 
   projects: {
@@ -199,7 +209,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ active_module: activeModule })
     }),
-    delete: (id: string): Promise<any> => request(`/api/projects/${id}`, { method: 'DELETE' })
+    delete: (id: string): Promise<any> => request(`/api/projects/${id}`, { method: 'DELETE' }),
+    bulkDelete: (projectIds: string[]): Promise<{ deleted_count: number; deleted_ids: string[]; message: string }> =>
+      request('/api/projects/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ project_ids: projectIds })
+      })
   },
 
   modules: {

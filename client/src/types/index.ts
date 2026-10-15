@@ -30,6 +30,7 @@ export interface Project {
   tasks_count: number;
   completed_tasks_count: number;
   progress_percentage: number;
+  generated_modules?: string[];
   created_at: string;
   updated_at: string;
 }

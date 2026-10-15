@@ -41,6 +41,7 @@ class ProjectResponse(BaseModel):
     tasks_count: int = 0
     completed_tasks_count: int = 0
     progress_percentage: int = 0
+    generated_modules: List[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -48,3 +49,11 @@ class ProjectResponse(BaseModel):
 
 class ActiveModuleUpdateRequest(BaseModel):
     active_module: str
+
+class BulkDeleteProjectsRequest(BaseModel):
+    project_ids: List[str] = Field(..., min_length=1)
+
+class BulkDeleteProjectsResponse(BaseModel):
+    deleted_count: int
+    deleted_ids: List[str]
+    message: str

@@ -229,18 +229,25 @@ class VersionService:
 
     @staticmethod
     def restore_version(db: Session, module: ModuleContent, version_id: str) -> ModuleVersion:
-        """Restores an older version by creating a new version with its data."""
-        target = db.query(ModuleVersion).filter(
-            ModuleVersion.id == version_id,
-            ModuleVersion.module_content_id == module.id
-        ).first()
-        if not target:
-            raise HTTPException(status_code=404, detail="Version to restore not found")
+        """Restores an older version by setting it as active without creating a duplicate version."""
+        with _version_lock:
+            try:
+                target = db.query(ModuleVersion).filter(
+                    ModuleVersion.id == version_id,
+                    ModuleVersion.module_content_id == module.id
+                ).first()
+                if not target:
+                    raise HTTPException(status_code=404, detail="Version to restore not found")
 
-        return VersionService.save_new_version(
-            db=db,
-            module=module,
-            data=target.data,
-            change_summary=f"Restored from {target.version_name}",
-            custom_name=f"Restored ({target.version_name})"
-        )
+                # Deactivate all versions in this module
+                all_versions = VersionService.get_versions(db, module.id)
+                for v in all_versions:
+                    v.is_active = (v.id == target.id)
+
+                module.active_version_id = target.id
+                db.commit()
+                db.refresh(target)
+                return target
+            except Exception:
+                db.rollback()
+                raise

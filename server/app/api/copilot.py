@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.models.all_models import Project, CopilotMessage
+from app.models.all_models import Project, CopilotMessage, ModuleContent, ModuleVersion
 from app.schemas.copilot import CopilotChatRequest, CopilotMessageResponse
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
@@ -41,12 +41,24 @@ def send_chat_message(
 
     history_dicts = [{"role": m.role, "content": m.content} for m in past_messages]
 
+    # Gather any completed module summaries for deeper context
+    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
+    active_module_summaries = {}
+    for m in modules:
+        if m.active_version_id:
+            ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
+            if ver and ver.data:
+                active_module_summaries[m.module_type] = ver.data
+
     proj_info = {
         "name": project.name,
         "stage": project.stage,
         "industry": project.industry,
         "description": project.description,
-        "goals": project.goals
+        "goals": project.goals,
+        "existing_stack": project.existing_stack,
+        "target_customers": project.target_customers,
+        "generated_modules": list(active_module_summaries.keys())
     }
 
     try:

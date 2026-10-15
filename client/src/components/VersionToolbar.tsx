@@ -280,7 +280,7 @@ export const VersionToolbar: React.FC<Props> = ({
             </div>
             <div className="modal-body">
               <p style={{ fontSize: 12.5, color: '#64748b' }}>
-                Each section maintains up to 5 persistent versions. Restoring an earlier version creates an updated active copy.
+                Each section maintains up to 5 persistent versions. Restoring an earlier version activates that snapshot directly without duplicating it.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
                 {versions.map((v) => (

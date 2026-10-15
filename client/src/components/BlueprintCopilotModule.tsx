@@ -9,6 +9,197 @@ interface Props {
   isLoading: boolean;
 }
 
+// Clean, lightweight Markdown component for AI Planning Assistant
+const MarkdownContent: React.FC<{ content: string; isUser: boolean }> = ({ content, isUser }) => {
+  if (isUser) {
+    return <span>{content}</span>;
+  }
+
+  // Check if string contains raw JSON wrapper and format it gracefully
+  let cleanContent = content.trim();
+  if (cleanContent.startsWith('{') && cleanContent.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(cleanContent);
+      if (parsed.message || parsed.response || parsed.content || parsed.summary) {
+        cleanContent = parsed.message || parsed.response || parsed.content || parsed.summary;
+      }
+    } catch {
+      // not valid json, leave as markdown
+    }
+  }
+
+  const lines = cleanContent.split('\n');
+  const elements: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeBuffer: string[] = [];
+  let listBuffer: { type: 'ul' | 'ol'; items: string[] } | null = null;
+
+  const flushList = () => {
+    if (listBuffer) {
+      if (listBuffer.type === 'ul') {
+        elements.push(
+          <ul key={`ul-${elements.length}`} style={{ margin: '8px 0 8px 20px', padding: 0 }}>
+            {listBuffer.items.map((item, i) => (
+              <li key={i} style={{ marginBottom: 4 }}>
+                {renderInlineStyles(item)}
+              </li>
+            ))}
+          </ul>
+        );
+      } else {
+        elements.push(
+          <ol key={`ol-${elements.length}`} style={{ margin: '8px 0 8px 20px', padding: 0 }}>
+            {listBuffer.items.map((item, i) => (
+              <li key={i} style={{ marginBottom: 4 }}>
+                {renderInlineStyles(item)}
+              </li>
+            ))}
+          </ol>
+        );
+      }
+      listBuffer = null;
+    }
+  };
+
+  const renderInlineStyles = (text: string): React.ReactNode[] => {
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+        return (
+          <code
+            key={idx}
+            style={{
+              background: 'rgba(99, 102, 241, 0.1)',
+              color: 'var(--primary)',
+              padding: '2px 5px',
+              borderRadius: 4,
+              fontSize: '0.9em',
+              fontFamily: 'ui-monospace, monospace'
+            }}
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return <strong key={idx}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        return <em key={idx}>{part.slice(1, -1)}</em>;
+      }
+      return part;
+    });
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Code blocks
+    if (line.trim().startsWith('```')) {
+      if (inCodeBlock) {
+        elements.push(
+          <pre
+            key={`code-${elements.length}`}
+            style={{
+              background: '#0f172a',
+              color: '#f8fafc',
+              padding: '10px 14px',
+              borderRadius: 8,
+              fontSize: 12,
+              overflowX: 'auto',
+              margin: '8px 0'
+            }}
+          >
+            <code>{codeBuffer.join('\n')}</code>
+          </pre>
+        );
+        codeBuffer = [];
+        inCodeBlock = false;
+      } else {
+        flushList();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      continue;
+    }
+
+    // Headings
+    if (line.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <h4 key={`h3-${i}`} style={{ fontSize: 14.5, fontWeight: 700, margin: '12px 0 6px 0', color: 'var(--primary)' }}>
+          {renderInlineStyles(line.slice(4))}
+        </h4>
+      );
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      flushList();
+      elements.push(
+        <h3 key={`h2-${i}`} style={{ fontSize: 16, fontWeight: 700, margin: '14px 0 6px 0', color: 'var(--text-main)' }}>
+          {renderInlineStyles(line.slice(3))}
+        </h3>
+      );
+      continue;
+    }
+    if (line.startsWith('# ')) {
+      flushList();
+      elements.push(
+        <h2 key={`h1-${i}`} style={{ fontSize: 17, fontWeight: 800, margin: '16px 0 8px 0', color: 'var(--text-main)' }}>
+          {renderInlineStyles(line.slice(2))}
+        </h2>
+      );
+      continue;
+    }
+
+    // Bullet lists
+    if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+      const itemText = line.trim().slice(2);
+      if (!listBuffer || listBuffer.type !== 'ul') {
+        flushList();
+        listBuffer = { type: 'ul', items: [itemText] };
+      } else {
+        listBuffer.items.push(itemText);
+      }
+      continue;
+    }
+
+    // Numbered lists
+    const numMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
+    if (numMatch) {
+      const itemText = numMatch[2];
+      if (!listBuffer || listBuffer.type !== 'ol') {
+        flushList();
+        listBuffer = { type: 'ol', items: [itemText] };
+      } else {
+        listBuffer.items.push(itemText);
+      }
+      continue;
+    }
+
+    // Empty lines
+    if (!line.trim()) {
+      flushList();
+      continue;
+    }
+
+    // Regular paragraphs
+    flushList();
+    elements.push(
+      <p key={`p-${i}`} style={{ margin: '6px 0', lineHeight: 1.55 }}>
+        {renderInlineStyles(line)}
+      </p>
+    );
+  }
+
+  flushList();
+  return <div style={{ wordBreak: 'break-word' }}>{elements}</div>;
+};
+
 export const BlueprintCopilotModule: React.FC<Props> = ({
   project,
   messages,
@@ -154,10 +345,9 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                     fontSize: 13.5,
                     lineHeight: 1.5,
                     border: isUser ? 'none' : '1px solid var(--border-color)',
-                    whiteSpace: 'pre-wrap'
                   }}
                 >
-                  {m.content}
+                  <MarkdownContent content={m.content} isUser={isUser} />
                 </div>
                 {isUser && (
                   <div style={{
