@@ -15,28 +15,54 @@ def normalize_username(username: str) -> str:
         raise ValueError(f"Invalid administrator username format: '{username}'")
     return cleaned
 
+def validate_admin_password_strength(password: str) -> bool:
+    """Ensure bootstrap password meets strong complexity requirements."""
+    if not password or len(password) < 12:
+        return False
+    if not re.search(r"[A-Z]", password):
+        return False
+    if not re.search(r"[a-z]", password):
+        return False
+    if not re.search(r"[0-9]", password):
+        return False
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>\-_]", password):
+        return False
+    return True
+
 def provision_initial_admin(db: Session) -> bool:
     """
     Idempotently provisions the initial Super Admin account using configuration.
     Requirements:
-    1. Obtains credentials from environment variables / settings.
+    1. Obtains credentials from environment variables / settings only when ADMIN_BOOTSTRAP_ENABLED is True.
     2. Hashes password using Argon2id.
     3. Never logs plaintext credentials.
     4. Never overwrites an existing admin or resets an existing password on restart.
     5. Returns True if created, False if already present or skipped.
     """
-    raw_username = getattr(settings, "INITIAL_ADMIN_USERNAME", "HannyAdmin")
-    raw_password = getattr(settings, "INITIAL_ADMIN_PASSWORD", "Hanny@BusinessArchitect")
-    admin_email = getattr(settings, "INITIAL_ADMIN_EMAIL", "admin@businessarchitect.internal")
+    bootstrap_enabled = getattr(settings, "ADMIN_BOOTSTRAP_ENABLED", False)
+    if not bootstrap_enabled:
+        logger.info("Administrator bootstrap is disabled (ADMIN_BOOTSTRAP_ENABLED is false). Skipping provisioning.")
+        return False
+
+    raw_username = getattr(settings, "INITIAL_ADMIN_USERNAME", "")
+    raw_password = getattr(settings, "INITIAL_ADMIN_PASSWORD", "")
+    admin_email = getattr(settings, "INITIAL_ADMIN_EMAIL", "") or "admin@businessarchitect.internal"
 
     if not raw_username or not raw_password:
-        logger.warning("Admin provisioning skipped: credentials not configured.")
+        logger.warning("Admin bootstrap enabled but credentials not configured. Please set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD.")
         return False
 
     try:
         username = normalize_username(raw_username)
     except ValueError as e:
         logger.error("Failed to normalize admin username: %s", str(e))
+        return False
+
+    if not validate_admin_password_strength(raw_password):
+        logger.error(
+            "Admin bootstrap failed: configured password does not meet security complexity requirements "
+            "(minimum 12 characters, including uppercase, lowercase, numbers, and special symbols)."
+        )
         return False
 
     # Check if a super_admin or user with this username already exists

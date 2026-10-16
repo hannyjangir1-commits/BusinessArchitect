@@ -14,7 +14,7 @@ from app.db.session import get_db
 from app.models.all_models import (
     User, Project, AIOperation, AuditLog, ModuleContent, RoadmapTask
 )
-from app.api.deps import require_admin
+from app.api.deps import require_admin, require_permission
 from app.core.telemetry import record_audit_log
 
 router = APIRouter(prefix="/reports", tags=["Admin Reports & Exports"])
@@ -32,7 +32,7 @@ def sanitize_csv_cell(value: Any) -> str:
 @router.get("/export-csv")
 def export_csv_report(
     report_type: str = Query(..., pattern="^(users|projects|ai_operations|audit_logs)$"),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("export_reports")),
     db: Session = Depends(get_db)
 ):
     output = io.StringIO()
@@ -117,7 +117,7 @@ def export_csv_report(
 
 @router.get("/summary-pdf")
 def export_summary_pdf(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("export_reports")),
     db: Session = Depends(get_db)
 ):
     """Generate a clean executive summary PDF of the enterprise platform status."""

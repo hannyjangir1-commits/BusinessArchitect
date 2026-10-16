@@ -24,5 +24,9 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: ADMIN_BOOTSTRAP_ENABLED
+        value: "false"
+      - key: INITIAL_ADMIN_USERNAME
+        sync: false
       - key: INITIAL_ADMIN_PASSWORD
         sync: false

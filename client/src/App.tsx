@@ -173,8 +173,8 @@ export const App: React.FC = () => {
     };
   }, [loadProjects]);
 
-  // 2. Open Project & Restore Navigation Memory (Part 25)
-  const handleOpenProject = async (projectId: string) => {
+  // 2. Open Project & Restore Navigation Memory (Part 25 & F-16)
+  const handleOpenProject = async (projectId: string, targetModuleOverride?: string) => {
     activeProjectIdRef.current = projectId;
     // Clear stale state immediately
     setModuleDetail(null);
@@ -199,11 +199,15 @@ export const App: React.FC = () => {
         blueprint_copilot: { version: 'V1', isGenerated: false }
       });
 
-      // Restore the project's saved navigation module
-      const targetModule = proj.active_module || 'execution_roadmap';
+      // Restore the project's saved navigation module or use shortcut override (F-16)
+      const targetModule = targetModuleOverride || proj.active_module || 'execution_roadmap';
       activeModuleTypeRef.current = targetModule;
       setActiveModule(targetModule);
       loadModuleContent(proj.id, targetModule);
+
+      if (targetModuleOverride && targetModuleOverride !== proj.active_module) {
+        api.projects.updateActiveModule(proj.id, targetModuleOverride).catch(console.error);
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to open project');
     }
@@ -491,6 +495,17 @@ export const App: React.FC = () => {
     try {
       const restored = await api.modules.restoreVersion(currentProject.id, activeModule, versionId);
       setModuleDetail(restored);
+      updateBadgeForModule(activeModule, restored);
+
+      // Refresh task lists and summaries if restoring a roadmap version (F-08)
+      if (['execution_roadmap', 'detailed_roadmap'].includes(activeModule)) {
+        const [taskList, sum] = await Promise.all([
+          api.tasks.list(currentProject.id),
+          api.tasks.getSummary(currentProject.id)
+        ]);
+        setTasks(taskList);
+        setSummary(sum);
+      }
     } catch (err: any) {
       if (err.status === 409) {
         alert('Cannot restore into a new version slot: Maximum 5 saved versions reached. Please delete an older version first.');
@@ -566,17 +581,12 @@ export const App: React.FC = () => {
     }
   };
 
-  // 13. Bulk Delete Projects (Part B4)
+  // 13. Bulk Delete Projects (Part B4 & F-07)
   const handleBulkDeleteProjects = async (projectIds: string[]) => {
-    try {
-      await api.projects.bulkDelete(projectIds);
-      await loadProjects();
-      if (currentProject && projectIds.includes(currentProject.id)) {
-        setCurrentProject(null);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Failed to bulk delete projects');
-      throw err;
+    await api.projects.bulkDelete(projectIds);
+    await loadProjects();
+    if (currentProject && projectIds.includes(currentProject.id)) {
+      setCurrentProject(null);
     }
   };
 
@@ -678,6 +688,7 @@ export const App: React.FC = () => {
           user={currentUser}
           onLogout={async () => { await api.auth.logout(); setCurrentUser(null); setCurrentProject(null); }}
           onEditProject={() => handleSelectModule('overview')}
+          onUserUpdated={(updated) => setCurrentUser(updated)}
         />
 
         {/* Scrollable Workspace Body */}

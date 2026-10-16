@@ -3,7 +3,7 @@ import { Project, User } from '../types';
 import {
   Layers, Plus, Search, ArrowRight, Trash2, Cpu, LogOut,
   FolderKanban, AlertTriangle, Moon, Sun, CheckCircle, Clock,
-  CheckSquare, Square, X, Compass, ListTodo, Bot, UserCheck
+  CheckSquare, Square, Compass, ListTodo, Bot
 } from 'lucide-react';
 import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
 import { ProfileModal } from '../components/ProfileModal';
@@ -12,7 +12,7 @@ import { api } from '../services/api';
 interface Props {
   user: User;
   projects: Project[];
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, targetModule?: string) => void;
   onCreateNewProject: () => void;
   onDeleteProject: (projectId: string) => Promise<void>;
   onBulkDeleteProjects?: (projectIds: string[]) => Promise<void>;
@@ -115,9 +115,6 @@ export const DashboardPage: React.FC<Props> = ({
         await onBulkDeleteProjects(selectedIds);
       } else {
         await api.projects.bulkDelete(selectedIds);
-        for (const pid of selectedIds) {
-          await onDeleteProject(pid);
-        }
       }
       setSelectedIds([]);
       setBulkDeleteModalOpen(false);
@@ -357,7 +354,7 @@ export const DashboardPage: React.FC<Props> = ({
                 return (
                   <button
                     key={q.mod}
-                    onClick={() => onOpenProject(projects[0].id)}
+                    onClick={() => onOpenProject(projects[0].id, q.mod)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',

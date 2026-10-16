@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.models.all_models import User, SystemSetting, Session as DBSession
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_audit_log
 
 router = APIRouter(prefix="/maintenance", tags=["Admin Maintenance Center"])
@@ -17,7 +17,7 @@ class MaintenanceToggleRequest(BaseModel):
 
 @router.get("/status")
 def get_maintenance_status(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_maintenance")),
     db: Session = Depends(get_db)
 ):
     setting = db.query(SystemSetting).filter(SystemSetting.key == "maintenance_mode").first()
@@ -35,7 +35,7 @@ def get_maintenance_status(
 @router.post("/toggle")
 def toggle_maintenance_mode(
     req: MaintenanceToggleRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_maintenance")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -73,7 +73,7 @@ def toggle_maintenance_mode(
 
 @router.post("/prune-sessions")
 def prune_expired_sessions(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_maintenance")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):

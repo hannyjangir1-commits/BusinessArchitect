@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON
+    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -65,6 +65,9 @@ class Project(Base):
 
 class ModuleContent(Base):
     __tablename__ = "module_contents"
+    __table_args__ = (
+        UniqueConstraint("project_id", "module_type", name="uq_module_contents_project_module"),
+    )
 
     id = Column(String(36), primary_key=True, default=lambda: gen_id("mod_"))
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -108,6 +111,7 @@ class RoadmapTask(Base):
     deliverables = Column(Text, nullable=True)
     effort = Column(String(64), nullable=True)
     order_index = Column(Integer, default=0, nullable=False)
+    is_ai_generated = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

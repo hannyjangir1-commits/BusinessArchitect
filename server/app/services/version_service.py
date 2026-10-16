@@ -2,6 +2,7 @@ import threading
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.models.all_models import ModuleContent, ModuleVersion
 
 MAX_VERSIONS_LIMIT = 5
@@ -17,9 +18,18 @@ class VersionService:
 
         if not module:
             module = ModuleContent(project_id=project_id, module_type=module_type)
-            db.add(module)
-            db.commit()
-            db.refresh(module)
+            try:
+                db.add(module)
+                db.commit()
+                db.refresh(module)
+            except IntegrityError:
+                db.rollback()
+                module = db.query(ModuleContent).filter(
+                    ModuleContent.project_id == project_id,
+                    ModuleContent.module_type == module_type
+                ).first()
+                if not module:
+                    raise
 
         return module
 
@@ -35,7 +45,8 @@ class VersionService:
         module: ModuleContent,
         data: Dict[str, Any],
         change_summary: Optional[str] = None,
-        custom_name: Optional[str] = None
+        custom_name: Optional[str] = None,
+        commit: bool = True
     ) -> ModuleVersion:
         """
         Save a new version.
@@ -96,8 +107,11 @@ class VersionService:
 
                 # Set as active version on module in the same atomic transaction
                 module.active_version_id = new_version.id
-                db.commit()
-                db.refresh(new_version)
+                if commit:
+                    db.commit()
+                    db.refresh(new_version)
+                else:
+                    db.flush()
                 return new_version
             except Exception:
                 db.rollback()
@@ -111,7 +125,8 @@ class VersionService:
         replace_version_id: str,
         new_data: Dict[str, Any],
         new_name: Optional[str] = None,
-        change_summary: Optional[str] = None
+        change_summary: Optional[str] = None,
+        commit: bool = True
     ) -> ModuleVersion:
         """
         User explicitly chosen version to replace when 5-version limit is reached.
@@ -166,8 +181,11 @@ class VersionService:
                 db.flush()
 
                 module.active_version_id = new_ver.id
-                db.commit()
-                db.refresh(new_ver)
+                if commit:
+                    db.commit()
+                    db.refresh(new_ver)
+                else:
+                    db.flush()
                 return new_ver
             except Exception:
                 db.rollback()
@@ -228,7 +246,7 @@ class VersionService:
                 raise
 
     @staticmethod
-    def restore_version(db: Session, module: ModuleContent, version_id: str) -> ModuleVersion:
+    def restore_version(db: Session, module: ModuleContent, version_id: str, commit: bool = True) -> ModuleVersion:
         """Restores an older version by setting it as active without creating a duplicate version."""
         with _version_lock:
             try:
@@ -245,8 +263,11 @@ class VersionService:
                     v.is_active = (v.id == target.id)
 
                 module.active_version_id = target.id
-                db.commit()
-                db.refresh(target)
+                if commit:
+                    db.commit()
+                    db.refresh(target)
+                else:
+                    db.flush()
                 return target
             except Exception:
                 db.rollback()

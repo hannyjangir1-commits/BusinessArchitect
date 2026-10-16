@@ -1,0 +1,80 @@
+name: BusinessArchitect CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-checks:
+    name: Backend Tests & Migration Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r server/requirements.txt
+
+      - name: Validate Alembic Migrations
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite:///./test_ci_migrations.db
+          SESSION_SECRET: test-session-secret-key-minimum-32-chars-long
+          ADMIN_BOOTSTRAP_ENABLED: "false"
+        run: |
+          cd server
+          alembic upgrade head
+
+      - name: Run Backend Pytest Suite
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite:///./test_ci.db
+          SESSION_SECRET: test-session-secret-key-minimum-32-chars-long
+          COOKIE_SECURE: "false"
+          ADMIN_BOOTSTRAP_ENABLED: "false"
+          GEMINI_API_KEY: ""
+        run: |
+          cd server
+          pytest tests/ -v
+
+  frontend-checks:
+    name: Frontend Tests, Lint & Production Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Client Dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Run Frontend Lint Checks
+        run: |
+          cd client
+          npm run lint
+
+      - name: Run Frontend Vitest Suite
+        run: |
+          cd client
+          npm test
+
+      - name: Run TypeScript & Vite Production Build
+        run: |
+          cd client
+          npm run build

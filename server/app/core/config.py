@@ -30,10 +30,11 @@ class Settings:
         self.COOKIE_SAMESITE: str = "lax"
         self.SESSION_EXPIRE_DAYS: int = 7
 
-        # Admin Provisioning (supports both INITIAL_ADMIN_* and ADMIN_BOOTSTRAP_* aliases)
-        self.INITIAL_ADMIN_USERNAME: str = os.getenv("INITIAL_ADMIN_USERNAME") or os.getenv("ADMIN_BOOTSTRAP_USERNAME", "HannyAdmin")
-        self.INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD") or os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "Hanny@BusinessArchitect")
-        self.INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL") or os.getenv("ADMIN_BOOTSTRAP_EMAIL", "admin@businessarchitect.internal")
+        # Admin Provisioning (controlled via ADMIN_BOOTSTRAP_ENABLED, supports both INITIAL_ADMIN_* and ADMIN_BOOTSTRAP_* aliases)
+        self.ADMIN_BOOTSTRAP_ENABLED: bool = os.getenv("ADMIN_BOOTSTRAP_ENABLED", "false").lower() in ("true", "1", "yes")
+        self.INITIAL_ADMIN_USERNAME: str = os.getenv("INITIAL_ADMIN_USERNAME") or os.getenv("ADMIN_BOOTSTRAP_USERNAME", "")
+        self.INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD") or os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "")
+        self.INITIAL_ADMIN_EMAIL: str = os.getenv("INITIAL_ADMIN_EMAIL") or os.getenv("ADMIN_BOOTSTRAP_EMAIL", "")
 
         # Database
         self.DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./dev_database.db")

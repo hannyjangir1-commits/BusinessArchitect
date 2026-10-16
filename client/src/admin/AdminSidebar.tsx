@@ -26,14 +26,58 @@ interface NavGroup {
   items: NavItem[];
 }
 
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  super_admin: [
+    'view_dashboard', 'manage_users', 'manage_projects', 'view_ai_ops',
+    'retry_ai_ops', 'view_analytics', 'view_system_health', 'view_database',
+    'run_integrity_scan', 'execute_repair', 'view_security', 'revoke_sessions',
+    'view_audit_logs', 'manage_configuration', 'manage_maintenance', 'export_reports'
+  ],
+  operations_admin: [
+    'view_dashboard', 'manage_projects', 'view_ai_ops', 'retry_ai_ops',
+    'view_analytics', 'view_system_health', 'view_database', 'run_integrity_scan',
+    'execute_repair', 'view_security', 'revoke_sessions', 'view_audit_logs',
+    'manage_maintenance', 'export_reports'
+  ],
+  security_admin: [
+    'view_dashboard', 'view_security', 'revoke_sessions', 'view_audit_logs', 'export_reports'
+  ],
+  support_admin: [
+    'view_dashboard', 'manage_users', 'manage_projects', 'view_ai_ops', 'view_system_health'
+  ],
+  auditor: [
+    'view_dashboard', 'view_ai_ops', 'view_analytics', 'view_system_health', 'view_audit_logs', 'export_reports'
+  ]
+};
+
+const ITEM_PERMISSIONS: Record<string, string> = {
+  'dashboard': 'view_dashboard',
+  'users': 'manage_users',
+  'projects': 'manage_projects',
+  'ai-ops': 'view_ai_ops',
+  'ai-quality': 'view_ai_ops',
+  'analytics': 'view_analytics',
+  'reports': 'export_reports',
+  'system-health': 'view_system_health',
+  'database': 'view_database',
+  'data-integrity': 'run_integrity_scan',
+  'maintenance': 'manage_maintenance',
+  'security': 'view_security',
+  'audit-logs': 'view_audit_logs',
+  'configuration': 'manage_configuration',
+  'account': 'view_account'
+};
+
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   currentPath,
   onNavigate,
   collapsed,
   onToggleCollapse,
-  adminRole: _adminRole
+  adminRole
 }) => {
-  const navGroups: NavGroup[] = [
+  const allowedPerms = ROLE_PERMISSIONS[adminRole] || ROLE_PERMISSIONS['super_admin'] || [];
+
+  const rawNavGroups: NavGroup[] = [
     {
       title: 'Overview',
       items: [
@@ -85,6 +129,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ]
     }
   ];
+
+  const navGroups: NavGroup[] = rawNavGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => {
+        const required = ITEM_PERMISSIONS[item.id];
+        if (!required || required === 'view_account') return true;
+        return allowedPerms.includes(required);
+      })
+    }))
+    .filter(group => group.items.length > 0);
 
   return (
     <aside

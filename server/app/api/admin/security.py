@@ -7,7 +7,7 @@ from app.db.session import get_db
 from app.models.all_models import (
     User, Session as DBSession, SecurityEvent, AuditLog
 )
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
 from app.core.telemetry import record_security_event, record_audit_log
 
@@ -19,7 +19,7 @@ def list_security_events(
     limit: int = Query(20, ge=1, le=100),
     severity: Optional[str] = Query(None, pattern="^(all|info|low|medium|high|critical)$"),
     event_type: Optional[str] = None,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_security")),
     db: Session = Depends(get_db)
 ):
     query = db.query(SecurityEvent)
@@ -58,7 +58,7 @@ def list_security_events(
 @router.get("/sessions")
 def list_active_sessions(
     request: Request,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_security")),
     db: Session = Depends(get_db)
 ):
     current_token = request.cookies.get(settings.COOKIE_NAME)
@@ -95,7 +95,7 @@ def list_active_sessions(
 def revoke_session(
     session_id: str,
     request: Request,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("revoke_sessions")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -131,7 +131,7 @@ def revoke_session(
 @router.post("/sessions/revoke-all")
 def revoke_all_sessions(
     request: Request,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("revoke_sessions")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):

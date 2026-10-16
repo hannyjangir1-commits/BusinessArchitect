@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.models.all_models import (
     User, Project, ModuleContent, ModuleVersion, RoadmapTask, CopilotMessage, AIOperation, AuditLog
 )
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_audit_log
 
 router = APIRouter(prefix="/projects", tags=["Admin Project Management"])
@@ -24,7 +24,7 @@ def list_projects(
     stage: Optional[str] = None,
     sort_by: str = Query("created_at", pattern="^(created_at|name|updated_at)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_projects")),
     db: Session = Depends(get_db)
 ):
     query = db.query(Project).join(User, Project.user_id == User.id)
@@ -90,7 +90,7 @@ def list_projects(
 @router.get("/{project_id}")
 def get_project_detail(
     project_id: str,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_projects")),
     db: Session = Depends(get_db)
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -118,7 +118,7 @@ def get_project_detail(
     task_stats = {
         "total": len(tasks),
         "pending": sum(1 for t in tasks if t.status == "Pending"),
-        "in_progress": sum(1 for t in tasks if t.status == "In Progress"),
+        "in_progress": sum(1 for t in tasks if t.status in ("In Progress", "Ongoing")),
         "finished": sum(1 for t in tasks if t.status == "Finished")
     }
 
@@ -165,7 +165,7 @@ def get_project_detail(
 def transfer_project_ownership(
     project_id: str,
     req: TransferOwnershipRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_projects")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -212,7 +212,7 @@ def transfer_project_ownership(
 def delete_project(
     project_id: str,
     confirm_project_name: str = Query(..., description="Must match target project name exactly"),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_projects")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):

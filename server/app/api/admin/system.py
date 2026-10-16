@@ -12,7 +12,7 @@ from app.models.all_models import (
     CopilotMessage, Session as DBSession, AIOperation, AnalyticsEvent,
     SecurityEvent, AuditLog, SystemSetting
 )
-from app.api.deps import require_admin
+from app.api.deps import require_admin, require_permission
 from app.core.config import settings
 
 router = APIRouter(prefix="/system", tags=["Admin System & Diagnostics"])
@@ -21,7 +21,7 @@ _STARTUP_TIME = time.time()
 
 @router.get("/health")
 def get_system_health(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_system_health")),
     db: Session = Depends(get_db)
 ):
     uptime_seconds = int(time.time() - _STARTUP_TIME)
@@ -87,7 +87,7 @@ def get_system_health(
 
 @router.get("/database")
 def get_database_diagnostics(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_database")),
     db: Session = Depends(get_db)
 ):
     table_counts = {
@@ -137,7 +137,7 @@ def get_unified_log_stream(
     severity: Optional[str] = None,
     subsystem: Optional[str] = None,
     search: Optional[str] = None,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_audit_logs")),
     db: Session = Depends(get_db)
 ):
     """

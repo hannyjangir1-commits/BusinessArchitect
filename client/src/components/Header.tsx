@@ -9,9 +9,10 @@ interface Props {
   user: User;
   onLogout: () => Promise<void>;
   onEditProject?: () => void;
+  onUserUpdated?: (user: User) => void;
 }
 
-export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject }) => {
+export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject, onUserUpdated }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -235,6 +236,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
           document.documentElement.setAttribute('data-theme', newTheme);
         }}
         currentTheme={theme}
+        onUserUpdated={onUserUpdated}
       />
 
       {/* Logout Confirmation Modal */}

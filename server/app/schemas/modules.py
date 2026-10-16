@@ -71,6 +71,34 @@ class MarketResearchData(BaseModel):
     threats: List[str]
     research_gaps: List[str]
 
+# --- Roadmap Schemas ---
+class RoadmapPhase(BaseModel):
+    name: str
+    color: Optional[str] = "#10b981"
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    description: Optional[str] = None
+
+class RoadmapTaskItem(BaseModel):
+    task_code: Optional[str] = None
+    phase: str
+    title: str
+    description: Optional[str] = None
+    timeline: Optional[str] = "30-day"
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    priority: Optional[str] = "Medium"
+    status: Optional[str] = "Pending"
+    dependencies: Optional[List[str]] = []
+    deliverables: Optional[str] = None
+    effort: Optional[str] = None
+
+class ExecutionRoadmapData(BaseModel):
+    phases: Optional[List[RoadmapPhase]] = []
+    tasks: List[RoadmapTaskItem] = Field(..., min_length=1)
+
+DetailedRoadmapData = ExecutionRoadmapData
+
 # --- Versioning Schemas ---
 class VersionItemResponse(BaseModel):
     id: str

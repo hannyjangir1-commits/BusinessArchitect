@@ -7,24 +7,39 @@ from app.db.session import get_db
 from app.models.all_models import (
     User, Project, ModuleContent, RoadmapTask, AnalyticsEvent
 )
-from app.api.deps import require_admin
+from app.api.deps import require_admin, require_permission
 
 router = APIRouter(prefix="/analytics", tags=["Admin Product Analytics"])
 
 @router.get("/overview")
 def get_analytics_overview(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_analytics")),
     db: Session = Depends(get_db)
 ):
     total_users = db.query(func.count(User.id)).scalar() or 0
     total_projects = db.query(func.count(Project.id)).scalar() or 0
 
-    # Module adoption counts
-    bmc_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(ModuleContent.module_type == "bmc").scalar() or 0
-    tech_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(ModuleContent.module_type == "tech_stack").scalar() or 0
-    validator_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(ModuleContent.module_type == "idea_validator").scalar() or 0
-    market_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(ModuleContent.module_type == "market_research").scalar() or 0
-    roadmap_projects = db.query(func.count(func.distinct(RoadmapTask.project_id))).scalar() or 0
+    # Module adoption counts - only count modules with an active generated version
+    bmc_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(
+        ModuleContent.module_type == "bmc",
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
+    tech_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(
+        ModuleContent.module_type == "tech_stack",
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
+    validator_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(
+        ModuleContent.module_type == "idea_validator",
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
+    market_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(
+        ModuleContent.module_type == "market_research",
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
+    roadmap_projects = db.query(func.count(func.distinct(ModuleContent.project_id))).filter(
+        ModuleContent.module_type.in_(["execution_roadmap", "detailed_roadmap"]),
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
 
     # Export events count from analytics_events
     export_count = db.query(func.count(AnalyticsEvent.id)).filter(
@@ -37,11 +52,26 @@ def get_analytics_overview(
     # 2. Users with at least 1 project
     step2_created_proj = db.query(func.count(func.distinct(Project.user_id))).scalar() or 0
     # 3. Users with BMC
-    step3_bmc = db.query(func.count(func.distinct(Project.user_id))).join(ModuleContent, Project.id == ModuleContent.project_id).filter(ModuleContent.module_type == "bmc").scalar() or 0
+    step3_bmc = db.query(func.count(func.distinct(Project.user_id))).join(
+        ModuleContent, Project.id == ModuleContent.project_id
+    ).filter(
+        ModuleContent.module_type == "bmc",
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
     # 4. Users with Tech Stack
-    step4_tech = db.query(func.count(func.distinct(Project.user_id))).join(ModuleContent, Project.id == ModuleContent.project_id).filter(ModuleContent.module_type == "tech_stack").scalar() or 0
+    step4_tech = db.query(func.count(func.distinct(Project.user_id))).join(
+        ModuleContent, Project.id == ModuleContent.project_id
+    ).filter(
+        ModuleContent.module_type == "tech_stack",
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
     # 5. Users with Roadmap
-    step5_roadmap = db.query(func.count(func.distinct(Project.user_id))).join(RoadmapTask, Project.id == RoadmapTask.project_id).scalar() or 0
+    step5_roadmap = db.query(func.count(func.distinct(Project.user_id))).join(
+        ModuleContent, Project.id == ModuleContent.project_id
+    ).filter(
+        ModuleContent.module_type.in_(["execution_roadmap", "detailed_roadmap"]),
+        ModuleContent.active_version_id.isnot(None)
+    ).scalar() or 0
     # 6. Users with Export
     step6_export = db.query(func.count(func.distinct(AnalyticsEvent.user_id))).filter(AnalyticsEvent.event_name.in_(["export_pdf", "export_completed"])).scalar() or 0
 
@@ -75,7 +105,7 @@ def list_analytics_events(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     event_name: Optional[str] = None,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_analytics")),
     db: Session = Depends(get_db)
 ):
     query = db.query(AnalyticsEvent)

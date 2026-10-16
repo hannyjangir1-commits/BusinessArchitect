@@ -9,8 +9,9 @@ from app.models.all_models import (
     User, Project, ModuleContent, ModuleVersion, Session as DBSession,
     AIOperation, AnalyticsEvent, SecurityEvent, AuditLog
 )
-from app.api.deps import require_admin
+from app.api.deps import require_admin, require_permission
 from app.core.config import settings
+from app.services.system_setting_service import get_setting_float
 
 router = APIRouter(prefix="/dashboard", tags=["Admin Dashboard"])
 
@@ -40,7 +41,7 @@ def get_dashboard_stats(
     custom_end: Optional[str] = None,
     stage: Optional[str] = None,
     module: Optional[str] = None,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_dashboard")),
     db: Session = Depends(get_db)
 ):
     start_dt, end_dt = _parse_time_window(range, custom_start, custom_end)
@@ -99,8 +100,8 @@ def get_dashboard_stats(
     timeout_ai_ops = ai_query.filter(AIOperation.status == "timeout").count()
     retried_ai_ops = ai_query.filter(AIOperation.retry_count > 0).count()
 
-    success_rate = round((successful_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else None
-    failure_rate = round((failed_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else None
+    success_rate = round((successful_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else 0.0
+    failure_rate = round((failed_ai_ops / total_ai_ops * 100), 1) if total_ai_ops > 0 else 0.0
 
     # Latencies
     durations = [op.duration_ms for op in ai_query.filter(AIOperation.duration_ms != None).all()]
@@ -144,9 +145,13 @@ def get_dashboard_stats(
         SecurityEvent.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
     ).scalar() or 0
 
+    # Read alert threshold settings
+    alert_ai_failure_pct = get_setting_float(db, "alert_ai_failure_pct", 20.0)
+    alert_db_latency_ms = get_setting_float(db, "alert_db_latency_ms", 200.0)
+
     # Dynamic Operational Alerts
     alerts = []
-    if failure_rate > 20.0 and total_ai_ops >= 5:
+    if failure_rate is not None and failure_rate > alert_ai_failure_pct and total_ai_ops >= 5:
         alerts.append({
             "id": "alert_ai_failure_rate",
             "title": f"Elevated AI Generation Failure Rate: {failure_rate}%",
@@ -156,13 +161,13 @@ def get_dashboard_stats(
             "status": "active",
             "link": "/admin/ai-operations"
         })
-    if db_latency_ms > 200:
+    if db_latency_ms > alert_db_latency_ms:
         alerts.append({
             "id": "alert_db_latency",
             "title": f"High Database Query Latency: {db_latency_ms}ms",
             "severity": "medium",
             "subsystem": "Database",
-            "evidence": "Ping execution exceeded 200ms threshold",
+            "evidence": f"Ping execution exceeded {alert_db_latency_ms}ms threshold",
             "status": "active",
             "link": "/admin/database"
         })
@@ -240,7 +245,7 @@ def get_dashboard_trends(
     range: str = Query("30d", pattern="^(24h|7d|30d|90d|custom)$"),
     custom_start: Optional[str] = None,
     custom_end: Optional[str] = None,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_dashboard")),
     db: Session = Depends(get_db)
 ):
     start_dt, end_dt = _parse_time_window(range, custom_start, custom_end)

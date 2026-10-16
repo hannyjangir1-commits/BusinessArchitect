@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.session import get_db
 from app.models.all_models import User, AuditLog
-from app.api.deps import require_admin
+from app.api.deps import require_admin, require_permission
 
 router = APIRouter(prefix="/audit-logs", tags=["Admin Audit Trail"])
 
@@ -17,7 +17,7 @@ def list_audit_logs(
     target_type: Optional[str] = None,
     outcome: Optional[str] = Query(None, pattern="^(all|success|failed|denied)$"),
     search: Optional[str] = None,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_audit_logs")),
     db: Session = Depends(get_db)
 ):
     query = db.query(AuditLog)

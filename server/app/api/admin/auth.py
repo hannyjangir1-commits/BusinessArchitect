@@ -147,9 +147,11 @@ def admin_login(
             detail="This administrator account has been suspended"
         )
 
-    # Issue session
+    # Issue session with dynamic expiry days setting
+    from app.services.system_setting_service import get_setting_int
+    expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     session_token = generate_session_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.SESSION_EXPIRE_DAYS)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
     sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
     db.add(sess)
 
@@ -158,7 +160,7 @@ def admin_login(
     db.commit()
 
     # Set secure cookies
-    max_age = settings.SESSION_EXPIRE_DAYS * 86400
+    max_age = expiry_days * 86400
     csrf_token = generate_csrf_token(session_token)
 
     response.set_cookie(

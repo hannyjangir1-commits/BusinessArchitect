@@ -1,9 +1,10 @@
+import copy
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.models.all_models import User, Project, RoadmapTask, ModuleContent, ModuleVersion
+from app.models.all_models import User, Project, RoadmapTask, ModuleContent, ModuleVersion, CopilotMessage
 from app.schemas.project import (
     ProjectCreateRequest, ProjectUpdateRequest, ProjectResponse, ActiveModuleUpdateRequest,
     BulkDeleteProjectsRequest, BulkDeleteProjectsResponse
@@ -120,28 +121,104 @@ def update_project(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Option B: Create separate copy
+    # Option B: Create separate copy (Fork project work)
     if req.create_copy:
         # Enforce project limit if user chooses to create a copy
         _check_and_lock_user_project_limit(db, current_user.id)
 
-        new_project = Project(
-            user_id=current_user.id,
-            name=req.name or f"{project.name} (Copy)",
-            stage=req.stage or project.stage,
-            description=req.description or project.description,
-            industry=req.industry or project.industry,
-            target_customers=req.target_customers or project.target_customers,
-            goals=req.goals or project.goals,
-            business_context=req.business_context or project.business_context,
-            budget=req.budget or project.budget,
-            existing_stack=req.existing_stack if req.existing_stack is not None else project.existing_stack,
-            active_module="overview"
-        )
-        db.add(new_project)
-        db.commit()
-        db.refresh(new_project)
-        return _format_project_response(new_project, db)
+        try:
+            new_project = Project(
+                user_id=current_user.id,
+                name=req.name or f"{project.name} (Copy)",
+                stage=req.stage or project.stage,
+                description=req.description or project.description,
+                industry=req.industry or project.industry,
+                target_customers=req.target_customers or project.target_customers,
+                goals=req.goals or project.goals,
+                business_context=req.business_context or project.business_context,
+                budget=req.budget or project.budget,
+                existing_stack=req.existing_stack if req.existing_stack is not None else (copy.deepcopy(project.existing_stack) if project.existing_stack else {}),
+                active_module=project.active_module or "overview"
+            )
+            db.add(new_project)
+            db.flush()
+
+            # 1. Clone ModuleContent and ModuleVersion history
+            source_modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
+            for sm in source_modules:
+                new_module = ModuleContent(
+                    project_id=new_project.id,
+                    module_type=sm.module_type,
+                    active_version_id=None
+                )
+                db.add(new_module)
+                db.flush()
+
+                # Clone all versions for this module
+                source_versions = db.query(ModuleVersion).filter(
+                    ModuleVersion.module_content_id == sm.id
+                ).order_by(ModuleVersion.version_number.asc()).all()
+
+                ver_id_map = {}
+                for sv in source_versions:
+                    new_ver = ModuleVersion(
+                        module_content_id=new_module.id,
+                        version_number=sv.version_number,
+                        version_name=sv.version_name,
+                        data=copy.deepcopy(sv.data),
+                        change_summary=sv.change_summary,
+                        is_active=sv.is_active
+                    )
+                    db.add(new_ver)
+                    db.flush()
+                    ver_id_map[sv.id] = new_ver.id
+
+                # Remap active version reference
+                if sm.active_version_id and sm.active_version_id in ver_id_map:
+                    new_module.active_version_id = ver_id_map[sm.active_version_id]
+                elif source_versions and not sm.active_version_id:
+                    active_sv = next((sv for sv in reversed(source_versions) if sv.is_active), None)
+                    if active_sv and active_sv.id in ver_id_map:
+                        new_module.active_version_id = ver_id_map[active_sv.id]
+
+            # 2. Clone RoadmapTask rows
+            source_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).order_by(RoadmapTask.order_index.asc()).all()
+            for st in source_tasks:
+                new_task = RoadmapTask(
+                    project_id=new_project.id,
+                    task_code=st.task_code,
+                    phase=st.phase,
+                    title=st.title,
+                    description=st.description,
+                    timeline=st.timeline,
+                    start_date=st.start_date,
+                    end_date=st.end_date,
+                    priority=st.priority,
+                    status=st.status,
+                    dependencies=list(st.dependencies or []),
+                    deliverables=st.deliverables,
+                    effort=st.effort,
+                    order_index=st.order_index,
+                    is_ai_generated=st.is_ai_generated
+                )
+                db.add(new_task)
+
+            # 3. Clone CopilotMessage rows
+            source_messages = db.query(CopilotMessage).filter(CopilotMessage.project_id == project.id).order_by(CopilotMessage.created_at.asc()).all()
+            for smsg in source_messages:
+                new_msg = CopilotMessage(
+                    project_id=new_project.id,
+                    role=smsg.role,
+                    content=smsg.content
+                )
+                db.add(new_msg)
+
+            db.commit()
+            db.refresh(new_project)
+            return _format_project_response(new_project, db)
+        except Exception:
+            db.rollback()
+            raise
 
     # Option A: Replace existing in-place
     if req.name is not None:

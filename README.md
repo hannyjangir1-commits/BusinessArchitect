@@ -236,13 +236,14 @@ The application features a production-ready, data-backed **Enterprise Admin Cont
 
 ### 1. Initial Bootstrap Administrator Provisioning
 The platform supports secure, idempotent server-side administrator initialization via environment variables:
-- `ADMIN_BOOTSTRAP_ENABLED=true`
-- `ADMIN_BOOTSTRAP_USERNAME=HannyAdmin`
-- `ADMIN_BOOTSTRAP_PASSWORD=Hanny@BusinessArchitect`
+- `ADMIN_BOOTSTRAP_ENABLED=true` (must be explicitly enabled; defaults to `false`)
+- `ADMIN_BOOTSTRAP_USERNAME=your_admin_username` (alphanumeric, min 3 characters)
+- `ADMIN_BOOTSTRAP_PASSWORD=your_strong_password` (minimum 12 characters including uppercase, lowercase, numbers, and symbols)
+- `ADMIN_BOOTSTRAP_EMAIL=admin@yourdomain.com`
 
 **Security Constraints**:
-1. Plaintext credentials are **never committed** to git, frontend builds, or database migrations.
-2. The initial administrator is initialized idempotently on application startup: if the administrator record already exists, its password is **not overwritten or reset**.
+1. Plaintext credentials are **never hardcoded or committed** to git, frontend builds, or database migrations. If bootstrap is enabled without required credentials or with a weak password, provisioning safely aborts with a sanitized log message.
+2. The initial administrator is initialized idempotently on application startup: if the administrator record already exists, its password is **never overwritten or reset**.
 3. Passwords are encrypted exclusively with **Argon2id** (RFC 9106 parameters).
 4. Plaintext credentials or hashes are never returned by any API or exposed to logs.
 5. Ordinary users (`role="user"`) and anonymous callers are strictly blocked from all `/api/admin/*` endpoints and `/admin/*` frontend views with HTTP 403/401.
@@ -275,13 +276,33 @@ Because bootstrap credentials are used for initial provisioning, administrators 
 | **Administration**| **Configuration Center**| `/admin/configuration` | Validated runtime parameters (AI timeouts, retry count, alert thresholds) and masked deployment secret verification. |
 | | **Admin Account** | `/admin/account` | Administrator identity profile, Argon2id security posture, password rotation, and session management. |
 
-### 4. Running Tests
-```bash
-# Backend pytest suite (42 unit, integration, and security tests)
-cd server
-pytest -v
+### 4. Running Tests and Verification
 
-# Frontend production build verification
+The test suite is organized into modular verification groups covering core workflows, security, data integrity, concurrency, and audit regressions:
+
+#### Backend Test Suite (Pytest)
+```bash
+cd server
+python -m pytest -v
+```
+Test groups include:
+- **Audit Findings Regression Suite (`test_audit_findings_regression.py`)**: Validates fixes for findings F-01 through F-16 (import blockers, safe bootstrap, RBAC matrix, empty-data handling, runtime settings, project deep copy/forking, roadmap version-task reconciliation, strict payload validation, side-effect-free analytics, health readiness, and user login throttling).
+- **Admin Authentication & RBAC (`test_admin_auth_and_security.py`)**: Tests multi-role admin capabilities, session security, password rotation, and unauthenticated/ordinary user access restrictions.
+- **Admin Management & Operations (`test_admin_management_and_ops.py`)**: Tests admin telemetry, user directory management, and system maintenance mode toggling.
+- **Data Integrity & Concurrency (`test_concurrency_and_sync.py`, `test_audit_repairs_and_csrf_exhaustive.py`)**: Tests concurrent module creation uniqueness, CSRF protection, and version pruning.
+- **End-to-End Workflows & Versioning (`test_e2e_full_workflows.py`, `test_version_and_tasks.py`)**: Tests full project lifecycle, roadmap task tracking, and multi-module generation.
+- **Deployment & Readiness (`test_deployment_and_supabase_readiness.py`)**: Tests health endpoints, database readiness checks, and migration stability. Live external service tests (e.g. Supabase connection) are opt-in and cleanly skipped when credentials are not configured.
+
+#### Frontend Test Suite (Vitest)
+```bash
 cd client
-npm run build
+npm test
+```
+Runs component tests and audit regression checks (`audit_findings_frontend.test.tsx`), validating batch project deletion error handling, instant profile state reflection, and dashboard module shortcut navigation.
+
+#### Code Quality & Production Build
+```bash
+cd client
+npm run lint    # Lints frontend code with Oxlint
+npm run build   # Type-checks (tsc -b) and compiles optimized bundle with Vite
 ```

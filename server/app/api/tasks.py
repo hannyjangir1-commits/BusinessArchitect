@@ -75,7 +75,7 @@ def get_roadmap_summary(
 from datetime import datetime
 
 VALID_PRIORITIES = {"Critical", "High", "Medium", "Low"}
-VALID_STATUSES = {"Pending", "Ongoing", "In Progress", "Finished"}
+VALID_STATUSES = {"Pending", "In Progress", "Ongoing", "Finished", "Completed"}
 
 def _validate_dates(start_date: str, end_date: str):
     try:
@@ -180,12 +180,13 @@ def create_task(
             status_code=400,
             detail=f"Invalid priority '{req.priority}'. Allowed: {', '.join(VALID_PRIORITIES)}"
         )
-    status_val = "Ongoing" if req.status == "In Progress" else (req.status or "Pending")
-    if status_val not in VALID_STATUSES:
+    raw_status = req.status or "Pending"
+    if raw_status not in VALID_STATUSES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid status '{req.status}'. Allowed: Pending, Ongoing, Finished"
+            detail=f"Invalid status '{req.status}'. Allowed: Pending, In Progress, Finished"
         )
+    status_val = "In Progress" if raw_status in ("In Progress", "Ongoing") else raw_status
 
     # Validate dates
     _validate_dates(req.start_date, req.end_date)
@@ -206,7 +207,8 @@ def create_task(
         status=status_val,
         dependencies=req.dependencies or [],
         deliverables=req.deliverables,
-        effort=req.effort
+        effort=req.effort,
+        is_ai_generated=False
     )
     db.add(task)
     db.commit()
@@ -255,12 +257,12 @@ def update_task(
         task.priority = req.priority
 
     if req.status:
-        status_val = "Ongoing" if req.status == "In Progress" else req.status
-        if status_val not in VALID_STATUSES:
+        if req.status not in VALID_STATUSES:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid status '{req.status}'. Allowed: Pending, Ongoing, Finished"
+                detail=f"Invalid status '{req.status}'. Allowed: Pending, In Progress, Finished"
             )
+        status_val = "In Progress" if req.status in ("In Progress", "Ongoing") else req.status
         task.status = status_val
 
     new_deps = req.dependencies if req.dependencies is not None else (task.dependencies or [])

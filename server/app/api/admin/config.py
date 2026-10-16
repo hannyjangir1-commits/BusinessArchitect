@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.all_models import User, SystemSetting, gen_id
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
 from app.core.telemetry import record_audit_log
 
@@ -26,7 +26,7 @@ class UpdateSettingsRequest(BaseModel):
 
 @router.get("")
 def get_system_configuration(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_configuration")),
     db: Session = Depends(get_db)
 ):
     # Ensure default settings exist in DB
@@ -74,7 +74,7 @@ def get_system_configuration(
 @router.post("")
 def update_system_configuration(
     req: UpdateSettingsRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_configuration")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -83,17 +83,40 @@ def update_system_configuration(
         val_str = str(val).strip()
         # Validation rules
         if key == "ai_timeout_seconds":
-            ival = int(val_str)
+            try:
+                ival = int(val_str)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="ai_timeout_seconds must be a valid integer")
             if ival < 10 or ival > 120:
                 raise HTTPException(status_code=400, detail="ai_timeout_seconds must be between 10 and 120")
         elif key == "ai_max_retries":
-            ival = int(val_str)
+            try:
+                ival = int(val_str)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="ai_max_retries must be a valid integer")
             if ival < 0 or ival > 5:
                 raise HTTPException(status_code=400, detail="ai_max_retries must be between 0 and 5")
         elif key == "session_expiry_days":
-            ival = int(val_str)
+            try:
+                ival = int(val_str)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="session_expiry_days must be a valid integer")
             if ival < 1 or ival > 30:
                 raise HTTPException(status_code=400, detail="session_expiry_days must be between 1 and 30")
+        elif key == "alert_ai_failure_pct":
+            try:
+                fval = float(val_str)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="alert_ai_failure_pct must be a valid number")
+            if fval < 1.0 or fval > 100.0:
+                raise HTTPException(status_code=400, detail="alert_ai_failure_pct must be between 1 and 100")
+        elif key == "alert_db_latency_ms":
+            try:
+                fval = float(val_str)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="alert_db_latency_ms must be a valid number")
+            if fval < 10.0 or fval > 5000.0:
+                raise HTTPException(status_code=400, detail="alert_db_latency_ms must be between 10 and 5000")
         elif key in ("maintenance_mode", "public_registration_enabled"):
             if val_str.lower() not in ("true", "false"):
                 raise HTTPException(status_code=400, detail=f"{key} must be 'true' or 'false'")

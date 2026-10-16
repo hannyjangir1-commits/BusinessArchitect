@@ -105,6 +105,26 @@ def require_admin(
         )
     return user
 
+def _get_permissions_for_role(role: str) -> List[str]:
+    """Return granted granular permissions for each administrative role."""
+    all_perms = [
+        "view_dashboard", "manage_users", "manage_projects", "view_ai_ops",
+        "retry_ai_ops", "view_analytics", "view_system_health", "view_database",
+        "run_integrity_scan", "execute_repair", "view_security", "revoke_sessions",
+        "view_audit_logs", "manage_configuration", "manage_maintenance", "export_reports"
+    ]
+    if role == "super_admin":
+        return all_perms
+    elif role == "operations_admin":
+        return [p for p in all_perms if p not in ("manage_users", "manage_configuration")]
+    elif role == "security_admin":
+        return ["view_dashboard", "view_security", "revoke_sessions", "view_audit_logs", "export_reports"]
+    elif role == "support_admin":
+        return ["view_dashboard", "manage_users", "manage_projects", "view_ai_ops", "view_system_health"]
+    elif role == "auditor":
+        return ["view_dashboard", "view_ai_ops", "view_analytics", "view_system_health", "view_audit_logs", "export_reports"]
+    return []
+
 def require_roles(*allowed_roles: str):
     """Factory dependency to enforce specific administrative roles."""
     def role_checker(user: User = Depends(require_admin)) -> User:
@@ -115,6 +135,42 @@ def require_roles(*allowed_roles: str):
             )
         return user
     return role_checker
+
+def require_permission(permission: str):
+    """Factory dependency enforcing specific granular administrative permissions."""
+    def permission_checker(
+        request: Request,
+        user: User = Depends(require_admin),
+        db: Session = Depends(get_db)
+    ) -> User:
+        user_perms = _get_permissions_for_role(user.role)
+        if permission not in user_perms:
+            try:
+                from app.models.all_models import SecurityEvent, gen_id
+                ip = request.client.host if request.client else "unknown"
+                sec_event = SecurityEvent(
+                    id=gen_id("sec_"),
+                    event_type="forbidden_permission_access",
+                    severity="medium",
+                    actor_id=user.id,
+                    target_user_id=None,
+                    ip_address=ip,
+                    user_agent=request.headers.get("User-Agent", "")[:255],
+                    request_path=str(request.url.path)[:255],
+                    details={"role": user.role, "required_permission": permission, "user_permissions": user_perms},
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(sec_event)
+                db.commit()
+            except Exception:
+                db.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: permission '{permission}' required for this action."
+            )
+        return user
+    return permission_checker
 
 def verify_csrf(
     request: Request,

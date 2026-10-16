@@ -7,7 +7,7 @@ from app.db.session import get_db
 from app.models.all_models import (
     User, Project, ModuleContent, ModuleVersion, AIOperation, AuditLog, gen_id
 )
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
 from app.core.telemetry import record_ai_operation, record_audit_log
 
@@ -24,7 +24,7 @@ def list_ai_operations(
     project_id: Optional[str] = None,
     sort_by: str = Query("created_at", pattern="^(created_at|duration_ms|module_type)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_ai_ops")),
     db: Session = Depends(get_db)
 ):
     query = db.query(AIOperation)
@@ -86,7 +86,7 @@ def list_ai_operations(
 
 @router.get("/stats")
 def get_ai_operations_stats(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_ai_ops")),
     db: Session = Depends(get_db)
 ):
     total = db.query(func.count(AIOperation.id)).scalar() or 0
@@ -95,8 +95,8 @@ def get_ai_operations_stats(
     timeout_count = db.query(func.count(AIOperation.id)).filter(AIOperation.status == "timeout").scalar() or 0
     retried_count = db.query(func.count(AIOperation.id)).filter(AIOperation.retry_count > 0).scalar() or 0
 
-    success_rate = round((success_count / total * 100), 1) if total > 0 else None
-    failure_rate = round((failed_count / total * 100), 1) if total > 0 else None
+    success_rate = round((success_count / total * 100), 1) if total > 0 else 0.0
+    failure_rate = round((failed_count / total * 100), 1) if total > 0 else 0.0
 
     durations = [op.duration_ms for op in db.query(AIOperation.duration_ms).filter(AIOperation.duration_ms != None).all()]
     if durations:
@@ -150,7 +150,7 @@ def get_ai_operations_stats(
 
 @router.get("/quality")
 def get_ai_quality_stats(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("view_ai_ops")),
     db: Session = Depends(get_db)
 ):
     total = db.query(func.count(AIOperation.id)).scalar() or 0
@@ -177,7 +177,7 @@ def get_ai_quality_stats(
 @router.post("/{operation_id}/retry")
 def retry_failed_operation(
     operation_id: str,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("retry_ai_ops")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -185,11 +185,6 @@ def retry_failed_operation(
     Genuine administrative retry of an eligible failed AI operation.
     Enforces least-privilege role boundary, project existence, real AI execution, and audit trail.
     """
-    if current_admin.role not in ("super_admin", "operations_admin", "support_admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: role not authorized to retry AI operations"
-        )
 
     op = db.query(AIOperation).filter(AIOperation.id == operation_id).first()
     if not op:

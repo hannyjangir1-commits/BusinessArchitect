@@ -8,7 +8,8 @@ from app.models.all_models import Project, ModuleContent, ModuleVersion, Roadmap
 from app.schemas.modules import (
     ModuleDetailResponse, VersionItemResponse, VersionRenameRequest,
     VersionConflictResolveRequest, SectionModifyRequest,
-    BMCData, TechStackData, IdeaValidatorData, MarketResearchData
+    BMCData, TechStackData, IdeaValidatorData, MarketResearchData,
+    ExecutionRoadmapData
 )
 from app.services.version_service import VersionService
 from app.services.readiness_service import ReadinessValidationService
@@ -33,15 +34,19 @@ def _validate_module_data(module_type: str, data: Dict[str, Any]):
         IdeaValidatorData.model_validate(data)
     elif module_type == "market_research":
         MarketResearchData.model_validate(data)
+    elif module_type in ("execution_roadmap", "detailed_roadmap"):
+        ExecutionRoadmapData.model_validate(data)
 
 def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dict[str, Any]]):
     existing_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
     existing_by_code = {t.task_code: t for t in existing_tasks}
 
     base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
+    active_codes = set()
 
     for idx, t in enumerate(tasks_data):
         code = t.get("task_code") or f"TSK-{str(idx+1).zfill(2)}"
+        active_codes.add(code)
         s_date = t.get("start_date") or base_date_str
         e_date = t.get("end_date") or s_date
         if e_date < s_date:
@@ -49,10 +54,10 @@ def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dic
 
         if code in existing_by_code:
             cur = existing_by_code[code]
-            # Preserve user edits if ongoing or finished
-            if cur.status not in ("Ongoing", "In Progress", "Finished"):
+            # Preserve user edits if in progress or finished
+            if cur.status not in ("In Progress", "Ongoing", "Finished"):
                 raw_st = t.get("status", "Pending")
-                cur.status = "Ongoing" if raw_st == "In Progress" else raw_st
+                cur.status = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
             cur.phase = t.get("phase", cur.phase)
             cur.title = t.get("title", cur.title)
             cur.description = t.get("description", cur.description)
@@ -66,7 +71,7 @@ def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dic
             cur.order_index = idx
         else:
             raw_st = t.get("status", "Pending")
-            st_val = "Ongoing" if raw_st == "In Progress" else raw_st
+            st_val = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
             new_task = RoadmapTask(
                 project_id=project.id,
                 task_code=code,
@@ -81,10 +86,19 @@ def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dic
                 dependencies=t.get("dependencies", []),
                 deliverables=t.get("deliverables", ""),
                 effort=t.get("effort", "1 week"),
-                order_index=idx
+                order_index=idx,
+                is_ai_generated=True
             )
             db.add(new_task)
-    db.commit()
+
+    # Obsolete AI-generated tasks removal:
+    # Delete tasks if they were AI-generated and are not in the active roadmap JSON.
+    # Preserve manual user-created tasks (is_ai_generated == False).
+    for cur in existing_tasks:
+        if cur.task_code not in active_codes and cur.is_ai_generated:
+            db.delete(cur)
+
+    db.flush()
 
 def _get_project_dict(project: Project) -> Dict[str, Any]:
     return {
@@ -106,7 +120,21 @@ def get_module(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module = db.query(ModuleContent).filter(
+        ModuleContent.project_id == project.id,
+        ModuleContent.module_type == module_type
+    ).first()
+
+    if not module:
+        return ModuleDetailResponse(
+            module_type=module_type,
+            active_version_id=None,
+            active_version_name=None,
+            active_version_number=None,
+            data=None,
+            versions=[]
+        )
+
     versions = VersionService.get_versions(db, module.id)
 
     active_ver = None
@@ -166,20 +194,28 @@ def generate_module(
         elif module_type in ("execution_roadmap", "detailed_roadmap"):
             roadmap_raw = ai_service.generate_roadmap(proj_info)
             data_dict = roadmap_raw
-
-            tasks_data = roadmap_raw.get("tasks", [])
-            if tasks_data:
-                _reconcile_roadmap_tasks(db, project, tasks_data)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
 
-        # Save new version (enforcing 5-version maximum)
+        # Validate module payload against schema before persistence (F-09)
+        _validate_module_data(module_type, data_dict)
+
+        # Save new version and reconcile roadmap tasks in single atomic transaction (F-08)
         new_ver = VersionService.save_new_version(
             db=db,
             module=module,
             data=data_dict,
-            change_summary="Initial blueprint generation"
+            change_summary="Initial blueprint generation",
+            commit=False
         )
+
+        if module_type in ("execution_roadmap", "detailed_roadmap"):
+            tasks_data = data_dict.get("tasks", [])
+            if tasks_data:
+                _reconcile_roadmap_tasks(db, project, tasks_data)
+
+        db.commit()
+        db.refresh(new_ver)
 
         dur_ms = int((time.time() - t0) * 1000)
         record_ai_operation(
@@ -294,12 +330,16 @@ def modify_module_with_ai(
             current_data=active_ver.data,
             instruction=req.instruction
         )
+        # Validate modified data against schema before persistence (F-09)
+        _validate_module_data(module_type, new_data)
 
+        # Save new version and reconcile roadmap tasks in single atomic transaction (F-08)
         new_ver = VersionService.save_new_version(
             db=db,
             module=module,
             data=new_data,
-            change_summary=change_summary
+            change_summary=change_summary,
+            commit=False
         )
 
         # Reconcile roadmap tasks if roadmap
@@ -307,6 +347,9 @@ def modify_module_with_ai(
             tasks_data = new_data.get("tasks", [])
             if tasks_data:
                 _reconcile_roadmap_tasks(db, project, tasks_data)
+
+        db.commit()
+        db.refresh(new_ver)
 
         dur_ms = int((time.time() - t0) * 1000)
         record_ai_operation(
@@ -438,19 +481,32 @@ def resolve_version_conflict(
     if not new_data:
         raise HTTPException(status_code=400, detail="Missing new data or modification instruction for version replacement")
 
+    # Validate replacement payload before persistence (F-09)
+    try:
+        _validate_module_data(module_type, new_data)
+    except Exception as ve:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Validation failed for {module_type}: {str(ve)}"
+        )
+
     replaced_ver = VersionService.resolve_conflict_and_replace(
         db=db,
         module=module,
         replace_version_id=req.replace_version_id,
         new_data=new_data,
         new_name=req.new_version_name,
-        change_summary=change_summary
+        change_summary=change_summary,
+        commit=False
     )
 
     if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
         tasks_data = new_data.get("tasks", [])
         if tasks_data:
             _reconcile_roadmap_tasks(db, project, tasks_data)
+
+    db.commit()
+    db.refresh(replaced_ver)
 
     versions = VersionService.get_versions(db, module.id)
     return ModuleDetailResponse(
@@ -494,7 +550,14 @@ def restore_version(
     db: Session = Depends(get_db)
 ):
     module = VersionService.get_or_create_module(db, project.id, module_type)
-    new_ver = VersionService.restore_version(db, module, version_id)
+    new_ver = VersionService.restore_version(db, module, version_id, commit=False)
+
+    if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_ver.data, dict):
+        tasks_data = new_ver.data.get("tasks", [])
+        _reconcile_roadmap_tasks(db, project, tasks_data)
+
+    db.commit()
+    db.refresh(new_ver)
     versions = VersionService.get_versions(db, module.id)
 
     return ModuleDetailResponse(

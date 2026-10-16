@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.models.all_models import (
     User, Project, Session as DBSession, SecurityEvent, AuditLog, AIOperation
 )
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_security_event, record_audit_log
 
 router = APIRouter(prefix="/users", tags=["Admin User Management"])
@@ -25,7 +25,7 @@ def list_users(
     role: Optional[str] = None,
     sort_by: str = Query("created_at", pattern="^(created_at|username|last_active_at)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_users")),
     db: Session = Depends(get_db)
 ):
     query = db.query(User)
@@ -88,7 +88,7 @@ def list_users(
 @router.get("/{user_id}")
 def get_user_detail(
     user_id: str,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_users")),
     db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(User.id == user_id).first()
@@ -161,7 +161,7 @@ def get_user_detail(
 def suspend_user(
     user_id: str,
     req: SuspendUserRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_users")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -215,7 +215,7 @@ def suspend_user(
 @router.post("/{user_id}/reactivate")
 def reactivate_user(
     user_id: str,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_users")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -256,7 +256,7 @@ def reactivate_user(
 @router.post("/{user_id}/revoke-sessions")
 def revoke_user_sessions(
     user_id: str,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_users")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
@@ -293,7 +293,7 @@ def revoke_user_sessions(
 def delete_user(
     user_id: str,
     confirm_username: str = Query(..., description="Must match target username exactly"),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("manage_users")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):

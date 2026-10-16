@@ -9,7 +9,7 @@ from app.models.all_models import (
     User, Project, ModuleContent, ModuleVersion, RoadmapTask,
     CopilotMessage, Session as DBSession, AuditLog
 )
-from app.api.deps import require_admin, verify_csrf
+from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_audit_log
 
 router = APIRouter(prefix="/integrity", tags=["Admin Data Integrity"])
@@ -20,7 +20,7 @@ class RepairActionRequest(BaseModel):
 
 @router.get("/scan")
 def run_integrity_scan(
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("run_integrity_scan")),
     db: Session = Depends(get_db)
 ):
     findings = []
@@ -127,7 +127,7 @@ def run_integrity_scan(
 @router.post("/repair")
 def execute_repair(
     req: RepairActionRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("execute_repair")),
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):

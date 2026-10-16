@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -34,6 +34,34 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Maintenance Mode Middleware (F-05)
+@app.middleware("http")
+async def maintenance_mode_middleware(request: Request, call_next):
+    path = request.url.path
+    # Allow health checks, admin APIs, static assets, and SPA fallback routes
+    if (
+        path in ("/health", "/health/live", "/api/health") or
+        path.startswith("/api/admin") or
+        path.startswith("/assets") or
+        not path.startswith("/api/")
+    ):
+        return await call_next(request)
+
+    # Check maintenance mode for user-facing API routes
+    try:
+        from app.services.system_setting_service import get_setting_bool
+        with SessionLocal() as db:
+            is_maintenance = get_setting_bool(db, "maintenance_mode", False)
+            if is_maintenance:
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"detail": "System is currently under maintenance. Please try again later."}
+                )
+    except Exception:
+        pass
+
+    return await call_next(request)
+
 # CORS setup for local development and same-origin / cross-origin deployments
 app.add_middleware(
     CORSMiddleware,
@@ -54,7 +82,7 @@ api_v1.include_router(exports.router)
 api_v1.include_router(admin_router)
 
 @api_v1.get("/health")
-def api_health():
+def api_health(response: Response):
     db_connected = False
     try:
         from sqlalchemy import text
@@ -63,6 +91,9 @@ def api_health():
             db_connected = True
     except Exception:
         db_connected = False
+
+    if not db_connected:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     is_configured = bool(settings.GEMINI_API_KEY)
 
@@ -77,11 +108,39 @@ def api_health():
 
 app.mount("/api", api_v1)
 
-# Health check at root /health for Render
+# Health check at root /health for Render & Docker container readiness (F-12)
 @app.get("/health")
-def root_health():
+def root_readiness(response: Response):
+    db_connected = False
+    try:
+        from sqlalchemy import text
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+            db_connected = True
+    except Exception:
+        db_connected = False
+
+    if not db_connected:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "status": "unhealthy",
+            "service": "Business Architect Web Service",
+            "database": "disconnected",
+            "environment": settings.APP_ENV
+        }
+
     return {
         "status": "ok",
+        "service": "Business Architect Web Service",
+        "database": "connected",
+        "environment": settings.APP_ENV
+    }
+
+# Liveness probe: returns 200 as long as web server is accepting traffic (F-12)
+@app.get("/health/live")
+def root_liveness():
+    return {
+        "status": "alive",
         "service": "Business Architect Web Service",
         "environment": settings.APP_ENV
     }

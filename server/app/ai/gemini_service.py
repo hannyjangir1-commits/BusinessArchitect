@@ -5,8 +5,9 @@ from google import genai
 from google.genai import types
 from app.core.config import settings
 from app.schemas.modules import (
-    BMCData, TechStackData, IdeaValidatorData, MarketResearchData
+    BMCData, TechStackData, IdeaValidatorData, MarketResearchData, ExecutionRoadmapData
 )
+from app.services.system_setting_service import get_setting_int
 from app.ai.prompts import (
     BMC_SYSTEM_PROMPT, TECH_STACK_SYSTEM_PROMPT, IDEA_VALIDATOR_SYSTEM_PROMPT,
     MARKET_RESEARCH_SYSTEM_PROMPT, ROADMAP_SYSTEM_PROMPT,
@@ -33,10 +34,26 @@ class GeminiAIService:
     def _get_client(self) -> genai.Client:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is not configured in backend environment.")
+
+        # Read runtime settings with defaults
+        timeout_s = 60
+        max_retries = 3
+        try:
+            from app.db.session import SessionLocal
+            with SessionLocal() as s:
+                timeout_s = get_setting_int(s, "ai_timeout_seconds", 60)
+                max_retries = get_setting_int(s, "ai_max_retries", 3)
+        except Exception as e:
+            logger.debug("Could not read dynamic AI settings from DB, using defaults: %s", str(e))
+
+        # Ensure zero retries still allows the initial request:
+        # In Google GenAI SDK, attempts is total attempts (1 initial request + max_retries retries)
+        total_attempts = max(1, 1 + max_retries)
+
         http_options = types.HttpOptions(
-            timeout=60000,
+            timeout=timeout_s * 1000,
             retry_options=types.HttpRetryOptions(
-                attempts=3,
+                attempts=total_attempts,
                 initial_delay=1.0,
                 max_delay=5.0,
                 http_status_codes=[503, 429, 500]
@@ -171,12 +188,21 @@ Apply the requested changes while preserving all other fields. Return valid JSON
         change_summary = result.get("change_summary", "Updated via AI modification")
         new_data = result.get("data", current_data)
 
-        # Validate with relevant pydantic schema if applicable
+        # Validate with relevant pydantic schema across all module types
         if module_type == "bmc":
             validated = BMCData(**new_data)
             new_data = validated.model_dump()
         elif module_type == "tech_stack":
             validated = TechStackData(**new_data)
+            new_data = validated.model_dump()
+        elif module_type == "idea_validator":
+            validated = IdeaValidatorData(**new_data)
+            new_data = validated.model_dump()
+        elif module_type == "market_research":
+            validated = MarketResearchData(**new_data)
+            new_data = validated.model_dump()
+        elif module_type in ("execution_roadmap", "detailed_roadmap"):
+            validated = ExecutionRoadmapData(**new_data)
             new_data = validated.model_dump()
 
         return new_data, change_summary

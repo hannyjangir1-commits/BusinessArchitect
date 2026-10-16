@@ -129,10 +129,9 @@ echo   * Backend API Docs:   http://127.0.0.1:8000/docs
 echo   * Health Endpoint:    http://127.0.0.1:8000/api/health
 echo(
 echo --------------------------------------------------------------
-echo   Initial Super Admin Credentials (Local Bootstrap):
-echo     Username: HannyAdmin
-echo     Password: Hanny@BusinessArchitect
-echo     (Rotate credentials in /admin/account before public deployment)
+echo   Initial Super Admin Provisioning:
+echo     Configured via ADMIN_BOOTSTRAP_ENABLED in .env
+echo     (See .env.example and README.md for instructions)
 echo --------------------------------------------------------------
 echo   To cleanly shut down the application, double-click:
 echo     stop_app.bat

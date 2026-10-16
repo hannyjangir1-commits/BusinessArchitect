@@ -1,21 +1,23 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import hash_password, verify_password, generate_session_token, generate_csrf_token
-from app.models.all_models import User, Session as DBSession
+from app.models.all_models import User, Session as DBSession, SecurityEvent
 from app.schemas.auth import (
     UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse,
     UserProfileUpdateRequest, UserChangePasswordRequest
 )
 from app.api.deps import get_current_user, verify_csrf
 from app.core.telemetry import record_analytics_event, record_security_event
+from app.services.system_setting_service import get_setting_bool, get_setting_int
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-def _set_auth_cookies(response: Response, session_token: str):
-    max_age = settings.SESSION_EXPIRE_DAYS * 86400
+def _set_auth_cookies(response: Response, session_token: str, expiry_days: int = 7):
+    max_age = expiry_days * 86400
     csrf_token = generate_csrf_token(session_token)
 
     # HTTP-only session cookie
@@ -40,8 +42,32 @@ def _set_auth_cookies(response: Response, session_token: str):
     )
     return csrf_token
 
+def _check_user_login_rate_limit(db: Session, ip: str, window_minutes: int = 15, max_attempts: int = 5):
+    """Abuse protection for public user login using shared database events."""
+    if not ip or ip == "unknown":
+        return
+    window_start = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    failed_attempts = db.query(func.count(SecurityEvent.id)).filter(
+        SecurityEvent.event_type == "login_failure",
+        SecurityEvent.ip_address == ip,
+        SecurityEvent.created_at >= window_start
+    ).scalar() or 0
+
+    if failed_attempts >= max_attempts:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Please try again later."
+        )
+
 @router.post("/register", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 def register(req: UserRegisterRequest, response: Response, db: Session = Depends(get_db)):
+    # Check if public registration is enabled
+    if not get_setting_bool(db, "public_registration_enabled", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Public user registration is currently disabled by administrator."
+        )
+
     if req.password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
     if not req.terms_accepted:
@@ -64,9 +90,10 @@ def register(req: UserRegisterRequest, response: Response, db: Session = Depends
     db.add(user)
     db.flush()
 
-    # Create session
+    # Create session with dynamic expiry days setting
+    expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     session_token = generate_session_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.SESSION_EXPIRE_DAYS)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
     sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
     db.add(sess)
     db.commit()
@@ -74,17 +101,21 @@ def register(req: UserRegisterRequest, response: Response, db: Session = Depends
 
     record_analytics_event(db, user_id=user.id, event_name="registration_completed")
 
-    csrf_token = _set_auth_cookies(response, session_token)
+    csrf_token = _set_auth_cookies(response, session_token, expiry_days=expiry_days)
     return SessionResponse(user=UserResponse.model_validate(user), csrf_token=csrf_token)
 
 @router.post("/login", response_model=SessionResponse)
 def login(req: UserLoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+
+    # Enforce database-backed abuse protection for user logins
+    _check_user_login_rate_limit(db, ip)
+
     # Support login with either email or username
     user = db.query(User).filter(
         (User.email == req.email_or_username) | (User.username == req.email_or_username)
     ).first()
-
-    ip = request.client.host if request.client else "unknown"
 
     if not user or not verify_password(req.password, user.hashed_password):
         record_security_event(
@@ -108,15 +139,16 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
         )
         raise HTTPException(status_code=403, detail="Account has been suspended. Please contact administrative support.")
 
+    expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     session_token = generate_session_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.SESSION_EXPIRE_DAYS)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
     sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
     db.add(sess)
     db.commit()
 
     record_analytics_event(db, user_id=user.id, event_name="login_completed")
 
-    csrf_token = _set_auth_cookies(response, session_token)
+    csrf_token = _set_auth_cookies(response, session_token, expiry_days=expiry_days)
     return SessionResponse(user=UserResponse.model_validate(user), csrf_token=csrf_token)
 
 @router.post("/logout")
