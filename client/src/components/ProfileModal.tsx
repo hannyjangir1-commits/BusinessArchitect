@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { UserCheck, Moon, Sun, Type, X, Check, KeyRound, Shield, AlertCircle, Loader2 } from 'lucide-react';
+import { UserCheck, Moon, Sun, Type, X, Check, AlertCircle, Loader2 } from 'lucide-react';
+
 import { api } from '../services/api';
 
 interface Props {

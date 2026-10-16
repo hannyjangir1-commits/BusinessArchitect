@@ -41,7 +41,8 @@ class Settings:
 
         # Gemini AI
         self.GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
 
     # CORS
     @property

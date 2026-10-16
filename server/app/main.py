@@ -186,8 +186,8 @@ if client_dist:
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Allow /api and /health to not be captured
-        if full_path.startswith("api/") or full_path == "health":
+        # Allow /api and /health to not be captured by SPA fallback
+        if full_path.startswith("api/") or full_path == "api" or full_path.startswith("health"):
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
         # If a specific static file is requested and exists in dist, serve it
