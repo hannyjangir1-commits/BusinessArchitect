@@ -5,11 +5,12 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password, generate_csrf_token
 from app.models.all_models import User, Session as DBSession, SecurityEvent, AuditLog, gen_id
 from app.db.session import SessionLocal
-from app.core.admin_provisioning import provision_initial_admin
+from app.core.admin_provisioning import provision_initial_admin, seed_development_admin
 
 @pytest.fixture
 def db():
     session = SessionLocal()
+    seed_development_admin(session)
     yield session
     session.close()
 
@@ -24,7 +25,7 @@ def test_admin_provisioning_idempotency(db):
     admin = db.query(User).filter(User.username == "HannyAdmin").first()
     assert admin is not None
     assert admin.role == "super_admin"
-    assert verify_password("Hanny@BusinessArchitect", admin.hashed_password) is True
+    assert verify_password("HannyAdmin", admin.hashed_password) is True
 
     # Run provisioning second time
     result = provision_initial_admin(db)
@@ -35,7 +36,7 @@ def test_admin_login_success_and_cookies(client, db):
     provision_initial_admin(db)
     resp = client.post("/api/admin/auth/login", json={
         "username": "HannyAdmin",
-        "password": "Hanny@BusinessArchitect"
+        "password": "HannyAdmin"
     })
     assert resp.status_code == 200
     data = resp.json()
@@ -106,7 +107,7 @@ def test_admin_csrf_protection(client, db):
     provision_initial_admin(db)
     login_resp = client.post("/api/admin/auth/login", json={
         "username": "HannyAdmin",
-        "password": "Hanny@BusinessArchitect"
+        "password": "HannyAdmin"
     })
     assert login_resp.status_code == 200
     cookies = login_resp.cookies
@@ -150,7 +151,7 @@ def test_admin_password_change_and_session_invalidation(client, db):
     provision_initial_admin(db)
     login_resp = client.post("/api/admin/auth/login", json={
         "username": "HannyAdmin",
-        "password": "Hanny@BusinessArchitect"
+        "password": "HannyAdmin"
     })
     assert login_resp.status_code == 200
     cookies = login_resp.cookies
@@ -160,7 +161,7 @@ def test_admin_password_change_and_session_invalidation(client, db):
     change_resp = client.post(
         "/api/admin/auth/change-password",
         json={
-            "current_password": "Hanny@BusinessArchitect",
+            "current_password": "HannyAdmin",
             "new_password": "NewSecretAdminPassword2026!",
             "confirm_new_password": "NewSecretAdminPassword2026!"
         },
@@ -172,7 +173,7 @@ def test_admin_password_change_and_session_invalidation(client, db):
     # Verify old password no longer works
     fail_login = client.post("/api/admin/auth/login", json={
         "username": "HannyAdmin",
-        "password": "Hanny@BusinessArchitect"
+        "password": "HannyAdmin"
     })
     assert fail_login.status_code == 401
 
@@ -185,5 +186,5 @@ def test_admin_password_change_and_session_invalidation(client, db):
 
     # Reset back to initial password for subsequent tests
     admin = db.query(User).filter(User.username == "HannyAdmin").first()
-    admin.hashed_password = hash_password("Hanny@BusinessArchitect")
+    admin.hashed_password = hash_password("HannyAdmin")
     db.commit()

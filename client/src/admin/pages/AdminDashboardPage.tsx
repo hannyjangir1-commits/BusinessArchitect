@@ -5,8 +5,14 @@ import {
   Database, Loader2, RefreshCw
 } from 'lucide-react';
 
-export const AdminDashboardPage: React.FC = () => {
+interface AdminDashboardPageProps {
+  onNavigate?: (path: string) => void;
+}
+
+export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const [range, setRange] = useState<string>('30d');
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
   const [trends, setTrends] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -16,9 +22,14 @@ export const AdminDashboardPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      const params: Record<string, any> = { range };
+      if (range === 'custom' && customStart && customEnd) {
+        params.custom_start = customStart;
+        params.custom_end = customEnd;
+      }
       const [statsData, trendsData] = await Promise.all([
-        api.admin.dashboard.getStats({ range }),
-        api.admin.dashboard.getTrends({ range })
+        api.admin.dashboard.getStats(params),
+        api.admin.dashboard.getTrends(params)
       ]);
       setStats(statsData);
       setTrends(trendsData);
@@ -27,7 +38,7 @@ export const AdminDashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, [range, customStart, customEnd]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -78,33 +89,55 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* Date Filter Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          {['24h', '7d', '30d', '90d'].map(opt => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ffffff', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            {['24h', '7d', '30d', '90d', 'custom'].map(opt => (
+              <button
+                key={opt}
+                onClick={() => setRange(opt)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: range === opt ? '#6366f1' : 'transparent',
+                  color: range === opt ? '#ffffff' : '#64748b',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {opt.toUpperCase()}
+              </button>
+            ))}
             <button
-              key={opt}
-              onClick={() => setRange(opt)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '6px',
-                border: 'none',
-                background: range === opt ? '#6366f1' : 'transparent',
-                color: range === opt ? '#ffffff' : '#64748b',
-                fontWeight: 600,
-                fontSize: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
+              onClick={fetchDashboardData}
+              title="Refresh metrics"
+              style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '6px', display: 'flex' }}
             >
-              {opt.toUpperCase()}
+              <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
             </button>
-          ))}
-          <button
-            onClick={fetchDashboardData}
-            title="Refresh metrics"
-            style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '6px', display: 'flex' }}
-          >
-            <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
-          </button>
+          </div>
+
+          {range === 'custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', padding: '4px 8px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <input
+                type="date"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                style={{ border: '1px solid #cbd5e1', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}
+                title="Start Date"
+              />
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                style={{ border: '1px solid #cbd5e1', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}
+                title="End Date"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -228,8 +261,14 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
                 </div>
                 {al.link && (
-                  <a
-                    href={al.link}
+                  <button
+                    onClick={() => {
+                      if (onNavigate) {
+                        onNavigate(al.link);
+                      } else {
+                        window.location.href = al.link;
+                      }
+                    }}
                     style={{
                       padding: '6px 12px',
                       borderRadius: '6px',
@@ -238,12 +277,12 @@ export const AdminDashboardPage: React.FC = () => {
                       color: '#0f172a',
                       fontSize: '12px',
                       fontWeight: 600,
-                      textDecoration: 'none',
+                      cursor: 'pointer',
                       whiteSpace: 'nowrap'
                     }}
                   >
                     Investigate →
-                  </a>
+                  </button>
                 )}
               </div>
             ))}

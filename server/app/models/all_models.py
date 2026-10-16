@@ -111,7 +111,7 @@ class RoadmapTask(Base):
     deliverables = Column(Text, nullable=True)
     effort = Column(String(64), nullable=True)
     order_index = Column(Integer, default=0, nullable=False)
-    is_ai_generated = Column(Boolean, default=True, nullable=False)
+    is_ai_generated = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

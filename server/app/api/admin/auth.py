@@ -327,3 +327,101 @@ def admin_change_password(
     )
 
     return {"message": "Password changed successfully. All other sessions have been invalidated."}
+
+@router.get("/sessions")
+def list_my_sessions(
+    request: Request,
+    current_admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """List active sessions for the currently authenticated administrator."""
+    current_token = request.cookies.get(settings.COOKIE_NAME)
+    now = datetime.now(timezone.utc)
+
+    sessions = (
+        db.query(DBSession)
+        .filter(
+            DBSession.user_id == current_admin.id,
+            DBSession.expires_at > now
+        )
+        .order_by(DBSession.created_at.desc())
+        .all()
+    )
+
+    return {
+        "total_active": len(sessions),
+        "sessions": [
+            {
+                "id": s.id,
+                "is_current": s.session_token == current_token,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "expires_at": s.expires_at.isoformat() if s.expires_at else None
+            }
+            for s in sessions
+        ]
+    }
+
+@router.post("/sessions/{session_id}/revoke")
+def revoke_my_session(
+    session_id: str,
+    request: Request,
+    current_admin: User = Depends(require_admin),
+    _csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db)
+):
+    """Revoke a specific session belonging to the current administrator."""
+    sess = db.query(DBSession).filter(
+        DBSession.id == session_id,
+        DBSession.user_id == current_admin.id
+    ).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found or does not belong to you")
+
+    current_token = request.cookies.get(settings.COOKIE_NAME)
+    is_current = sess.session_token == current_token
+
+    db.delete(sess)
+    db.commit()
+
+    record_audit_log(
+        db,
+        actor_id=current_admin.id,
+        action="admin_revoke_own_session",
+        target_type="session",
+        target_id=session_id,
+        outcome="success",
+        details={"was_current": is_current}
+    )
+
+    return {"message": "Session revoked successfully", "revoked_id": session_id, "was_current": is_current}
+
+@router.post("/sessions/revoke-others")
+def revoke_my_other_sessions(
+    request: Request,
+    current_admin: User = Depends(require_admin),
+    _csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db)
+):
+    """Revoke all active sessions for current admin except the current active session."""
+    current_token = request.cookies.get(settings.COOKIE_NAME)
+    if not current_token:
+        raise HTTPException(status_code=400, detail="No active session token found")
+
+    deleted_count = db.query(DBSession).filter(
+        DBSession.user_id == current_admin.id,
+        DBSession.session_token != current_token
+    ).delete()
+    db.commit()
+
+    record_audit_log(
+        db,
+        actor_id=current_admin.id,
+        action="admin_revoke_other_sessions",
+        target_type="user",
+        target_id=current_admin.id,
+        outcome="success",
+        details={"revoked_count": deleted_count}
+    )
+
+    return {"message": f"Successfully revoked {deleted_count} other active session(s).", "revoked_count": deleted_count}
+

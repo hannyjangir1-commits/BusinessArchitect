@@ -354,7 +354,13 @@ export const api = {
         request('/api/admin/auth/change-password', {
           method: 'POST',
           body: JSON.stringify(data)
-        })
+        }),
+      getSessions: () =>
+        request<any[]>('/api/admin/auth/sessions'),
+      revokeSession: (sessionId: string) =>
+        request<any>(`/api/admin/auth/sessions/${sessionId}/revoke`, { method: 'POST' }),
+      revokeOtherSessions: () =>
+        request<any>('/api/admin/auth/sessions/revoke-others', { method: 'POST' })
     },
     dashboard: {
       getStats: (params: Record<string, any> = {}) => {
@@ -376,6 +382,16 @@ export const api = {
       },
       get: (userId: string) =>
         request<any>(`/api/admin/users/${userId}`),
+      create: (data: { username: string; email: string; password?: string; role?: string }) =>
+        request<any>('/api/admin/users', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        }),
+      update: (userId: string, data: { email?: string; role?: string; is_suspended?: boolean; suspension_reason?: string }) =>
+        request<any>(`/api/admin/users/${userId}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        }),
       suspend: (userId: string, reason: string) =>
         request<any>(`/api/admin/users/${userId}/suspend`, {
           method: 'POST',

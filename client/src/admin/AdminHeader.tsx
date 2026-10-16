@@ -27,20 +27,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const segments = currentPath.split('/').filter(Boolean);
   const breadcrumbLabels: Record<string, string> = {
     admin: 'Admin Center',
-    users: 'Users',
-    projects: 'Projects',
-    'ai-operations': 'Generation Operations',
-    'ai-quality': 'Output Quality & Reliability',
-    analytics: 'Analytics',
-    reports: 'Reports & Exports',
-    'system-health': 'System Health',
-    database: 'Database & Schema',
-    'data-integrity': 'Data Integrity',
-    maintenance: 'Maintenance',
-    security: 'Security Center',
-    'audit-logs': 'Audit Logs',
-    configuration: 'Configuration',
-    account: 'Account'
+    users: 'Users Directory',
+    projects: 'Projects Console',
+    'ai-operations': 'AI Activity & Quality',
+    account: 'Admin Account'
   };
 
   const isHealthy = health?.status === 'healthy';

@@ -1,9 +1,7 @@
 import React from 'react';
 import {
-  LayoutDashboard, Users, FolderKanban, Cpu, CheckCircle2,
-  BarChart3, FileSpreadsheet, Activity, Database, ShieldAlert,
-  Wrench, ShieldCheck, ClipboardList, Sliders, UserCircle2,
-  ChevronLeft, ChevronRight, Sparkles, ExternalLink
+  LayoutDashboard, Users, FolderKanban, Cpu,
+  UserCircle2, ChevronLeft, ChevronRight, Sparkles, ExternalLink
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -55,16 +53,6 @@ const ITEM_PERMISSIONS: Record<string, string> = {
   'users': 'manage_users',
   'projects': 'manage_projects',
   'ai-ops': 'view_ai_ops',
-  'ai-quality': 'view_ai_ops',
-  'analytics': 'view_analytics',
-  'reports': 'export_reports',
-  'system-health': 'view_system_health',
-  'database': 'view_database',
-  'data-integrity': 'run_integrity_scan',
-  'maintenance': 'manage_maintenance',
-  'security': 'view_security',
-  'audit-logs': 'view_audit_logs',
-  'configuration': 'manage_configuration',
   'account': 'view_account'
 };
 
@@ -92,39 +80,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ]
     },
     {
-      title: 'Generation Operations',
+      title: 'AI Intelligence',
       items: [
-        { id: 'ai-ops', label: 'Generation Operations', icon: Cpu, path: '/admin/ai-operations' },
-        { id: 'ai-quality', label: 'Output Quality & Reliability', icon: CheckCircle2, path: '/admin/ai-quality' }
-      ]
-    },
-    {
-      title: 'Analytics & Reporting',
-      items: [
-        { id: 'analytics', label: 'Product Analytics', icon: BarChart3, path: '/admin/analytics' },
-        { id: 'reports', label: 'Reports & Exports', icon: FileSpreadsheet, path: '/admin/reports' }
-      ]
-    },
-    {
-      title: 'Infrastructure',
-      items: [
-        { id: 'system-health', label: 'System Health', icon: Activity, path: '/admin/system-health' },
-        { id: 'database', label: 'Database & Schema', icon: Database, path: '/admin/database' },
-        { id: 'data-integrity', label: 'Data Integrity Scan', icon: ShieldAlert, path: '/admin/data-integrity' },
-        { id: 'maintenance', label: 'Maintenance Center', icon: Wrench, path: '/admin/maintenance' }
-      ]
-    },
-    {
-      title: 'Security & Governance',
-      items: [
-        { id: 'security', label: 'Security Center', icon: ShieldCheck, path: '/admin/security' },
-        { id: 'audit-logs', label: 'Audit Trail', icon: ClipboardList, path: '/admin/audit-logs' }
+        { id: 'ai-ops', label: 'AI Activity & Quality', icon: Cpu, path: '/admin/ai-operations' }
       ]
     },
     {
       title: 'Administration',
       items: [
-        { id: 'configuration', label: 'Configuration Center', icon: Sliders, path: '/admin/configuration' },
         { id: 'account', label: 'Admin Account', icon: UserCircle2, path: '/admin/account' }
       ]
     }

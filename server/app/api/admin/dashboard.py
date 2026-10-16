@@ -169,7 +169,7 @@ def get_dashboard_stats(
             "subsystem": "Database",
             "evidence": f"Ping execution exceeded {alert_db_latency_ms}ms threshold",
             "status": "active",
-            "link": "/admin/database"
+            "link": None
         })
     if suspended_users > 0:
         alerts.append({
@@ -179,7 +179,7 @@ def get_dashboard_stats(
             "subsystem": "User Governance",
             "evidence": "Users restricted from platform access",
             "status": "active",
-            "link": "/admin/users?status=suspended"
+            "link": "/admin/users"
         })
     if failed_logins >= 5:
         alerts.append({
@@ -189,7 +189,7 @@ def get_dashboard_stats(
             "subsystem": "Security",
             "evidence": f"{failed_logins} failed login attempts recorded in selected window",
             "status": "active",
-            "link": "/admin/security"
+            "link": "/admin/account"
         })
 
     return {

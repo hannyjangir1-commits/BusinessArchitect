@@ -19,11 +19,12 @@ def db():
 
 @pytest.fixture
 def admin_client(db):
-    provision_initial_admin(db)
+    from app.core.admin_provisioning import seed_development_admin
+    seed_development_admin(db)
     client = TestClient(app)
     resp = client.post("/api/admin/auth/login", json={
         "username": "HannyAdmin",
-        "password": "Hanny@BusinessArchitect"
+        "password": "HannyAdmin"
     })
     assert resp.status_code == 200
     csrf_token = resp.json()["csrf_token"]

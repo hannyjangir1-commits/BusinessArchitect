@@ -21,10 +21,25 @@ async def lifespan(app: FastAPI):
     # Safe, idempotent startup admin provisioning
     try:
         with SessionLocal() as db:
-            provision_initial_admin(db)
+            from app.core.admin_provisioning import (
+                validate_production_credentials_safety,
+                seed_development_admin,
+                provision_initial_admin
+            )
+            if settings.IS_PROD or settings.APP_ENV == "production":
+                validate_production_credentials_safety()
+                if settings.ADMIN_BOOTSTRAP_ENABLED:
+                    provision_initial_admin(db)
+            else:
+                if settings.APP_ENV == "development":
+                    seed_development_admin(db)
+                if settings.ADMIN_BOOTSTRAP_ENABLED:
+                    provision_initial_admin(db)
     except Exception as e:
         import logging
         logging.getLogger("uvicorn.error").error(f"Admin provisioning failed during startup: {e}")
+        if settings.IS_PROD or settings.APP_ENV == "production":
+            raise
     yield
 
 app = FastAPI(

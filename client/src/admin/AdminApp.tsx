@@ -6,16 +6,6 @@ import { AdminUserDetailPage } from './pages/AdminUserDetailPage';
 import { AdminProjectsPage } from './pages/AdminProjectsPage';
 import { AdminProjectDetailPage } from './pages/AdminProjectDetailPage';
 import { AdminAIOperationsPage } from './pages/AdminAIOperationsPage';
-import { AdminAIQualityPage } from './pages/AdminAIQualityPage';
-import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
-import { AdminReportsPage } from './pages/AdminReportsPage';
-import { AdminSystemHealthPage } from './pages/AdminSystemHealthPage';
-import { AdminDatabasePage } from './pages/AdminDatabasePage';
-import { AdminDataIntegrityPage } from './pages/AdminDataIntegrityPage';
-import { AdminMaintenancePage } from './pages/AdminMaintenancePage';
-import { AdminSecurityPage } from './pages/AdminSecurityPage';
-import { AdminAuditLogsPage } from './pages/AdminAuditLogsPage';
-import { AdminConfigPage } from './pages/AdminConfigPage';
 import { AdminAccountPage } from './pages/AdminAccountPage';
 
 interface AdminAppProps {
@@ -81,37 +71,18 @@ export const AdminApp: React.FC<AdminAppProps> = ({ adminUser, onLogout, initial
     switch (currentPath) {
       case '/admin':
       case '/admin/dashboard':
-        return <AdminDashboardPage />;
+        return <AdminDashboardPage onNavigate={navigate} />;
       case '/admin/users':
         return <AdminUsersPage onSelectUser={handleSelectUser} />;
       case '/admin/projects':
         return <AdminProjectsPage onSelectProject={handleSelectProject} />;
       case '/admin/ai-operations':
-        return <AdminAIOperationsPage />;
       case '/admin/ai-quality':
-        return <AdminAIQualityPage />;
-      case '/admin/analytics':
-        return <AdminAnalyticsPage />;
-      case '/admin/reports':
-        return <AdminReportsPage />;
-      case '/admin/system-health':
-        return <AdminSystemHealthPage />;
-      case '/admin/database':
-        return <AdminDatabasePage />;
-      case '/admin/data-integrity':
-        return <AdminDataIntegrityPage />;
-      case '/admin/maintenance':
-        return <AdminMaintenancePage />;
-      case '/admin/security':
-        return <AdminSecurityPage />;
-      case '/admin/audit-logs':
-        return <AdminAuditLogsPage />;
-      case '/admin/configuration':
-        return <AdminConfigPage />;
+        return <AdminAIOperationsPage />;
       case '/admin/account':
         return <AdminAccountPage />;
       default:
-        return <AdminDashboardPage />;
+        return <AdminDashboardPage onNavigate={navigate} />;
     }
   };
 

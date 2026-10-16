@@ -8,6 +8,8 @@ from app.models.all_models import User, AuditLog, gen_id
 
 logger = logging.getLogger("admin.provisioning")
 
+KNOWN_DEV_PASSWORDS = {"HannyAdmin", "Hanny@BusinessArchitect", "admin", "password", "12345678"}
+
 def normalize_username(username: str) -> str:
     """Normalize and validate admin username."""
     cleaned = username.strip()
@@ -29,6 +31,76 @@ def validate_admin_password_strength(password: str) -> bool:
         return False
     return True
 
+def validate_production_credentials_safety() -> None:
+    """
+    Enforces that development credentials or known weak passwords are never allowed in production.
+    Raises RuntimeError to safely abort production startup if development password is used.
+    """
+    is_prod = getattr(settings, "IS_PROD", False) or getattr(settings, "APP_ENV", "").lower() == "production" or getattr(settings, "ENVIRONMENT", "").lower() == "production"
+    if not is_prod:
+        return
+
+    raw_password = (
+        getattr(settings, "INITIAL_ADMIN_PASSWORD", "") or
+        getattr(settings, "ADMIN_PASSWORD", "") or
+        getattr(settings, "ADMIN_BOOTSTRAP_PASSWORD", "")
+    )
+    if raw_password and (raw_password in KNOWN_DEV_PASSWORDS or raw_password.lower() == "hannyadmin"):
+        logger.critical(
+            "PRODUCTION STARTUP ABORTED: Insecure local development credentials ('HannyAdmin') "
+            "configured in production environment. A strong, unique secret password must be configured."
+        )
+        raise RuntimeError("Insecure development credentials rejected in production mode.")
+
+    if raw_password and not validate_admin_password_strength(raw_password):
+        raise RuntimeError("Production admin password must be at least 12 characters with uppercase, lowercase, numbers, and special characters.")
+
+def seed_development_admin(db: Session) -> bool:
+    """
+    Deterministically and idempotently seeds the local development super admin account ('HannyAdmin' / 'HannyAdmin').
+    Strictly isolated to non-production environments.
+    """
+    is_prod = getattr(settings, "IS_PROD", False) or getattr(settings, "APP_ENV", "").lower() == "production" or getattr(settings, "ENVIRONMENT", "").lower() == "production"
+    if is_prod:
+        logger.warning("Development admin seeding is strictly prohibited in production mode. Skipping.")
+        return False
+
+    # Check if HannyAdmin already exists
+    existing = db.query(User).filter(User.username == "HannyAdmin").first()
+    if existing:
+        from app.core.security import verify_password
+        if not verify_password("HannyAdmin", existing.hashed_password) or existing.role != "super_admin":
+            existing.hashed_password = hash_password("HannyAdmin")
+            existing.role = "super_admin"
+            existing.is_suspended = False
+            db.commit()
+            logger.info("Updated existing local development admin 'HannyAdmin' with requested dev credentials.")
+            return True
+        logger.info("Local development admin 'HannyAdmin' already configured. Seed skipped.")
+        return False
+
+    try:
+        dev_admin = User(
+            id=gen_id("usr_"),
+            username="HannyAdmin",
+            email="hannyadmin@businessarchitect.internal",
+            hashed_password=hash_password("HannyAdmin"),
+            role="super_admin",
+            is_suspended=False,
+            terms_accepted=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            last_active_at=datetime.now(timezone.utc)
+        )
+        db.add(dev_admin)
+        db.commit()
+        logger.info("Successfully seeded local development Super Admin account ('HannyAdmin').")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to seed development admin: %s", str(e))
+        raise
+
 def provision_initial_admin(db: Session) -> bool:
     """
     Idempotently provisions the initial Super Admin account using configuration.
@@ -39,6 +111,9 @@ def provision_initial_admin(db: Session) -> bool:
     4. Never overwrites an existing admin or resets an existing password on restart.
     5. Returns True if created, False if already present or skipped.
     """
+    # Enforce production security check first
+    validate_production_credentials_safety()
+
     bootstrap_enabled = getattr(settings, "ADMIN_BOOTSTRAP_ENABLED", False)
     if not bootstrap_enabled:
         logger.info("Administrator bootstrap is disabled (ADMIN_BOOTSTRAP_ENABLED is false). Skipping provisioning.")

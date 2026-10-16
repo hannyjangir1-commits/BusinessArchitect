@@ -169,7 +169,8 @@ def test_csrf_me_endpoint_sets_csrf_cookie(registered_user):
 
 def test_admin_csrf_protection_and_user_isolation(registered_user, db):
     """Normal user cannot access admin mutation, and admin mutation without CSRF is blocked."""
-    provision_initial_admin(db)
+    from app.core.admin_provisioning import seed_development_admin
+    seed_development_admin(db)
     normal_client = registered_user["client"]
 
     # Normal user blocked from admin endpoint
@@ -185,7 +186,7 @@ def test_admin_csrf_protection_and_user_isolation(registered_user, db):
     admin_client = TestClient(app)
     admin_login = admin_client.post("/api/admin/auth/login", json={
         "username": "HannyAdmin",
-        "password": "Hanny@BusinessArchitect"
+        "password": "HannyAdmin"
     })
     assert admin_login.status_code == 200
     admin_csrf = admin_login.json()["csrf_token"]

@@ -207,6 +207,18 @@ def retry_failed_operation(
             detail="Cannot retry operation: original project no longer exists."
         )
 
+    if op.is_retryable is False:
+        raise HTTPException(
+            status_code=400,
+            detail="Operation is marked as non-retryable."
+        )
+
+    if op.retry_count and op.retry_count >= 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum retry threshold reached for this operation."
+        )
+
     # Check for existing successful retry
     existing_retry = db.query(AIOperation).filter(
         AIOperation.retry_of_id == op.id,
