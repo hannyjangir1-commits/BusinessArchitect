@@ -61,4 +61,55 @@ class Settings:
             url = f"{url}{sep}sslmode=require"
         return url
 
+KNOWN_DEV_SESSION_SECRETS = {
+    "super-secret-development-session-key-minimum-32-chars",
+    "test-session-secret-key-minimum-32-chars-long",
+    "dev-secret-key-business-architect-minimum-32-chars",
+    "a_very_long_random_secret_at_least_32_characters_long",
+    "secret",
+    "changeme",
+    "development"
+}
+
+def validate_production_runtime_safety(cfg: Settings = None) -> None:
+    """
+    Validates that production environment variables are secure, explicit, and non-development.
+    Fails safely by raising RuntimeError if insecure development defaults are detected.
+    """
+    target = cfg or settings
+    is_prod = getattr(target, "IS_PROD", False) or getattr(target, "APP_ENV", "").lower() == "production"
+    if not is_prod:
+        return
+
+    # 1. SESSION_SECRET
+    secret = getattr(target, "SESSION_SECRET", "")
+    if not secret or len(secret) < 32 or secret in KNOWN_DEV_SESSION_SECRETS:
+        raise RuntimeError(
+            "Production requires a strong, unique SESSION_SECRET of at least 32 characters. "
+            "Known development session secrets and fallbacks are strictly rejected."
+        )
+
+    # 2. DATABASE_URL
+    raw_db = getattr(target, "DATABASE_URL", "")
+    raw_env_db = os.getenv("DATABASE_URL", "")
+    if not raw_env_db or "sqlite" in raw_db.lower():
+        raise RuntimeError(
+            "Production requires an explicit production DATABASE_URL (e.g. PostgreSQL / Supabase). "
+            "Local SQLite database fallbacks are strictly rejected in production."
+        )
+
+    # 3. ALLOWED_ORIGINS
+    raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if not raw_origins or not raw_origins.strip():
+        raise RuntimeError(
+            "Production requires an explicit ALLOWED_ORIGINS allowlist. "
+            "Default localhost CORS origins are strictly rejected in production."
+        )
+
+    # 4. COOKIE_SECURE
+    if not getattr(target, "COOKIE_SECURE", False):
+        raise RuntimeError(
+            "Production requires COOKIE_SECURE=True to ensure session cookies are only transmitted over HTTPS."
+        )
+
 settings = Settings()

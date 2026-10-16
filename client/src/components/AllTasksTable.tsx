@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RoadmapTask } from '../types';
-import { Search, Plus, RotateCw, Edit3, Trash2, Copy, AlertCircle } from 'lucide-react';
+import { Search, Plus, RotateCw, Edit3, Trash2, Copy, AlertCircle, Loader2 } from 'lucide-react';
 
 interface Props {
   tasks: RoadmapTask[];
@@ -9,6 +9,9 @@ interface Props {
   onDeleteTask: (taskId: string) => Promise<void>;
   onRegenerate: () => Promise<void>;
   isLoading: boolean;
+  isGenerating?: boolean;
+  isGenerateDisabled?: boolean;
+  generationProgress?: { stageText: string; progressPercent: number } | null;
 }
 
 export const AllTasksTable: React.FC<Props> = ({
@@ -17,7 +20,10 @@ export const AllTasksTable: React.FC<Props> = ({
   onUpdateTask,
   onDeleteTask,
   onRegenerate,
-  isLoading
+  isLoading,
+  isGenerating = false,
+  isGenerateDisabled = false,
+  generationProgress = null
 }) => {
   const [filterTimeline, setFilterTimeline] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
@@ -192,8 +198,22 @@ export const AllTasksTable: React.FC<Props> = ({
           <button onClick={handleOpenAdd} className="btn-primary" disabled={isLoading}>
             <Plus size={15} /> Add Task
           </button>
-          <button onClick={onRegenerate} className="btn-secondary" disabled={isLoading} title="Regenerate roadmap with AI">
-            <RotateCw size={14} /> Regenerate
+          <button
+            onClick={onRegenerate}
+            className="btn-secondary"
+            disabled={isLoading || isGenerating || isGenerateDisabled}
+            title="Regenerate roadmap with AI"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                {generationProgress ? `${generationProgress.progressPercent}%` : 'Regenerating...'}
+              </>
+            ) : (
+              <>
+                <RotateCw size={14} /> Regenerate
+              </>
+            )}
           </button>
         </div>
       </div>

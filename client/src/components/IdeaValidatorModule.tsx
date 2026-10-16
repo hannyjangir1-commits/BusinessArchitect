@@ -8,6 +8,9 @@ interface Props {
   onGenerate: () => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
+  isGenerating?: boolean;
+  generationProgress?: { stageText: string; progressPercent: number } | null;
+  isGenerateDisabled?: boolean;
 }
 
 export const IdeaValidatorModule: React.FC<Props> = ({
@@ -15,7 +18,10 @@ export const IdeaValidatorModule: React.FC<Props> = ({
   moduleDetail,
   onGenerate,
   onExportPdf,
-  isLoading
+  isLoading,
+  isGenerating = false,
+  generationProgress = null,
+  isGenerateDisabled = false
 }) => {
   const data = moduleDetail?.data;
 
@@ -31,8 +37,22 @@ export const IdeaValidatorModule: React.FC<Props> = ({
         <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
           Evaluate the market assumptions, ICP fit, differentiation moat, and risk mitigation roadmap for {project.name}.
         </p>
-        <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
-          {isLoading ? <><Loader2 size={16} className="animate-spin" /> Evaluating Feasibility...</> : <><Sparkles size={16} /> Run Idea Validator</>}
+        <button
+          onClick={onGenerate}
+          className="btn-primary"
+          disabled={isLoading || isGenerating || isGenerateDisabled}
+          style={{ margin: '0 auto' }}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Evaluating Feasibility...'}
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} /> Run Idea Validator
+            </>
+          )}
         </button>
       </div>
     );

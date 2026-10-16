@@ -15,6 +15,9 @@ interface Props {
   onRestoreVersion: (versionId: string) => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
+  isGenerating?: boolean;
+  generationProgress?: { stageText: string; progressPercent: number } | null;
+  isGenerateDisabled?: boolean;
 }
 
 export const TechStackModule: React.FC<Props> = ({
@@ -26,7 +29,10 @@ export const TechStackModule: React.FC<Props> = ({
   onDeleteVersion,
   onRestoreVersion,
   onExportPdf,
-  isLoading
+  isLoading,
+  isGenerating = false,
+  generationProgress = null,
+  isGenerateDisabled = false
 }) => {
   const techData = moduleDetail?.data;
 
@@ -58,8 +64,22 @@ export const TechStackModule: React.FC<Props> = ({
         <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
           Synthesize an enterprise-ready technology stack blueprint evaluated for {project.name}'s stage ({project.stage}) and existing technical assets.
         </p>
-        <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
-          {isLoading ? <><Loader2 size={16} className="animate-spin" /> Synthesizing Architecture...</> : <><Sparkles size={16} /> Generate Technology Stack Blueprint</>}
+        <button
+          onClick={onGenerate}
+          className="btn-primary"
+          disabled={isLoading || isGenerating || isGenerateDisabled}
+          style={{ margin: '0 auto' }}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Synthesizing Architecture...'}
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} /> Generate Technology Stack Blueprint
+            </>
+          )}
         </button>
       </div>
     );

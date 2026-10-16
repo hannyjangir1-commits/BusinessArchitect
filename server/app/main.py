@@ -18,6 +18,11 @@ if settings.APP_ENV == "development" and "sqlite" in settings.DATABASE_URL:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Enforce production runtime safety validation
+    if settings.IS_PROD or settings.APP_ENV == "production":
+        from app.core.config import validate_production_runtime_safety
+        validate_production_runtime_safety(settings)
+
     # Safe, idempotent startup admin provisioning
     try:
         with SessionLocal() as db:

@@ -34,6 +34,16 @@ jobs:
           cd server
           alembic upgrade head
 
+      - name: Migrate Backend Test Database
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite:///./test_ci.db
+          SESSION_SECRET: test-session-secret-key-minimum-32-chars-long
+          ADMIN_BOOTSTRAP_ENABLED: "false"
+        run: |
+          cd server
+          alembic upgrade head
+
       - name: Run Backend Pytest Suite
         env:
           APP_ENV: test

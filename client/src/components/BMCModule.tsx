@@ -15,6 +15,9 @@ interface Props {
   onRestoreVersion: (versionId: string) => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
+  isGenerating?: boolean;
+  generationProgress?: { stageText: string; progressPercent: number } | null;
+  isGenerateDisabled?: boolean;
 }
 
 export const BMCModule: React.FC<Props> = ({
@@ -26,7 +29,10 @@ export const BMCModule: React.FC<Props> = ({
   onDeleteVersion,
   onRestoreVersion,
   onExportPdf,
-  isLoading
+  isLoading,
+  isGenerating = false,
+  generationProgress = null,
+  isGenerateDisabled = false
 }) => {
   const [viewMode, setViewMode] = useState<'radial' | 'grid'>('radial');
   const bmcData = moduleDetail?.data;
@@ -43,8 +49,22 @@ export const BMCModule: React.FC<Props> = ({
         <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
           Generate Alexander Osterwalder's 9-block Business Model Canvas synthesized specifically for {project.name}.
         </p>
-        <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
-          {isLoading ? <><Loader2 size={16} className="animate-spin" /> Synthesizing Canvas...</> : <><Sparkles size={16} /> Generate Business Model Canvas</>}
+        <button
+          onClick={onGenerate}
+          className="btn-primary"
+          disabled={isLoading || isGenerating || isGenerateDisabled}
+          style={{ margin: '0 auto' }}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Synthesizing Canvas...'}
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} /> Generate Business Model Canvas
+            </>
+          )}
         </button>
       </div>
     );

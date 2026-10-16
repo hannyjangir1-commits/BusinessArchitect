@@ -24,6 +24,8 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
       - key: ADMIN_BOOTSTRAP_ENABLED
         value: "false"
       - key: INITIAL_ADMIN_USERNAME

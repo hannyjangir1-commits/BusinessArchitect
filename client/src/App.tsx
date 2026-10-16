@@ -71,10 +71,21 @@ export const App: React.FC = () => {
     reasons: string[];
   } | null>(null);
 
-  const [progressState, setProgressState] = useState<{
+  // Module-Scoped Generation Progress: keyed by `${projectId}:${moduleType}`
+  const [generatingProgress, setGeneratingProgress] = useState<Record<string, {
     stageText: string;
     progressPercent: number;
-  } | null>(null);
+  }>>({});
+
+  const generationTimersRef = React.useRef<Record<string, any>>({});
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(generationTimersRef.current).forEach(t => clearInterval(t));
+      generationTimersRef.current = {};
+    };
+  }, []);
 
   // Dynamic Badges & Race-Condition Guard Refs
   const activeProjectIdRef = React.useRef<string | null>(null);
@@ -281,11 +292,19 @@ export const App: React.FC = () => {
     }
   };
 
-  // 5. Generate Module with Readiness Validation and Progress Milestones
+  // 5. Generate Module with Readiness Validation and Module-Scoped Progress
   const handleGenerateModule = async (moduleType: string) => {
     if (!currentProject) return;
+    const targetProjectId = currentProject.id;
+    const targetModuleType = moduleType;
+    const genKey = `${targetProjectId}:${targetModuleType}`;
+
+    // Prevent duplicate submissions if this module or another generation is already in flight
+    if (generationTimersRef.current[genKey] || Object.keys(generatingProgress).length > 0) {
+      return;
+    }
+
     setReadinessError(null);
-    setModuleLoading(true);
 
     const stageSequence: Record<string, { text: string; pct: number }[]> = {
       bmc: [
@@ -293,14 +312,14 @@ export const App: React.FC = () => {
         { text: 'Analyzing business context and customer segments...', pct: 35 },
         { text: 'Developing nine business model canvas blocks...', pct: 60 },
         { text: 'Validating canvas structural schema...', pct: 85 },
-        { text: 'Saving new version and rendering interactive canvas...', pct: 95 }
+        { text: 'Saving canvas version...', pct: 95 }
       ],
       tech_stack: [
         { text: 'Checking technical prerequisites and stage...', pct: 15 },
         { text: 'Evaluating system architecture patterns...', pct: 35 },
         { text: 'Selecting components and evaluating trade-offs...', pct: 60 },
         { text: 'Validating technology recommendations...', pct: 85 },
-        { text: 'Saving version and synthesizing architecture diagram...', pct: 95 }
+        { text: 'Saving architecture version...', pct: 95 }
       ],
       idea_validator: [
         { text: 'Verifying venture concept readiness...', pct: 20 },
@@ -327,19 +346,28 @@ export const App: React.FC = () => {
       ]
     };
 
-    const stages = stageSequence[moduleType] || stageSequence.execution_roadmap;
+    const stages = stageSequence[targetModuleType] || stageSequence.execution_roadmap;
     let stageIdx = 0;
-    setProgressState({ stageText: stages[0].text, progressPercent: stages[0].pct });
+
+    setGeneratingProgress(prev => ({
+      ...prev,
+      [genKey]: { stageText: stages[0].text, progressPercent: stages[0].pct }
+    }));
 
     const progressTimer = setInterval(() => {
       stageIdx++;
       if (stageIdx < stages.length) {
-        setProgressState({ stageText: stages[stageIdx].text, progressPercent: stages[stageIdx].pct });
+        setGeneratingProgress(prev => {
+          if (!prev[genKey]) return prev;
+          return {
+            ...prev,
+            [genKey]: { stageText: stages[stageIdx].text, progressPercent: stages[stageIdx].pct }
+          };
+        });
       }
     }, 1800);
 
-    const targetProjectId = currentProject.id;
-    const targetModuleType = moduleType;
+    generationTimersRef.current[genKey] = progressTimer;
 
     try {
       const updated = await api.modules.generate(targetProjectId, targetModuleType);
@@ -349,7 +377,7 @@ export const App: React.FC = () => {
         setModuleDetail(updated);
         updateBadgeForModule(targetModuleType, updated);
       } else if (activeProjectIdRef.current === targetProjectId) {
-        // User switched module within the same project; update badge
+        // User switched module within the same project; update badge without corrupting active module view
         updateBadgeForModule(targetModuleType, updated);
       }
 
@@ -391,10 +419,12 @@ export const App: React.FC = () => {
       }
     } finally {
       clearInterval(progressTimer);
-      if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
-        setProgressState(null);
-        setModuleLoading(false);
-      }
+      delete generationTimersRef.current[genKey];
+      setGeneratingProgress(prev => {
+        const next = { ...prev };
+        delete next[genKey];
+        return next;
+      });
     }
   };
 
@@ -747,39 +777,6 @@ export const App: React.FC = () => {
             </div>
           )}
 
-          {/* Realistic Progress Milestones Banner */}
-          {progressState && (
-            <div
-              className="card"
-              style={{
-                background: '#f5f3ff',
-                border: '1px solid #ddd6fe',
-                padding: '16px 20px',
-                marginBottom: 20,
-                borderRadius: 8
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6366f1', fontSize: 13, fontWeight: 600 }}>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>{progressState.stageText}</span>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1' }}>
-                  {progressState.progressPercent}%
-                </span>
-              </div>
-              <div style={{ width: '100%', height: 6, background: '#ede9fe', borderRadius: 9999, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
-                    width: `${progressState.progressPercent}%`,
-                    transition: 'width 0.4s ease'
-                  }}
-                />
-              </div>
-            </div>
-          )}
           {activeModule === 'overview' && (
             <OverviewModule
               project={currentProject}
@@ -799,6 +796,9 @@ export const App: React.FC = () => {
               onRestoreVersion={handleRestoreVersion}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'bmc', currentProject.name)}
               isLoading={moduleLoading}
+              isGenerating={Boolean(generatingProgress[`${currentProject.id}:bmc`])}
+              generationProgress={generatingProgress[`${currentProject.id}:bmc`] || null}
+              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:bmc`]}
             />
           )}
 
@@ -813,6 +813,9 @@ export const App: React.FC = () => {
               onRestoreVersion={handleRestoreVersion}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'tech_stack', currentProject.name)}
               isLoading={moduleLoading}
+              isGenerating={Boolean(generatingProgress[`${currentProject.id}:tech_stack`])}
+              generationProgress={generatingProgress[`${currentProject.id}:tech_stack`] || null}
+              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:tech_stack`]}
             />
           )}
 
@@ -823,6 +826,9 @@ export const App: React.FC = () => {
               onGenerate={() => handleGenerateModule('idea_validator')}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'idea_validator', currentProject.name)}
               isLoading={moduleLoading}
+              isGenerating={Boolean(generatingProgress[`${currentProject.id}:idea_validator`])}
+              generationProgress={generatingProgress[`${currentProject.id}:idea_validator`] || null}
+              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:idea_validator`]}
             />
           )}
 
@@ -833,6 +839,9 @@ export const App: React.FC = () => {
               onGenerate={() => handleGenerateModule('market_research')}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'market_research', currentProject.name)}
               isLoading={moduleLoading}
+              isGenerating={Boolean(generatingProgress[`${currentProject.id}:market_research`])}
+              generationProgress={generatingProgress[`${currentProject.id}:market_research`] || null}
+              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:market_research`]}
             />
           )}
 
@@ -852,6 +861,9 @@ export const App: React.FC = () => {
               onRestoreVersion={handleRestoreVersion}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'execution_roadmap', currentProject.name)}
               isLoading={moduleLoading}
+              isGenerating={Boolean(generatingProgress[`${currentProject.id}:execution_roadmap`])}
+              generationProgress={generatingProgress[`${currentProject.id}:execution_roadmap`] || null}
+              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:execution_roadmap`]}
             />
           )}
 

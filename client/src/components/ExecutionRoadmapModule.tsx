@@ -23,6 +23,9 @@ interface Props {
   onRestoreVersion: (versionId: string) => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
+  isGenerating?: boolean;
+  generationProgress?: { stageText: string; progressPercent: number } | null;
+  isGenerateDisabled?: boolean;
 }
 
 export const ExecutionRoadmapModule: React.FC<Props> = ({
@@ -39,7 +42,10 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   onDeleteVersion,
   onRestoreVersion,
   onExportPdf,
-  isLoading
+  isLoading,
+  isGenerating = false,
+  generationProgress = null,
+  isGenerateDisabled = false
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'gantt' | 'tasks' | 'milestones' | 'dependencies'>('gantt');
 
@@ -55,8 +61,22 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
         <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
           Generate a realistic execution roadmap with 5 delivery phases, tasks, dependencies, and milestone tracking for {project.name}.
         </p>
-        <button onClick={onGenerate} className="btn-primary" disabled={isLoading} style={{ margin: '0 auto' }}>
-          {isLoading ? <><Loader2 size={16} className="animate-spin" /> Synthesizing Timeline...</> : <><Sparkles size={16} /> Generate Execution Roadmap</>}
+        <button
+          onClick={onGenerate}
+          className="btn-primary"
+          disabled={isLoading || isGenerating || isGenerateDisabled}
+          style={{ margin: '0 auto' }}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Synthesizing Timeline...'}
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} /> Generate Execution Roadmap
+            </>
+          )}
         </button>
       </div>
     );
@@ -141,6 +161,9 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
                 onDeleteTask={onDeleteTask}
                 onRegenerate={onGenerate}
                 isLoading={isLoading}
+                isGenerating={isGenerating}
+                isGenerateDisabled={isGenerateDisabled}
+                generationProgress={generationProgress}
               />
             </>
           )}
@@ -153,6 +176,9 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
               onDeleteTask={onDeleteTask}
               onRegenerate={onGenerate}
               isLoading={isLoading}
+              isGenerating={isGenerating}
+              isGenerateDisabled={isGenerateDisabled}
+              generationProgress={generationProgress}
             />
           )}
 
