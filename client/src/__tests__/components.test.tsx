@@ -164,6 +164,10 @@ describe('ProfileModal', () => {
     expect(screen.getByText('User Profile & Preferences')).toBeDefined();
     expect(screen.getByPlaceholderText('e.g. Alex Morgan')).toBeDefined();
 
+    // Switch to Preferences tab
+    const prefTab = screen.getByText('Preferences');
+    fireEvent.click(prefTab);
+
     // Toggle Dark Theme
     const darkBtn = screen.getByText(/Dark Theme/i);
     fireEvent.click(darkBtn);

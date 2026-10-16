@@ -104,7 +104,8 @@ export const Sidebar: React.FC<Props> = ({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeModule === item.id;
-          const badge = moduleVersionBadges[item.id] || { version: 'V1', isGenerated: true };
+          // Only overview is default true, all other blueprints are strictly driven by persisted active version
+          const badge = moduleVersionBadges[item.id] || { version: 'V1', isGenerated: item.id === 'overview' };
 
           return (
             <button

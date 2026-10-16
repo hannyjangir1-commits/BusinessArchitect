@@ -185,6 +185,20 @@ export const App: React.FC = () => {
       const proj = await api.projects.get(projectId);
       if (activeProjectIdRef.current !== projectId) return; // Prevent late race condition
       setCurrentProject(proj);
+
+      // Initialize module badges strictly scoped to this project
+      const genModules = new Set(proj.generated_modules || []);
+      setModuleBadges({
+        overview: { version: 'V1', isGenerated: true },
+        bmc: { version: 'V1', isGenerated: genModules.has('bmc') },
+        tech_stack: { version: 'V1', isGenerated: genModules.has('tech_stack') },
+        idea_validator: { version: 'V1', isGenerated: genModules.has('idea_validator') },
+        market_research: { version: 'V1', isGenerated: genModules.has('market_research') },
+        execution_roadmap: { version: 'V1', isGenerated: genModules.has('execution_roadmap') },
+        detailed_roadmap: { version: 'V1', isGenerated: genModules.has('detailed_roadmap') },
+        blueprint_copilot: { version: 'V1', isGenerated: false }
+      });
+
       // Restore the project's saved navigation module
       const targetModule = proj.active_module || 'execution_roadmap';
       activeModuleTypeRef.current = targetModule;
@@ -320,37 +334,63 @@ export const App: React.FC = () => {
       }
     }, 1800);
 
-    try {
-      const updated = await api.modules.generate(currentProject.id, moduleType);
-      setModuleDetail(updated);
-      updateBadgeForModule(moduleType, updated);
+    const targetProjectId = currentProject.id;
+    const targetModuleType = moduleType;
 
-      if (['execution_roadmap', 'detailed_roadmap'].includes(moduleType)) {
-        const taskList = await api.tasks.list(currentProject.id);
-        setTasks(taskList);
-        const sum = await api.tasks.getSummary(currentProject.id);
-        setSummary(sum);
-        setModuleBadges(prev => ({
-          ...prev,
-          execution_roadmap: { ...prev.execution_roadmap, isGenerated: taskList.length > 0 },
-          detailed_roadmap: { ...prev.detailed_roadmap, isGenerated: taskList.length > 0 }
-        }));
+    try {
+      const updated = await api.modules.generate(targetProjectId, targetModuleType);
+      
+      // If the user is still viewing this exact project and module, update the live view
+      if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
+        setModuleDetail(updated);
+        updateBadgeForModule(targetModuleType, updated);
+      } else if (activeProjectIdRef.current === targetProjectId) {
+        // User switched module within the same project; update badge
+        updateBadgeForModule(targetModuleType, updated);
+      }
+
+      // Also update project list generated_modules so dashboard/sidebar stay accurate
+      setProjects(prev => prev.map(p => {
+        if (p.id === targetProjectId) {
+          const set = new Set(p.generated_modules || []);
+          set.add(targetModuleType);
+          return { ...p, generated_modules: Array.from(set) };
+        }
+        return p;
+      }));
+
+      if (['execution_roadmap', 'detailed_roadmap'].includes(targetModuleType)) {
+        const taskList = await api.tasks.list(targetProjectId);
+        if (activeProjectIdRef.current === targetProjectId) {
+          setTasks(taskList);
+          const sum = await api.tasks.getSummary(targetProjectId);
+          setSummary(sum);
+          setModuleBadges(prev => ({
+            ...prev,
+            execution_roadmap: { ...prev.execution_roadmap, isGenerated: taskList.length > 0 },
+            detailed_roadmap: { ...prev.detailed_roadmap, isGenerated: taskList.length > 0 }
+          }));
+        }
       }
     } catch (err: any) {
       if (err.status === 422 && err.data?.error === 'READINESS_VALIDATION_FAILED') {
-        setReadinessError({
-          moduleType,
-          message: err.data.message || 'Project details are insufficient for blueprint generation.',
-          missingFields: err.data.missing_fields || [],
-          reasons: err.data.reasons || []
-        });
+        if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
+          setReadinessError({
+            moduleType: targetModuleType,
+            message: err.data.message || 'Project details are insufficient for blueprint generation.',
+            missingFields: err.data.missing_fields || [],
+            reasons: err.data.reasons || []
+          });
+        }
       } else {
         alert(err.message || 'Blueprint generation failed. Please try again.');
       }
     } finally {
       clearInterval(progressTimer);
-      setProgressState(null);
-      setModuleLoading(false);
+      if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
+        setProgressState(null);
+        setModuleLoading(false);
+      }
     }
   };
 
@@ -526,6 +566,20 @@ export const App: React.FC = () => {
     }
   };
 
+  // 13. Bulk Delete Projects (Part B4)
+  const handleBulkDeleteProjects = async (projectIds: string[]) => {
+    try {
+      await api.projects.bulkDelete(projectIds);
+      await loadProjects();
+      if (currentProject && projectIds.includes(currentProject.id)) {
+        setCurrentProject(null);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to bulk delete projects');
+      throw err;
+    }
+  };
+
   // Admin Portal Routing
   if (isAdminRoute) {
     if (adminAuthChecking) {
@@ -589,7 +643,9 @@ export const App: React.FC = () => {
           onOpenProject={handleOpenProject}
           onCreateNewProject={() => setIsWizardOpen(true)}
           onDeleteProject={handleDeleteProject}
+          onBulkDeleteProjects={handleBulkDeleteProjects}
           onLogout={async () => { await api.auth.logout(); setCurrentUser(null); }}
+          onUserUpdated={(updated) => setCurrentUser(updated)}
         />
         {isWizardOpen && (
           <NewProjectWizard

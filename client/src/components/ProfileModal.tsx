@@ -169,7 +169,7 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
-                User Profile & Account Settings
+                User Profile & Preferences
               </h3>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
                 Manage account details, password credentials, and workspace preferences

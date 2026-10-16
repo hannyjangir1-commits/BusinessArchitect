@@ -313,7 +313,8 @@ def test_workflow_11_version_rename_delete_restore(primary_user):
         headers=headers
     )
     assert rest_resp.status_code == 200
-    assert rest_resp.json()["active_version_number"] == 3
+    # Requirement A1: Restoring V1 restores V1 without creating a new version 3
+    assert rest_resp.json()["active_version_number"] == 1
 
     # Delete V2
     del_resp = cli.delete(
@@ -407,10 +408,21 @@ def test_workflow_16_cross_user_security_isolation(primary_user, secondary_user)
     unauth_pdf = cli_b.get(f"/api/projects/{project_a_id}/export/pdf")
     assert unauth_pdf.status_code in (403, 404), "Security failure: Attacker exported another user's project PDF!"
 
-def test_workflow_17_disallowed_ai_chat_on_validator_and_market_research(primary_user):
+def test_workflow_17_disallowed_ai_chat_on_validator_and_market_research():
     """Scenario 17: Section AI modification MUST be rejected on Idea Validator and Market Research."""
-    cli = primary_user["client"]
-    headers = {"X-CSRF-Token": primary_user["csrf_token"]}
+    cli = TestClient(app)
+    uid = uuid.uuid4().hex[:8]
+    reg_resp = cli.post("/api/auth/register", json={
+        "username": f"user_ai_{uid}",
+        "email": f"user_ai_{uid}@enterprise.io",
+        "password": "StrongPassword123!",
+        "confirm_password": "StrongPassword123!",
+        "terms_accepted": True,
+        "privacy_accepted": True
+    })
+    assert reg_resp.status_code == 201
+    headers = {"X-CSRF-Token": reg_resp.json()["csrf_token"]}
+
     p_resp = cli.post("/api/projects", json={"name": "Rule 21 Check", "stage": "Idea / MVP"}, headers=headers)
     assert p_resp.status_code == 201
     project_id = p_resp.json()["id"]

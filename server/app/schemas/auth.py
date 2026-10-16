@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 
@@ -47,6 +48,7 @@ class SessionResponse(BaseModel):
     csrf_token: str
 
 class UserProfileUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
     username: Optional[str] = None
     email: Optional[EmailStr] = None
 

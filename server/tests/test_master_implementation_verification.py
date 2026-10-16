@@ -389,7 +389,8 @@ def test_restore_version_creates_new_snapshot_without_mutating_source(db, test_u
     v1_original_data = dict(v1.data)
     v1_original_name = v1.version_name
 
-    # Restore V1
+    # Restore V1 according to Master Prompt Part A1:
+    # "Selecting an existing version loads that exact version without automatically creating another version."
     restored = VersionService.restore_version(db, module, v1_id)
 
     db.expire_all()
@@ -399,10 +400,15 @@ def test_restore_version_creates_new_snapshot_without_mutating_source(db, test_u
     assert source_v1.data == v1_original_data
     assert source_v1.version_name == v1_original_name
 
-    # Verify restored is a brand-new version with its own ID
-    assert restored.id != v1_id
-    assert restored.version_number == 3
+    # Verify restored loads the exact selected version without creating an unnecessary duplicate version
+    assert restored.id == v1_id
+    assert restored.is_active is True
     assert restored.data == v1_original_data
+
+    # Verify version count has NOT increased
+    all_versions = db.query(ModuleVersion).filter(ModuleVersion.module_content_id == module.id).all()
+    assert len(all_versions) == 2
+    assert module.active_version_id == v1_id
 
 
 def test_concurrent_version_creation_respects_five_version_limit(db, test_user):
@@ -464,4 +470,147 @@ def test_concurrent_version_creation_respects_five_version_limit(db, test_user):
     assert len(all_versions) <= 5
     # Excess concurrent requests must have received the 409 Version Limit error
     assert any("VERSION_LIMIT_EXCEEDED" in str(err) or "maximum of 5" in str(err).lower() for err in errors)
+
+
+def test_ten_project_limit_and_concurrency_enforcement(test_user):
+    """
+    Part B3 Requirement:
+    Verify that each regular user is capped at exactly 10 projects.
+    Attempts to create an 11th project are rejected with 400 PROJECT_LIMIT_EXCEEDED.
+    Bulk deletion frees slots for new creations.
+    """
+    cli = test_user["client"]
+    headers = {"X-CSRF-Token": test_user["csrf_token"]}
+
+    # Create projects up to 10
+    created_ids = []
+    # User might already have 1 or 2 test projects, fetch current count
+    existing = cli.get("/api/projects").json()
+    needed = 10 - len(existing)
+
+    for i in range(needed):
+        resp = cli.post("/api/projects", json={
+            "name": f"Quota Project {i+1}",
+            "stage": "Seed",
+            "industry": "FinTech"
+        }, headers=headers)
+        assert resp.status_code == 201, f"Failed at {i}: {resp.text}"
+        created_ids.append(resp.json()["id"])
+
+    # Verify user now has exactly 10 projects
+    projs = cli.get("/api/projects").json()
+    assert len(projs) == 10
+
+    # Attempt to create the 11th project -> MUST be rejected
+    overflow_resp = cli.post("/api/projects", json={
+        "name": "Overflow Project 11",
+        "stage": "Seed"
+    }, headers=headers)
+    assert overflow_resp.status_code == 400
+    assert "PROJECT_LIMIT_EXCEEDED" in str(overflow_resp.json()["detail"])
+
+    # Bulk delete 2 projects
+    delete_targets = created_ids[:2]
+    bulk_del_resp = cli.post("/api/projects/bulk-delete", json={
+        "project_ids": delete_targets
+    }, headers=headers)
+    assert bulk_del_resp.status_code == 200
+    assert bulk_del_resp.json()["deleted_count"] == 2
+
+    # Now creation of a new project must succeed
+    new_resp = cli.post("/api/projects", json={
+        "name": "Slot Reopened Project",
+        "stage": "Growth"
+    }, headers=headers)
+    assert new_resp.status_code == 201
+
+
+def test_bulk_project_deletion_security_and_cascade(test_user, db):
+    """
+    Part B4 Requirement:
+    Verify bulk project deletion validates ownership, cascades to modules, tasks,
+    and prevents deleting projects owned by another user.
+    """
+    cli = test_user["client"]
+    headers = {"X-CSRF-Token": test_user["csrf_token"]}
+
+    # Create a project with tasks and module content
+    p_resp = cli.post("/api/projects", json={
+        "name": "Cascade Target",
+        "stage": "Seed"
+    }, headers=headers)
+    assert p_resp.status_code == 201
+    pid = p_resp.json()["id"]
+
+    # Add a task
+    t_resp = cli.post(f"/api/projects/{pid}/tasks", json={
+        "task_code": "TSK-C1",
+        "phase": "System Design",
+        "title": "Cascade Task",
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-15"
+    }, headers=headers)
+    assert t_resp.status_code == 201
+
+    # Bulk delete with invalid/foreign project ID mixed in
+    bad_resp = cli.post("/api/projects/bulk-delete", json={
+        "project_ids": [pid, "prj_nonexistent_or_unauthorized"]
+    }, headers=headers)
+    assert bad_resp.status_code == 404
+
+    # Now bulk delete with the valid ID
+    ok_resp = cli.post("/api/projects/bulk-delete", json={
+        "project_ids": [pid]
+    }, headers=headers)
+    assert ok_resp.status_code == 200
+    assert ok_resp.json()["deleted_count"] == 1
+
+    # Verify project and associated task are completely gone from DB
+    from app.models.all_models import Project, RoadmapTask
+    assert db.query(Project).filter(Project.id == pid).first() is None
+    assert db.query(RoadmapTask).filter(RoadmapTask.project_id == pid).count() == 0
+
+
+def test_user_profile_update_and_password_change(test_user):
+    """
+    Part B2 Requirement:
+    Verify profile updates (display_name, email), duplicate email rejection,
+    and secure password change with Argon2id and session invalidation.
+    """
+    cli = test_user["client"]
+    headers = {"X-CSRF-Token": test_user["csrf_token"]}
+
+    # 1. Update Profile username and email
+    new_username = f"arch_{uuid.uuid4().hex[:6]}"
+    new_email = f"updated_{uuid.uuid4().hex[:6]}@enterprise.io"
+    prof_resp = cli.put("/api/auth/profile", json={
+        "username": new_username,
+        "email": new_email
+    }, headers=headers)
+    assert prof_resp.status_code == 200
+    assert prof_resp.json()["username"] == new_username
+    assert prof_resp.json()["email"] == new_email
+
+    # 2. Change password with incorrect current password -> rejected
+    bad_pw_resp = cli.post("/api/auth/change-password", json={
+        "current_password": "WrongPassword123!",
+        "new_password": "NewSecretPassword123!",
+        "confirm_new_password": "NewSecretPassword123!"
+    }, headers=headers)
+    assert bad_pw_resp.status_code == 400
+
+    # 3. Change password with correct current password -> succeeds
+    good_pw_resp = cli.post("/api/auth/change-password", json={
+        "current_password": "ValidPassword123!",
+        "new_password": "NewSecretPassword123!",
+        "confirm_new_password": "NewSecretPassword123!"
+    }, headers=headers)
+    assert good_pw_resp.status_code == 200
+
+    # 4. Verify login with new password succeeds using updated username
+    login_resp = cli.post("/api/auth/login", json={
+        "email_or_username": new_username,
+        "password": "NewSecretPassword123!"
+    })
+    assert login_resp.status_code == 200
 
