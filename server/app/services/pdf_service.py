@@ -134,7 +134,7 @@ class PDFService:
         )))
         story.append(Paragraph(project_dict.get("name", "Project Blueprint"), styles["CoverTitle"]))
         
-        stage_text = f"Business Stage: <b>{project_dict.get('stage', 'Idea / MVP')}</b>"
+        stage_text = f"Business Stage: <b>{project_dict.get('stage', 'Idea')}</b>"
         if project_dict.get("industry"):
             stage_text += f" | Industry: <b>{project_dict.get('industry')}</b>"
         story.append(Paragraph(stage_text, styles["BodyDark"]))

@@ -53,7 +53,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
             <Edit3 size={14} color="#64748b" />
           </span>
           <span className="stage-badge-purple">
-            {project.stage.includes('Growth') ? 'Growth Stage' : project.stage}
+            {project.stage === 'Idea / MVP' ? 'MVP' : project.stage}
           </span>
         </div>
         <p className="header-subtitle">

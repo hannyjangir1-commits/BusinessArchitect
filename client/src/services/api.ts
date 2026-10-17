@@ -1,4 +1,4 @@
-import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage } from '../types';
+import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs } from '../types';
 
 let csrfTokenCache = '';
 
@@ -221,9 +221,10 @@ export const api = {
     get: (projectId: string, moduleType: string): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}`),
 
-    generate: (projectId: string, moduleType: string): Promise<ModuleDetail> =>
+    generate: (projectId: string, moduleType: string, planningInputs?: RoadmapPlanningInputs): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}/generate`, {
-        method: 'POST'
+        method: 'POST',
+        body: planningInputs ? JSON.stringify(planningInputs) : undefined
       }),
 
     modify: (projectId: string, moduleType: string, instruction: string): Promise<ModuleDetail> =>

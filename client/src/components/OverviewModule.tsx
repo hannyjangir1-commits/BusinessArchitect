@@ -64,7 +64,8 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
               value={stage}
               onChange={(e) => setStage(e.target.value as any)}
             >
-              <option value="Idea / MVP">Idea / MVP</option>
+              <option value="Idea">Idea</option>
+              <option value="MVP">MVP</option>
               <option value="Post-launch">Post-launch</option>
               <option value="Growth">Growth</option>
             </select>

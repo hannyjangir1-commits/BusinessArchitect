@@ -12,6 +12,7 @@ from app.models.all_models import (
 from app.api.deps import require_admin, require_permission, verify_csrf, ADMIN_ROLES
 from app.core.security import hash_password
 from app.core.telemetry import record_security_event, record_audit_log
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/users", tags=["Admin User Management"])
 
@@ -220,7 +221,7 @@ def get_user_detail(
             {
                 "id": p.id,
                 "name": p.name,
-                "stage": p.stage,
+                "stage": normalize_business_stage(p.stage),
                 "active_module": p.active_module,
                 "created_at": p.created_at.isoformat(),
                 "updated_at": p.updated_at.isoformat()

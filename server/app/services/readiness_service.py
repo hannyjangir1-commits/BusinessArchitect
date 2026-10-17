@@ -78,7 +78,7 @@ class ReadinessValidationService:
             # Tech stack needs description of product functionality and stage
             if not project.stage:
                 missing_fields.append("stage")
-                errors.append("Project Stage: Specify your development stage (e.g., Idea / MVP, Growth).")
+                errors.append("Project Stage: Specify your development stage (Idea, MVP, Post-launch, or Growth).")
 
         elif module_type == "market_research":
             # Needs industry and target customers

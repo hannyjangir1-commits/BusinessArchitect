@@ -46,7 +46,7 @@ class Project(Base):
     id = Column(String(36), primary_key=True, default=lambda: gen_id("prj_"))
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
-    stage = Column(String(32), nullable=False, default="Idea / MVP")  # "Idea / MVP", "Post-launch", "Growth"
+    stage = Column(String(32), nullable=False, default="Idea")
     description = Column(Text, nullable=True)
     industry = Column(String(64), nullable=True)
     target_customers = Column(Text, nullable=True)

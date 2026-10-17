@@ -1,5 +1,5 @@
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from typing import List, Optional, Dict, Any, Literal
+from datetime import date, datetime
 from pydantic import BaseModel, Field, ConfigDict
 
 # --- BMC Schemas ---
@@ -95,9 +95,26 @@ class RoadmapTaskItem(BaseModel):
 
 class ExecutionRoadmapData(BaseModel):
     phases: Optional[List[RoadmapPhase]] = []
-    tasks: List[RoadmapTaskItem] = Field(..., min_length=1)
+    tasks: List[RoadmapTaskItem] = Field(default_factory=list, max_length=30)
 
 DetailedRoadmapData = ExecutionRoadmapData
+
+
+class RoadmapChecklistItem(BaseModel):
+    item: str = Field(..., min_length=1, max_length=180)
+    status: Literal["Not started", "In progress", "Completed", "Not applicable"]
+
+
+class RoadmapPlanningRequest(BaseModel):
+    start_date: date = Field(default_factory=date.today)
+    horizon_weeks: int = Field(default=12, ge=1, le=104)
+    checklist: List[RoadmapChecklistItem] = Field(default_factory=list, max_length=30)
+    completed_work: str = Field(default="", max_length=2000)
+    in_progress_work: str = Field(default="", max_length=2000)
+    team_capacity: str = Field(default="", max_length=500)
+    constraints: str = Field(default="", max_length=2000)
+    target_outcome: str = Field(default="", max_length=1000)
+    custom_items: List[str] = Field(default_factory=list, max_length=20)
 
 # --- Versioning Schemas ---
 class VersionItemResponse(BaseModel):

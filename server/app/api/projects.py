@@ -11,6 +11,7 @@ from app.schemas.project import (
 )
 from app.api.deps import get_current_user, get_user_project, verify_csrf
 from app.core.telemetry import record_analytics_event
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -32,7 +33,7 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
     return ProjectResponse(
         id=project.id,
         name=project.name,
-        stage=project.stage,
+        stage=normalize_business_stage(project.stage),
         description=project.description,
         industry=project.industry,
         target_customers=project.target_customers,

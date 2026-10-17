@@ -6,6 +6,7 @@ from app.models.all_models import Project, ModuleContent, ModuleVersion, Roadmap
 from app.services.pdf_service import PDFService
 from app.api.deps import get_user_project
 from app.core.telemetry import record_analytics_event
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/projects/{project_id}/export", tags=["Exports"])
 
@@ -24,7 +25,7 @@ def export_full_project_pdf(
     """
     proj_dict = {
         "name": project.name,
-        "stage": project.stage,
+        "stage": normalize_business_stage(project.stage),
         "industry": project.industry,
         "description": project.description,
         "target_customers": project.target_customers,
@@ -83,7 +84,7 @@ def export_module_pdf(
     """Exports a dedicated PDF for a single specified module."""
     proj_dict = {
         "name": project.name,
-        "stage": project.stage,
+        "stage": normalize_business_stage(project.stage),
         "industry": project.industry
     }
 

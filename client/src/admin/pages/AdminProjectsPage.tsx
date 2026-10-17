@@ -142,7 +142,8 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
               style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
             >
               <option value="all">All Stages</option>
-              <option value="Idea / MVP">Idea / MVP</option>
+              <option value="Idea">Idea</option>
+              <option value="MVP">MVP</option>
               <option value="Post-launch">Post-launch</option>
               <option value="Growth">Growth</option>
             </select>

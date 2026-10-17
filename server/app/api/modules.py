@@ -1,4 +1,6 @@
 import time
+import re
+from datetime import date, datetime, timedelta
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
@@ -9,7 +11,7 @@ from app.schemas.modules import (
     ModuleDetailResponse, VersionItemResponse, VersionRenameRequest,
     VersionConflictResolveRequest, SectionModifyRequest,
     BMCData, TechStackData, IdeaValidatorData, MarketResearchData,
-    ExecutionRoadmapData
+    ExecutionRoadmapData, RoadmapPlanningRequest
 )
 from app.services.version_service import VersionService
 from app.services.readiness_service import ReadinessValidationService
@@ -17,6 +19,7 @@ from app.services.pdf_service import PDFService
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
 from app.core.telemetry import record_ai_operation, record_analytics_event
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/projects/{project_id}/modules", tags=["Modules & Version Control"])
 
@@ -95,7 +98,7 @@ def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dic
     # Delete tasks if they were AI-generated and are not in the active roadmap JSON.
     # Preserve manual user-created tasks (is_ai_generated == False).
     for cur in existing_tasks:
-        if cur.task_code not in active_codes and cur.is_ai_generated:
+        if cur.task_code not in active_codes and cur.is_ai_generated and cur.status not in ("Finished", "Completed"):
             db.delete(cur)
 
     db.flush()
@@ -104,7 +107,7 @@ def _get_project_dict(project: Project) -> Dict[str, Any]:
     return {
         "id": project.id,
         "name": project.name,
-        "stage": project.stage,
+        "stage": normalize_business_stage(project.stage),
         "description": project.description,
         "industry": project.industry,
         "target_customers": project.target_customers,
@@ -113,6 +116,104 @@ def _get_project_dict(project: Project) -> Dict[str, Any]:
         "budget": project.budget,
         "existing_stack": project.existing_stack or {}
     }
+
+
+def _parse_roadmap_date(value: Any) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _matches_planning_items(task: Dict[str, Any], items: List[str]) -> bool:
+    ignored = {"the", "and", "for", "with", "from", "that", "this", "are", "was", "were", "have", "has", "been", "already", "complete", "completed", "defined", "work", "task"}
+    task_text = f"{task.get('title', '')} {task.get('description', '')}".lower()
+    task_terms = set(re.findall(r"[a-z0-9]+", task_text)) - ignored
+    if not task_terms:
+        return False
+    for item in items:
+        item_text = str(item).strip().lower()
+        item_terms = set(re.findall(r"[a-z0-9]+", item_text)) - ignored
+        if item_text and (item_text in task_text or task_text.strip() in item_text):
+            return True
+        overlap = len(task_terms & item_terms)
+        if len(item_terms) >= 2 and overlap >= 2 and overlap / len(item_terms) >= 0.65:
+            return True
+    return False
+
+
+def _normalize_roadmap_schedule(data: Dict[str, Any], planning: RoadmapPlanningRequest) -> Dict[str, Any]:
+    """Repair malformed dates and shift unfinished work to the requested/current date."""
+    result = dict(data)
+    today = date.today()
+    baseline = max(planning.start_date, today)
+    tasks = [dict(task) for task in result.get("tasks", []) if isinstance(task, dict)]
+    completed_items = [item.item for item in planning.checklist if item.status == "Completed"]
+    completed_items.extend(part.strip() for part in re.split(r"[\n;]+", planning.completed_work) if part.strip())
+    in_progress_items = [item.item for item in planning.checklist if item.status == "In progress"]
+    in_progress_items.extend(part.strip() for part in re.split(r"[\n;]+", planning.in_progress_work) if part.strip())
+    cursor = baseline
+
+    for index, task in enumerate(tasks):
+        task["task_code"] = task.get("task_code") or f"TSK-{index + 1:02d}"
+        task["phase"] = str(task.get("phase") or "Execution").strip() or "Execution"
+        raw_status = str(task.get("status") or "Pending").strip().lower()
+        if raw_status in {"in progress", "ongoing", "underway"} and _matches_planning_items(task, in_progress_items):
+            task["status"] = "In Progress"
+        elif raw_status in {"finished", "completed", "done"} and _matches_planning_items(task, completed_items):
+            task["status"] = "Finished"
+        else:
+            task["status"] = "Pending"
+        start = _parse_roadmap_date(task.get("start_date")) or cursor
+        end = _parse_roadmap_date(task.get("end_date")) or (start + timedelta(days=6))
+        if end < start:
+            end = start + timedelta(days=6)
+        task["start_date"] = start.isoformat()
+        task["end_date"] = end.isoformat()
+        cursor = max(cursor, end + timedelta(days=1))
+
+    unfinished_starts = [
+        _parse_roadmap_date(task["start_date"])
+        for task in tasks
+        if str(task.get("status", "Pending")).strip().lower() not in {"finished", "completed"}
+    ]
+    valid_starts = [value for value in unfinished_starts if value]
+    shift_days = max(0, (baseline - min(valid_starts)).days) if valid_starts else 0
+
+    for task in tasks:
+        is_finished = str(task.get("status", "Pending")).strip().lower() in {"finished", "completed"}
+        if not is_finished and shift_days:
+            start = _parse_roadmap_date(task["start_date"]) + timedelta(days=shift_days)
+            end = _parse_roadmap_date(task["end_date"]) + timedelta(days=shift_days)
+            task["start_date"] = start.isoformat()
+            task["end_date"] = end.isoformat()
+
+    colors = ["#10b981", "#3b82f6", "#8b5cf6", "#f97316", "#eab308", "#06b6d4"]
+    raw_phases = {phase.get("name"): phase for phase in (result.get("phases") or []) if isinstance(phase, dict)}
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for task in tasks:
+        grouped.setdefault(task["phase"], []).append(task)
+
+    phases = []
+    for index, (name, phase_tasks) in enumerate(grouped.items()):
+        first = raw_phases.get(name, {})
+        phases.append({
+            "name": name,
+            "color": first.get("color") or colors[index % len(colors)],
+            "start_date": min(task["start_date"] for task in phase_tasks),
+            "end_date": max(task["end_date"] for task in phase_tasks),
+            "description": first.get("description") or f"Work grouped under {name}.",
+        })
+
+    result["tasks"] = tasks
+    result["phases"] = phases
+    return result
 
 @router.get("/{module_type}", response_model=ModuleDetailResponse)
 def get_module(
@@ -157,6 +258,7 @@ def get_module(
 @router.post("/{module_type}/generate", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def generate_module(
     module_type: str,
+    planning_inputs: RoadmapPlanningRequest | None = None,
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
@@ -192,8 +294,11 @@ def generate_module(
             generated = ai_service.generate_market_research(proj_info)
             data_dict = generated.model_dump()
         elif module_type in ("execution_roadmap", "detailed_roadmap"):
-            roadmap_raw = ai_service.generate_roadmap(proj_info)
-            data_dict = roadmap_raw
+            planning = planning_inputs or RoadmapPlanningRequest()
+            planning_dict = planning.model_dump(mode="json")
+            roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict)
+            data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
+            data_dict["planning_inputs"] = planning_dict
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
 
@@ -211,8 +316,7 @@ def generate_module(
 
         if module_type in ("execution_roadmap", "detailed_roadmap"):
             tasks_data = data_dict.get("tasks", [])
-            if tasks_data:
-                _reconcile_roadmap_tasks(db, project, tasks_data)
+            _reconcile_roadmap_tasks(db, project, tasks_data)
 
         db.commit()
         db.refresh(new_ver)
@@ -330,6 +434,11 @@ def modify_module_with_ai(
             current_data=active_ver.data,
             instruction=req.instruction
         )
+        if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
+            saved_inputs = (active_ver.data or {}).get("planning_inputs", {}) if isinstance(active_ver.data, dict) else {}
+            planning = RoadmapPlanningRequest.model_validate(saved_inputs or {})
+            new_data = _normalize_roadmap_schedule(new_data, planning)
+            new_data["planning_inputs"] = planning.model_dump(mode="json")
         # Validate modified data against schema before persistence (F-09)
         _validate_module_data(module_type, new_data)
 
@@ -345,8 +454,7 @@ def modify_module_with_ai(
         # Reconcile roadmap tasks if roadmap
         if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
             tasks_data = new_data.get("tasks", [])
-            if tasks_data:
-                _reconcile_roadmap_tasks(db, project, tasks_data)
+            _reconcile_roadmap_tasks(db, project, tasks_data)
 
         db.commit()
         db.refresh(new_ver)
@@ -582,7 +690,7 @@ def export_module_pdf_alias(
     if not module or not module.active_version_id:
         # If overview or default, generate fallback data
         if module_type == "overview":
-            mod_data = {"description": project.description, "goals": project.goals, "stage": project.stage}
+            mod_data = {"description": project.description, "goals": project.goals, "stage": normalize_business_stage(project.stage)}
         else:
             raise HTTPException(status_code=404, detail="No active version found for this module to export")
     else:

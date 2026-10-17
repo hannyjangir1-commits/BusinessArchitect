@@ -25,7 +25,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
 
   // Form State
   const [name, setName] = useState('');
-  const [stage, setStage] = useState<BusinessStage>('Growth');
+  const [stage, setStage] = useState<BusinessStage>('Idea');
   const [industry, setIndustry] = useState('Enterprise SaaS');
   const [description, setDescription] = useState('');
   const [targetCustomers, setTargetCustomers] = useState('');
@@ -89,8 +89,8 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
         description: description.trim(),
         target_customers: targetCustomers.trim(),
         goals: goals.trim(),
-        budget: stage === 'Idea / MVP' ? budget : undefined,
-        existing_stack: stage !== 'Idea / MVP' ? existingStack : {}
+        budget: stage === 'Idea' ? budget : undefined,
+        existing_stack: stage !== 'Idea' ? existingStack : {}
       };
 
       onProjectCreated(payload);
@@ -121,7 +121,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
           {[
             { num: 1, title: 'Venture & Stage' },
-            { num: 2, title: stage === 'Idea / MVP' ? 'Discovery & Goals' : 'Existing Stack & Architecture' },
+            { num: 2, title: stage === 'Idea' ? 'Discovery & Goals' : 'Existing Stack & Architecture' },
             { num: 3, title: 'Review & Blueprint' }
           ].map((s) => {
             const isDone = currentStep > s.num;
@@ -179,11 +179,12 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
 
               <div className="form-group">
                 <label className="form-label">Venture Stage *</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                   {[
-                    { id: 'Idea / MVP', label: 'Idea / MVP', desc: 'Pre-launch validation, concept design & greenfield architecture' },
-                    { id: 'Post-launch', label: 'Post-launch', desc: 'Working software in market, initial traction, tech assessment' },
-                    { id: 'Growth', label: 'Growth Stage', desc: 'Scaling operations, high reliability, architectural expansion' }
+                    { id: 'Idea', label: 'Idea', desc: 'Validate the problem, customers, value proposition, and initial concept' },
+                    { id: 'MVP', label: 'MVP', desc: 'Build or improve the minimum viable product and validate core workflows' },
+                    { id: 'Post-launch', label: 'Post-launch', desc: 'Operate a live product, learn from customers, and improve reliability' },
+                    { id: 'Growth', label: 'Growth', desc: 'Scale a proven product, operations, and customer acquisition' }
                   ].map((st) => (
                     <div
                       key={st.id}
@@ -247,7 +248,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
           {/* STEP 2: Stage-aware discovery */}
           {currentStep === 2 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {stage === 'Idea / MVP' ? (
+              {stage === 'Idea' ? (
                 <>
                   <div className="form-group">
                     <label className="form-label">Initial Build Budget</label>
@@ -364,7 +365,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Description:</span>
                   <span style={{ color: 'var(--text-main)' }}>{description || 'Not specified'}</span>
 
-                  {stage !== 'Idea / MVP' && (
+                  {stage !== 'Idea' && (
                     <>
                       <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Existing Stack:</span>
                       <div>

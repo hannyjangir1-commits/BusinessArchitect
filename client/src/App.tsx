@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage } from './types';
+import { User, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs } from './types';
 import { api } from './services/api';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -293,7 +293,7 @@ export const App: React.FC = () => {
   };
 
   // 5. Generate Module with Readiness Validation and Module-Scoped Progress
-  const handleGenerateModule = async (moduleType: string) => {
+  const handleGenerateModule = async (moduleType: string, planningInputs?: RoadmapPlanningInputs) => {
     if (!currentProject) return;
     const targetProjectId = currentProject.id;
     const targetModuleType = moduleType;
@@ -370,7 +370,7 @@ export const App: React.FC = () => {
     generationTimersRef.current[genKey] = progressTimer;
 
     try {
-      const updated = await api.modules.generate(targetProjectId, targetModuleType);
+      const updated = await api.modules.generate(targetProjectId, targetModuleType, planningInputs);
       
       // If the user is still viewing this exact project and module, update the live view
       if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
@@ -851,7 +851,7 @@ export const App: React.FC = () => {
               moduleDetail={moduleDetail}
               tasks={tasks}
               summary={summary}
-              onGenerate={() => handleGenerateModule('execution_roadmap')}
+              onGenerate={(inputs) => handleGenerateModule('execution_roadmap', inputs)}
               onModify={handleModifyModule}
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}

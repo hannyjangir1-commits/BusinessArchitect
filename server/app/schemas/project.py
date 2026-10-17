@@ -1,10 +1,11 @@
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from app.core.business_stage import normalize_business_stage
 
 class ProjectCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=128)
-    stage: str = Field(default="Idea / MVP")  # "Idea / MVP", "Post-launch", "Growth"
+    stage: str = Field(default="Idea")
     description: Optional[str] = None
     industry: Optional[str] = None
     target_customers: Optional[str] = None
@@ -12,6 +13,11 @@ class ProjectCreateRequest(BaseModel):
     business_context: Optional[str] = None
     budget: Optional[str] = None
     existing_stack: Optional[Dict[str, List[str]]] = Field(default_factory=dict)
+
+    @field_validator("stage")
+    @classmethod
+    def validate_stage(cls, value: str) -> str:
+        return normalize_business_stage(value, allow_unknown=False)
 
 class ProjectUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -25,6 +31,11 @@ class ProjectUpdateRequest(BaseModel):
     existing_stack: Optional[Dict[str, List[str]]] = None
     active_module: Optional[str] = None
     create_copy: Optional[bool] = False  # Option B: Create separate project vs Option A: Replace
+
+    @field_validator("stage")
+    @classmethod
+    def validate_stage(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_business_stage(value, allow_unknown=False) if value is not None else None
 
 class ProjectResponse(BaseModel):
     id: str

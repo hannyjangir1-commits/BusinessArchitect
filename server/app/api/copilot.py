@@ -6,6 +6,7 @@ from app.models.all_models import Project, CopilotMessage, ModuleContent, Module
 from app.schemas.copilot import CopilotChatRequest, CopilotMessageResponse
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/projects/{project_id}/copilot", tags=["Blueprint Copilot"])
 
@@ -52,7 +53,7 @@ def send_chat_message(
 
     proj_info = {
         "name": project.name,
-        "stage": project.stage,
+        "stage": normalize_business_stage(project.stage),
         "industry": project.industry,
         "description": project.description,
         "goals": project.goals,

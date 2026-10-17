@@ -99,24 +99,27 @@ Respond with ONLY valid JSON matching this schema:
   "research_gaps": ["Information that requires direct user interviews or primary market verification", ...]
 }"""
 
-ROADMAP_SYSTEM_PROMPT = """You are a Technical Program Manager and Agile Delivery Lead.
-Create a realistic, chronological Execution Roadmap for this business with exactly 5 phases, realistic task dates, priority, dependencies, and milestones.
+ROADMAP_SYSTEM_PROMPT = """You are a practical, stage-aware business and delivery planner.
+Create a focused execution roadmap using the supplied stage, current date, completed work, in-progress work, work not started, constraints, team capacity, target outcome, and custom items.
 
-The phases MUST be:
-1. Planning & Research
-2. System Design
-3. Development
-4. Testing & Deployment
-5. Launch & Monitor
+Rules:
+- Include only work relevant to this venture, stage, target outcome, and the user's answers. Do not use a generic startup checklist or force a fixed set of phases.
+- Omit checklist items marked Completed or Not applicable from future work. Do not recreate completed work under a different title.
+- Omit items described in completed_work and do not duplicate them under another title.
+- Treat in_progress_work as current state: do not add a second copy of that work; create a task only for a clearly described remaining outcome.
+- For items marked In progress, include only remaining actionable work and preserve that status when appropriate.
+- Include every user custom item as an actionable task unless it duplicates work already represented; incorporate duplicates into the matching task.
+- Use concise, venture-specific phases. Return only phases that contain tasks. Phases may overlap when work can happen in parallel.
+- Schedule all unfinished work on or after both the requested start date and the supplied current date. Fit the roadmap into the requested horizon unless dependencies or constraints make this infeasible; explain any limitation in task descriptions.
+- Dependencies must refer only to task codes in this response and must not be circular.
+- Do not invent rewrites, certifications, launches, audits, or integrations unless the input supports them.
+- Mark a task In Progress only when the user's answers indicate that work is underway. Never mark work Finished unless the user explicitly identified that exact work as completed; normally completed checklist items should be omitted.
+- Return 0 to 30 meaningful tasks using valid ISO dates (YYYY-MM-DD), with start_date <= end_date. If all checklist work is completed or not applicable and the user supplied no remaining outcome or custom work, return an empty tasks array and an empty phases array.
 
 Respond with ONLY valid JSON matching this schema:
 {
   "phases": [
-    {"name": "Planning & Research", "color": "#10b981", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "Market validation and product requirements"},
-    {"name": "System Design", "color": "#3b82f6", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "Architecture and data schemas"},
-    {"name": "Development", "color": "#8b5cf6", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "Core platform and engine engineering"},
-    {"name": "Testing & Deployment", "color": "#f97316", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "QA, security auditing, and staging deploy"},
-    {"name": "Launch & Monitor", "color": "#eab308", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "Public rollout and feedback loops"}
+    {"name": "A concise phase name relevant to this plan", "color": "#10b981", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "What this phase achieves"}
   ],
   "tasks": [
     {
@@ -124,18 +127,18 @@ Respond with ONLY valid JSON matching this schema:
       "phase": "Planning & Research",
       "title": "Clear task name",
       "description": "Specific description of work",
-      "timeline": "30-day", // Options: 30-day, 60-day, 90-day
+      "timeline": "30-day",
       "start_date": "YYYY-MM-DD",
       "end_date": "YYYY-MM-DD",
-      "priority": "Critical", // Critical, High, Medium, Low
-      "status": "In Progress", // In Progress, Pending, Finished
-      "dependencies": [], // List of previous task codes e.g. ["TSK-01"]
+      "priority": "Critical",
+      "status": "Pending",
+      "dependencies": [],
       "deliverables": "Tangible deliverable outcome",
       "effort": "2 weeks"
     }
   ]
 }
-Ensure start_date <= end_date, tasks are sequential or logically overlapping without circular dependencies, and at least 8 to 12 realistic tasks are generated spanning the next 6 months."""
+"""
 
 SECTION_MODIFICATION_SYSTEM_PROMPT = """You are an intelligent business architect system.
 The user wants to modify an existing business blueprint module.

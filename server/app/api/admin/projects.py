@@ -10,6 +10,7 @@ from app.models.all_models import (
 )
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_audit_log
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/projects", tags=["Admin Project Management"])
 
@@ -34,7 +35,10 @@ def list_projects(
         query = query.filter((Project.name.ilike(search_clean)) | (User.username.ilike(search_clean)))
 
     if stage and stage != "all":
-        query = query.filter(Project.stage == stage)
+        if stage == "MVP":
+            query = query.filter(Project.stage.in_(["MVP", "Idea / MVP", "Idea/MVP"]))
+        else:
+            query = query.filter(Project.stage == stage)
 
     total = query.count()
 
@@ -70,7 +74,7 @@ def list_projects(
             "name": p.name,
             "owner_username": p.user.username if p.user else "Unknown",
             "owner_id": p.user_id,
-            "stage": p.stage,
+            "stage": normalize_business_stage(p.stage),
             "industry": p.industry,
             "active_module": p.active_module,
             "modules_count": mod_counts.get(p.id, 0),
@@ -137,7 +141,7 @@ def get_project_detail(
                 "username": project.user.username if project.user else "Unknown",
                 "email": project.user.email if project.user else None
             },
-            "stage": project.stage,
+            "stage": normalize_business_stage(project.stage),
             "industry": project.industry,
             "description": project.description,
             "active_module": project.active_module,

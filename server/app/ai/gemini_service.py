@@ -165,12 +165,32 @@ Goals: {project_info.get('goals', '')}
         raw_json = self._execute_json_prompt(MARKET_RESEARCH_SYSTEM_PROMPT, user_prompt)
         return MarketResearchData(**raw_json)
 
-    def generate_roadmap(self, project_info: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_roadmap(self, project_info: Dict[str, Any], planning_inputs: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        from datetime import date
+
+        planning_inputs = planning_inputs or {
+            "start_date": date.today().isoformat(),
+            "horizon_weeks": 12,
+            "checklist": [],
+            "completed_work": "",
+            "in_progress_work": "",
+            "team_capacity": "",
+            "constraints": "",
+            "target_outcome": "",
+            "custom_items": [],
+        }
         user_prompt = f"""Develop an execution roadmap with tasks, dependencies, and phases for:
 Project Name: {project_info.get('name')}
 Stage: {project_info.get('stage')}
 Description: {project_info.get('description', '')}
+Industry: {project_info.get('industry', '')}
+Target Customers: {project_info.get('target_customers', '')}
 Goals: {project_info.get('goals', '')}
+Existing Stack: {json.dumps(project_info.get('existing_stack', {}), ensure_ascii=False)}
+
+Current Date: {date.today().isoformat()}
+User Planning Answers (treat as authoritative):
+{json.dumps(planning_inputs, ensure_ascii=False, indent=2)}
 """
         return self._execute_json_prompt(ROADMAP_SYSTEM_PROMPT, user_prompt)
 

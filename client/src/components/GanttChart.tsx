@@ -1,128 +1,163 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { RoadmapTask } from '../types';
-import { Calendar, ChevronDown } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 
 interface Props {
   tasks: RoadmapTask[];
 }
 
-export const GanttChart: React.FC<Props> = ({ tasks }) => {
-  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({
-    'Planning & Research': true,
-    'System Design': true,
-    'Development': true,
-    'Testing & Deployment': true,
-    'Launch & Monitor': true
-  });
+interface DatedTask {
+  task: RoadmapTask;
+  start: Date;
+  end: Date;
+}
 
-  const togglePhase = (phaseName: string) => {
-    setExpandedPhases(prev => ({ ...prev, [phaseName]: !prev[phaseName] }));
+interface TaskGroup {
+  name: string;
+  color: string;
+  tasks: DatedTask[];
+  start: Date;
+  end: Date;
+}
+
+const LEFT_COLUMN_WIDTH = 365;
+const PIXELS_PER_DAY = 4.5;
+const ROW_PHASE = 42;
+const ROW_TASK = 38;
+const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f97316', '#eab308', '#06b6d4', '#ec4899'];
+
+const utcDate = (year: number, month: number, day: number) => new Date(Date.UTC(year, month, day));
+const parseDate = (value: string | undefined): Date => {
+  if (!value) return utcDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const parts = value.slice(0, 10).split('-').map(Number);
+  return parts.length === 3 && parts.every(Number.isFinite) ? utcDate(parts[0], parts[1] - 1, parts[2]) : utcDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+};
+const daysBetween = (start: Date, end: Date) => Math.round((end.getTime() - start.getTime()) / 86400000);
+const isoDate = (date: Date) => date.toISOString().slice(0, 10);
+const monthName = (date: Date) => new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date);
+const isFinished = (status: string) => ['finished', 'completed'].includes(status.toLowerCase());
+const getLocalToday = () => {
+  const now = new Date();
+  return utcDate(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+export const GanttChart: React.FC<Props> = ({ tasks }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
+  const today = getLocalToday();
+
+  const datedTasks = useMemo<DatedTask[]>(() => tasks.map((task) => {
+    const start = parseDate(task.start_date);
+    const parsedEnd = parseDate(task.end_date);
+    const end = parsedEnd < start ? start : parsedEnd;
+    return { task, start, end };
+  }).sort((a, b) => a.start.getTime() - b.start.getTime()), [tasks]);
+
+  const groups = useMemo<TaskGroup[]>(() => {
+    const byPhase = new Map<string, DatedTask[]>();
+    datedTasks.forEach((entry) => {
+      const phase = entry.task.phase?.trim() || 'Execution';
+      byPhase.set(phase, [...(byPhase.get(phase) || []), entry]);
+    });
+    return Array.from(byPhase.entries()).map(([name, groupTasks], index) => ({
+      name,
+      color: COLORS[index % COLORS.length],
+      tasks: groupTasks,
+      start: groupTasks.reduce((earliest, item) => item.start < earliest ? item.start : earliest, groupTasks[0].start),
+      end: groupTasks.reduce((latest, item) => item.end > latest ? item.end : latest, groupTasks[0].end)
+    })).sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [datedTasks]);
+
+  const timeline = useMemo(() => {
+    const taskStart = datedTasks.length ? datedTasks[0].start : today;
+    const taskEnd = datedTasks.reduce((latest, item) => item.end > latest ? item.end : latest, today);
+    const first = taskStart < today ? taskStart : today;
+    const last = taskEnd > today ? taskEnd : today;
+    const start = utcDate(first.getUTCFullYear(), first.getUTCMonth(), 1);
+    const end = utcDate(last.getUTCFullYear(), last.getUTCMonth() + 1, 1);
+    const totalDays = Math.max(1, daysBetween(start, end));
+    const months: { date: Date; width: number }[] = [];
+    for (let month = new Date(start); month < end; month = utcDate(month.getUTCFullYear(), month.getUTCMonth() + 1, 1)) {
+      const next = utcDate(month.getUTCFullYear(), month.getUTCMonth() + 1, 1);
+      months.push({ date: month, width: daysBetween(month, next) * PIXELS_PER_DAY });
+    }
+    return {
+      start,
+      end,
+      totalDays,
+      width: Math.max(900, totalDays * PIXELS_PER_DAY),
+      months,
+      label: `${monthName(start)} – ${monthName(utcDate(end.getUTCFullYear(), end.getUTCMonth() - 1, 1))}`
+    };
+  }, [datedTasks, today]);
+
+  const goToToday = () => {
+    if (!scrollRef.current) return;
+    const todayOffset = daysBetween(timeline.start, today) * PIXELS_PER_DAY;
+    const visibleWidth = scrollRef.current.clientWidth;
+    scrollRef.current.scrollTo({
+      left: Math.max(0, LEFT_COLUMN_WIDTH + todayOffset - visibleWidth / 2),
+      behavior: 'smooth'
+    });
   };
 
-  const months = ['Oct 2026', 'Nov 2026', 'Dec 2026', 'Jan 2027', 'Feb 2027', 'Mar 2027'];
-  const totalWeeks = months.length * 4; // 24 weeks total
+  if (tasks.length === 0) {
+    return (
+      <div className="card" style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <Calendar size={22} color="#6366f1" style={{ margin: '0 auto 8px' }} />
+        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>No roadmap tasks yet</div>
+        <div style={{ fontSize: 12, marginTop: 4 }}>Add tasks or generate a roadmap to build the timeline.</div>
+      </div>
+    );
+  }
 
-  const phases = [
-    { name: '1. Planning & Research', color: '#10b981', startWeek: 0, endWeek: 4, startStr: 'Oct 01', endStr: 'Oct 31' },
-    { name: '2. System Design', color: '#3b82f6', startWeek: 4, endWeek: 8, startStr: 'Nov 01', endStr: 'Nov 30' },
-    { name: '3. Development', color: '#8b5cf6', startWeek: 8, endWeek: 16, startStr: 'Dec 01', endStr: 'Jan 31' },
-    { name: '4. Testing & Deployment', color: '#f97316', startWeek: 16, endWeek: 20, startStr: 'Feb 01', endStr: 'Feb 28' },
-    { name: '5. Launch & Monitor', color: '#eab308', startWeek: 20, endWeek: 24, startStr: 'Mar 01', endStr: 'Mar 31' }
-  ];
-
-  const colWidth = 28; // width per week in px
-  const chartWidth = totalWeeks * colWidth;
-
+  const todayX = daysBetween(timeline.start, today) * PIXELS_PER_DAY + PIXELS_PER_DAY / 2;
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      {/* Header bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Calendar size={18} color="#6366f1" />
           <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>Project Execution Timeline</h3>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
-            Month View <ChevronDown size={14} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+            <Calendar size={13} /> {timeline.label}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-            <Calendar size={14} /> Oct 2026 - Mar 2027
-          </div>
-          <button style={{ padding: '5px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
+          <button type="button" onClick={goToToday} style={{ padding: '5px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
             Today
           </button>
         </div>
       </div>
 
-      {/* Gantt Interactive Area */}
-      <div style={{ display: 'flex', width: '100%', overflowX: 'auto' }}>
-        {/* Left Column: Tasks / Phases */}
-        <div style={{ width: 340, minWidth: 340, borderRight: '1px solid var(--border-color)', background: 'var(--bg-card)', zIndex: 2 }}>
-          {/* Header row */}
-          <div style={{ display: 'flex', height: 50, borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)', fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', alignItems: 'center' }}>
-            <div style={{ flex: 1, paddingLeft: 16 }}>Task / Phase</div>
-            <div style={{ width: 65, textAlign: 'center' }}>Start</div>
-            <div style={{ width: 65, textAlign: 'center' }}>End</div>
+      <div ref={scrollRef} style={{ display: 'flex', width: '100%', overflow: 'auto', maxHeight: 620 }}>
+        <div style={{ width: LEFT_COLUMN_WIDTH, minWidth: LEFT_COLUMN_WIDTH, borderRight: '1px solid var(--border-color)', background: 'var(--bg-card)', zIndex: 2 }}>
+          <div style={{ display: 'flex', height: 50, borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)', fontWeight: 600, fontSize: 11, color: 'var(--text-muted)', alignItems: 'center' }}>
+            <div style={{ flex: 1, paddingLeft: 14 }}>Task / Phase</div>
+            <div style={{ width: 82, textAlign: 'center' }}>Start</div>
+            <div style={{ width: 82, textAlign: 'center' }}>End</div>
           </div>
-
-          {/* Rows */}
-          {phases.map((p) => {
-            const phaseTasks = tasks.filter(t => t.phase.toLowerCase().includes(p.name.slice(3).toLowerCase()));
-            const isExpanded = expandedPhases[p.name.slice(3).trim()] ?? true;
-
+          {groups.map((group) => {
+            const expanded = expandedPhases[group.name] ?? true;
             return (
-              <React.Fragment key={p.name}>
-                {/* Phase Row */}
-                <div
-                  onClick={() => togglePhase(p.name.slice(3).trim())}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: 42,
-                    borderBottom: '1px solid var(--border-color)',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: 'var(--text-main)',
-                    cursor: 'pointer',
-                    background: 'var(--bg-card)',
-                    transition: 'background 0.15s ease'
-                  }}
-                >
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{isExpanded ? '▼' : '▶'}</span>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
-                    {p.name}
+              <React.Fragment key={group.name}>
+                <div onClick={() => setExpandedPhases((current) => ({ ...current, [group.name]: !expanded }))} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setExpandedPhases((current) => ({ ...current, [group.name]: !expanded })); }} style={{ display: 'flex', alignItems: 'center', height: ROW_PHASE, borderBottom: '1px solid var(--border-color)', fontSize: 12.5, fontWeight: 700, color: 'var(--text-main)', cursor: 'pointer', background: 'var(--bg-card)' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7, paddingLeft: 12, minWidth: 0 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{expanded ? '▼' : '▶'}</span>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: group.color, flex: '0 0 auto' }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.name}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 500 }}>({group.tasks.length})</span>
                   </div>
-                  <div style={{ width: 65, textAlign: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{p.startStr}</div>
-                  <div style={{ width: 65, textAlign: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{p.endStr}</div>
+                  <div style={{ width: 82, textAlign: 'center', fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500 }}>{isoDate(group.start)}</div>
+                  <div style={{ width: 82, textAlign: 'center', fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500 }}>{isoDate(group.end)}</div>
                 </div>
-
-                {/* Child Task Rows */}
-                {isExpanded && phaseTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      height: 38,
-                      borderBottom: '1px solid var(--border-color)',
-                      fontSize: 12.5,
-                      color: 'var(--text-main)',
-                      paddingLeft: 38,
-                      background: 'var(--bg-subtle)'
-                    }}
-                  >
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
+                {expanded && group.tasks.map(({ task, start, end }) => (
+                  <div key={task.id} title={task.title} style={{ display: 'flex', alignItems: 'center', height: ROW_TASK, borderBottom: '1px solid var(--border-color)', fontSize: 11.5, color: 'var(--text-main)', paddingLeft: 32, background: 'var(--bg-subtle)' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: group.color, flex: '0 0 auto' }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.title}</span>
                     </div>
-                    <div style={{ width: 65, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-                      {t.start_date.slice(5)}
-                    </div>
-                    <div style={{ width: 65, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-                      {t.end_date.slice(5)}
-                    </div>
+                    <div style={{ width: 82, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>{isoDate(start)}</div>
+                    <div style={{ width: 82, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>{isoDate(end)}</div>
                   </div>
                 ))}
               </React.Fragment>
@@ -130,155 +165,52 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
           })}
         </div>
 
-        {/* Right Gantt Canvas */}
-        <div style={{ flex: 1, minWidth: chartWidth, position: 'relative', background: 'var(--bg-card)' }}>
-          {/* Header Row Months & Weeks */}
-          <div style={{ height: 50, borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column' }}>
-            {/* Months row */}
-            <div style={{ display: 'flex', height: 26, borderBottom: '1px solid var(--border-color)' }}>
-              {months.map((m) => (
-                <div
-                  key={m}
-                  style={{
-                    width: colWidth * 4,
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: 'var(--text-main)',
-                    textAlign: 'center',
-                    borderRight: '1px solid var(--border-color)',
-                    lineHeight: '26px'
-                  }}
-                >
-                  {m}
-                </div>
-              ))}
-            </div>
-            {/* Weeks row */}
-            <div style={{ display: 'flex', height: 24 }}>
-              {Array.from({ length: totalWeeks }).map((_, w) => (
-                <div
-                  key={w}
-                  style={{
-                    width: colWidth,
-                    fontSize: 9.5,
-                    color: 'var(--text-muted)',
-                    textAlign: 'center',
-                    borderRight: '1px solid var(--border-color)',
-                    lineHeight: '24px'
-                  }}
-                >
-                  W{(w % 4) + 1}
-                </div>
-              ))}
-            </div>
+        <div style={{ flex: '0 0 auto', width: timeline.width, position: 'relative', background: 'var(--bg-card)' }}>
+          <div style={{ display: 'flex', height: 50, borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)', position: 'relative', zIndex: 1 }}>
+            {timeline.months.map(({ date, width }) => (
+              <div key={isoDate(date)} style={{ flex: `0 0 ${width}px`, width, fontSize: 11, fontWeight: 700, color: 'var(--text-main)', textAlign: 'center', borderRight: '1px solid var(--border-color)', lineHeight: '50px' }}>
+                {monthName(date)}
+              </div>
+            ))}
           </div>
 
-          {/* Today Indicator Line */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: colWidth * 6.5,
-              width: 2,
-              background: '#6366f1',
-              zIndex: 5,
-              pointerEvents: 'none'
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: -18,
-                background: '#6366f1',
-                color: '#fff',
-                fontSize: 9,
-                fontWeight: 700,
-                padding: '1px 6px',
-                borderRadius: 4
-              }}
-            >
-              Today
+          {(() => {
+            return groups.map((group) => {
+              const expanded = expandedPhases[group.name] ?? true;
+              const phaseLeft = daysBetween(timeline.start, group.start) * PIXELS_PER_DAY;
+              const phaseWidth = Math.max(8, (daysBetween(group.start, group.end) + 1) * PIXELS_PER_DAY);
+              return (
+                <React.Fragment key={`timeline-${group.name}`}>
+                  <div style={{ height: ROW_PHASE, borderBottom: '1px solid var(--border-color)', position: 'relative' }}>
+                    <div title={`${isoDate(group.start)} – ${isoDate(group.end)}`} style={{ position: 'absolute', top: 10, left: phaseLeft + 2, width: Math.max(6, phaseWidth - 4), height: 22, background: group.color, opacity: 0.45, borderRadius: 5 }} />
+                  </div>
+                  {expanded && group.tasks.map(({ task, start, end }) => {
+                    const taskLeft = daysBetween(timeline.start, start) * PIXELS_PER_DAY;
+                    const taskWidth = Math.max(8, (daysBetween(start, end) + 1) * PIXELS_PER_DAY);
+                    const overdue = !isFinished(task.status) && end < today;
+                    const color = isFinished(task.status) ? '#16a34a' : overdue ? '#ef4444' : group.color;
+                    return (
+                      <div key={`bar-row-${task.id}`} style={{ height: ROW_TASK, borderBottom: '1px solid var(--border-color)', position: 'relative', background: 'var(--bg-subtle)' }}>
+                        <div title={`${task.title}: ${isoDate(start)} – ${isoDate(end)}${overdue ? ' (overdue)' : ''}`} style={{ position: 'absolute', top: 10, left: taskLeft + 2, width: Math.max(5, taskWidth - 4), height: 18, background: color, borderRadius: 5, boxShadow: '0 1px 3px rgba(0,0,0,0.12)' }} />
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            });
+          })()}
+
+          {todayX >= 0 && todayX <= timeline.width && (
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: '#6366f1', zIndex: 3, pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: 3, left: -18, background: '#6366f1', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}>Today</div>
             </div>
-          </div>
-
-          {/* Timeline Phase & Task Bars */}
-          {phases.map((p) => {
-            const phaseTasks = tasks.filter(t => t.phase.toLowerCase().includes(p.name.slice(3).toLowerCase()));
-            const isExpanded = expandedPhases[p.name.slice(3).trim()] ?? true;
-            const barLeft = p.startWeek * colWidth + 4;
-            const barWidth = (p.endWeek - p.startWeek) * colWidth - 8;
-
-            return (
-              <React.Fragment key={`bar-${p.name}`}>
-                {/* Phase Bar Row */}
-                <div style={{ height: 42, borderBottom: '1px solid #f1f5f9', position: 'relative' }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 10,
-                      left: barLeft,
-                      width: barWidth,
-                      height: 22,
-                      background: p.color,
-                      borderRadius: 6,
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.06)'
-                    }}
-                  />
-                  {/* Milestone diamond at Phase 2 boundary */}
-                  {p.name.includes('System Design') && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 14,
-                        left: barLeft + barWidth - 4,
-                        width: 14,
-                        height: 14,
-                        background: '#ef4444',
-                        transform: 'rotate(45deg)',
-                        zIndex: 6
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Child Task Bar Rows */}
-                {isExpanded && phaseTasks.map((t, idx) => {
-                  const taskStartWeek = Math.min(22, p.startWeek + idx * 1.5);
-                  const taskBarW = Math.max(35, colWidth * 2.2);
-
-                  return (
-                    <div key={`task-bar-${t.id}`} style={{ height: 38, borderBottom: '1px solid #f8fafc', position: 'relative' }}>
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 9,
-                          left: taskStartWeek * colWidth + 6,
-                          width: taskBarW,
-                          height: 18,
-                          background: p.color,
-                          opacity: 0.8,
-                          borderRadius: 4
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            );
-          })}
+          )}
         </div>
       </div>
-
-      {/* Legend Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '12px 20px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-subtle)', fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} /> Planning</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3b82f6' }} /> Design</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#8b5cf6' }} /> Development</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f97316' }} /> Testing</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#eab308' }} /> Launch</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, background: '#ef4444', transform: 'rotate(45deg)' }} /> Milestone</div>
+      <div style={{ padding: '9px 14px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 10.5, color: 'var(--text-muted)' }}>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#16a34a', marginRight: 5 }} />Completed</span>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#ef4444', marginRight: 5 }} />Overdue unfinished task</span>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#6366f1', marginRight: 5 }} />Today</span>
       </div>
     </div>
   );

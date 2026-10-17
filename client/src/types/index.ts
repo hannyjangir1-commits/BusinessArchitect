@@ -1,4 +1,5 @@
-export type BusinessStage = 'Idea / MVP' | 'Post-launch' | 'Growth';
+// "Idea / MVP" remains accepted for older local fixtures and records; the UI exposes four stages.
+export type BusinessStage = 'Idea' | 'MVP' | 'Post-launch' | 'Growth' | 'Idea / MVP';
 
 export interface User {
   id: string;
@@ -161,6 +162,25 @@ export interface RoadmapSummary {
   total_tasks: number;
   completed_tasks: number;
   overall_progress: number;
+}
+
+export type RoadmapChecklistStatus = 'Not started' | 'In progress' | 'Completed' | 'Not applicable';
+
+export interface RoadmapChecklistItem {
+  item: string;
+  status: RoadmapChecklistStatus;
+}
+
+export interface RoadmapPlanningInputs {
+  start_date: string;
+  horizon_weeks: number;
+  checklist: RoadmapChecklistItem[];
+  completed_work: string;
+  in_progress_work: string;
+  team_capacity: string;
+  constraints: string;
+  target_outcome: string;
+  custom_items: string[];
 }
 
 export interface CopilotMessage {

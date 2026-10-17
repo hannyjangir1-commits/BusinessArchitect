@@ -10,6 +10,7 @@ from app.models.all_models import (
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
 from app.core.telemetry import record_ai_operation, record_audit_log
+from app.core.business_stage import normalize_business_stage
 
 router = APIRouter(prefix="/ai-operations", tags=["Admin AI Operations"])
 
@@ -237,7 +238,7 @@ def retry_failed_operation(
     proj_info = {
         "id": proj.id,
         "name": proj.name,
-        "stage": proj.stage,
+        "stage": normalize_business_stage(proj.stage),
         "description": proj.description,
         "industry": proj.industry,
         "target_customers": proj.target_customers,
@@ -274,12 +275,15 @@ def retry_failed_operation(
             elif module_type == "market_research":
                 data_dict = ai_service.generate_market_research(proj_info).model_dump()
             elif module_type in ("execution_roadmap", "detailed_roadmap"):
-                roadmap_raw = ai_service.generate_roadmap(proj_info)
-                data_dict = roadmap_raw
-                tasks_data = roadmap_raw.get("tasks", [])
-                if tasks_data:
-                    from app.api.modules import _reconcile_roadmap_tasks
-                    _reconcile_roadmap_tasks(db, proj, tasks_data)
+                from app.api.modules import _normalize_roadmap_schedule, _reconcile_roadmap_tasks
+                from app.schemas.modules import RoadmapPlanningRequest
+
+                planning = RoadmapPlanningRequest()
+                planning_dict = planning.model_dump(mode="json")
+                roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict)
+                data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
+                data_dict["planning_inputs"] = planning_dict
+                _reconcile_roadmap_tasks(db, proj, data_dict.get("tasks", []))
             else:
                 raise ValueError(f"Unsupported module type for retry: {module_type}")
 

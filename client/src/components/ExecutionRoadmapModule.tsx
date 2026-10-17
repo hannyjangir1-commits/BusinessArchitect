@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { Project, ModuleDetail, RoadmapTask, RoadmapSummary } from '../types';
+import { Project, ModuleDetail, RoadmapTask, RoadmapSummary, RoadmapPlanningInputs } from '../types';
 import { GanttChart } from './GanttChart';
 import { MilestoneCards } from './MilestoneCards';
 import { AllTasksTable } from './AllTasksTable';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
 import { DependenciesPanel } from './DependenciesPanel';
-import { Calendar, GitPullRequest, Milestone, ListTodo, Sparkles, Loader2 } from 'lucide-react';
+import { Calendar, GitPullRequest, Milestone, ListTodo, SlidersHorizontal } from 'lucide-react';
+import { RoadmapPlanningForm } from './RoadmapPlanningForm';
 
 interface Props {
   project: Project;
   moduleDetail: ModuleDetail | null;
   tasks: RoadmapTask[];
   summary: RoadmapSummary;
-  onGenerate: () => Promise<void>;
+  onGenerate: (inputs: RoadmapPlanningInputs) => Promise<void>;
   onModify: (instruction: string) => Promise<void>;
   onAddTask: (taskData: any) => Promise<void>;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
@@ -48,36 +49,31 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   isGenerateDisabled = false
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'gantt' | 'tasks' | 'milestones' | 'dependencies'>('gantt');
+  const [planningOpenForVersion, setPlanningOpenForVersion] = useState<string | null | false>(false);
+  const isPlanningOpen = !moduleDetail?.active_version_id || planningOpenForVersion === moduleDetail.active_version_id;
+
+  const planningForm = (
+    <RoadmapPlanningForm
+      key={moduleDetail?.active_version_id || 'new-roadmap'}
+      stage={project.stage}
+      initialValues={moduleDetail?.data?.planning_inputs}
+      isGenerating={isGenerating}
+      isDisabled={isGenerateDisabled}
+      progress={generationProgress}
+      onSubmit={onGenerate}
+      onCancel={moduleDetail?.active_version_id ? () => setPlanningOpenForVersion(false) : undefined}
+    />
+  );
+  const openPlanning = async () => { setPlanningOpenForVersion(moduleDetail?.active_version_id || null); };
 
   if (tasks.length === 0 && !moduleDetail?.data) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#ede9fe', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
-          <Calendar size={28} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-main)' }}>Build a roadmap for {project.name}</h2>
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--text-muted)' }}>Answer a few stage-specific questions so the timeline starts from your current work.</p>
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
-          Execution Roadmap Not Yet Generated
-        </h3>
-        <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
-          Generate a realistic execution roadmap with 5 delivery phases, tasks, dependencies, and milestone tracking for {project.name}.
-        </p>
-        <button
-          onClick={onGenerate}
-          className="btn-primary"
-          disabled={isLoading || isGenerating || isGenerateDisabled}
-          style={{ margin: '0 auto' }}
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Synthesizing Timeline...'}
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} /> Generate Execution Roadmap
-            </>
-          )}
-        </button>
+        {planningForm}
       </div>
     );
   }
@@ -101,6 +97,10 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           </div>
         </div>
 
+        <button className="btn-secondary" onClick={() => isPlanningOpen ? setPlanningOpenForVersion(false) : setPlanningOpenForVersion(moduleDetail?.active_version_id || null)} disabled={isGenerating}>
+          <SlidersHorizontal size={14} /> {isPlanningOpen ? 'Close planning questions' : 'Replan roadmap'}
+        </button>
+
         <VersionToolbar
           moduleType="execution_roadmap"
           moduleTitle="Execution Roadmap"
@@ -113,6 +113,8 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           onExportPdf={onExportPdf}
         />
       </div>
+
+      {isPlanningOpen && planningForm}
 
       {/* Subtabs bar matching screenshot */}
       <div className="subtabs-bar">
@@ -159,7 +161,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
                 onAddTask={onAddTask}
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
-                onRegenerate={onGenerate}
+                onRegenerate={openPlanning}
                 isLoading={isLoading}
                 isGenerating={isGenerating}
                 isGenerateDisabled={isGenerateDisabled}
@@ -174,7 +176,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
               onAddTask={onAddTask}
               onUpdateTask={onUpdateTask}
               onDeleteTask={onDeleteTask}
-              onRegenerate={onGenerate}
+              onRegenerate={openPlanning}
               isLoading={isLoading}
               isGenerating={isGenerating}
               isGenerateDisabled={isGenerateDisabled}
