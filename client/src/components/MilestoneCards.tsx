@@ -35,8 +35,8 @@ export const MilestoneCards: React.FC<Props> = ({ summary }) => {
       <div className="milestone-card">
         <div className="milestone-top">
           <div className="milestone-flag-title">
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Flag size={14} color="#3b82f6" />
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#e8ede2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Flag size={14} color="#7a916a" />
             </div>
             <span>60-Day Milestone</span>
           </div>
@@ -45,7 +45,7 @@ export const MilestoneCards: React.FC<Props> = ({ summary }) => {
         <div className="milestone-track">
           <div
             className="milestone-fill"
-            style={{ width: `${summary.milestone_60_progress}%`, background: '#3b82f6' }}
+            style={{ width: `${summary.milestone_60_progress}%`, background: '#7a916a' }}
           />
         </div>
         <div className="milestone-count-text">

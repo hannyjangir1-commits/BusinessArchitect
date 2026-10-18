@@ -80,9 +80,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ]
     },
     {
-      title: 'AI Intelligence',
+      title: 'Generation Operations',
       items: [
-        { id: 'ai-ops', label: 'AI Activity & Quality', icon: Cpu, path: '/admin/ai-operations' }
+        { id: 'ai-ops', label: 'Generation Activity & Quality', icon: Cpu, path: '/admin/ai-operations' }
       ]
     },
     {
@@ -110,12 +110,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         width: collapsed ? '72px' : '260px',
         minWidth: collapsed ? '72px' : '260px',
         transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        backgroundColor: '#0d121f',
-        borderRight: '1px solid #1e293b',
+        backgroundColor: 'var(--sidebar-bg)',
+        borderRight: '1px solid var(--border-color)',
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
         zIndex: 20
       }}
     >
@@ -126,7 +126,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'space-between',
-          borderBottom: '1px solid #1e293b'
+          borderBottom: '1px solid var(--border-color)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
@@ -135,22 +135,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               width: '34px',
               height: '34px',
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+              background: 'linear-gradient(135deg, #6d855f 0%, #5d7550 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 0 12px rgba(99, 102, 241, 0.4)'
+              color: 'var(--text-main)',
+              boxShadow: '0 0 12px rgba(109, 133, 95, 0.4)'
             }}
           >
             <Sparkles size={18} />
           </div>
           {!collapsed && (
             <div style={{ lineHeight: 1.2 }}>
-              <div style={{ color: '#ffffff', fontWeight: 700, fontSize: '14px', letterSpacing: '0.02em' }}>
+              <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '14px', letterSpacing: '0.02em' }}>
                 ADMIN CONTROL
               </div>
-              <div style={{ color: '#6366f1', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <div style={{ color: '#6d855f', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Level 3 Enterprise
               </div>
             </div>
@@ -162,7 +162,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: '4px',
             borderRadius: '4px',
@@ -185,7 +185,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   fontSize: '11px',
                   fontWeight: 700,
                   textTransform: 'uppercase',
-                  color: '#475569',
+                  color: 'var(--text-main)',
                   letterSpacing: '0.05em',
                   padding: '6px 12px',
                   marginBottom: '4px'
@@ -211,30 +211,30 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     borderRadius: '8px',
                     border: 'none',
-                    background: isActive ? 'linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05))' : 'transparent',
-                    color: isActive ? '#ffffff' : '#94a3b8',
+                    background: isActive ? 'linear-gradient(90deg, rgba(109, 133, 95, 0.15), rgba(109, 133, 95, 0.05))' : 'transparent',
+                    color: isActive ? '#ffffff' : '#7c8478',
                     fontWeight: isActive ? 600 : 500,
                     fontSize: '13px',
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                     marginBottom: '2px',
-                    borderLeft: isActive ? '3px solid #6366f1' : '3px solid transparent'
+                    borderLeft: isActive ? '3px solid #6d855f' : '3px solid transparent'
                   }}
                   onMouseEnter={e => {
                     if (!isActive) {
-                      e.currentTarget.style.backgroundColor = '#161f36';
-                      e.currentTarget.style.color = '#cbd5e1';
+                      e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)';
+                      e.currentTarget.style.color = 'var(--text-muted)';
                     }
                   }}
                   onMouseLeave={e => {
                     if (!isActive) {
                       e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#94a3b8';
+                      e.currentTarget.style.color = 'var(--text-muted)';
                     }
                   }}
                 >
-                  <Icon size={18} style={{ color: isActive ? '#818cf8' : '#64748b', flexShrink: 0 }} />
+                  <Icon size={18} style={{ color: isActive ? '#82936d' : '#687164', flexShrink: 0 }} />
                   {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
                 </button>
               );
@@ -244,10 +244,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       </div>
 
       {/* Return to Public Portal */}
-      <div style={{ padding: '12px', borderTop: '1px solid #1e293b' }}>
+      <div style={{ padding: '12px', borderTop: '1px solid var(--border-color)' }}>
         <button
           onClick={() => (window.location.href = '/')}
-          title="Return to Business Architect App"
+          title="Return to Venture Atlas App"
           style={{
             width: '100%',
             display: 'flex',
@@ -256,15 +256,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             gap: '10px',
             padding: '8px 12px',
             borderRadius: '6px',
-            border: '1px solid #334155',
-            background: '#151c2e',
-            color: '#cbd5e1',
+            border: '1px solid #687164',
+            background: 'var(--bg-card)',
+            color: 'var(--text-muted)',
             fontSize: '12px',
             fontWeight: 500,
             cursor: 'pointer'
           }}
         >
-          <ExternalLink size={14} style={{ color: '#818cf8' }} />
+          <ExternalLink size={14} style={{ color: '#82936d' }} />
           {!collapsed && <span>User Application</span>}
         </button>
       </div>

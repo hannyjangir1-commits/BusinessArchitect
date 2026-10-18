@@ -29,7 +29,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     admin: 'Admin Center',
     users: 'Users Directory',
     projects: 'Projects Console',
-    'ai-operations': 'AI Activity & Quality',
+    'ai-operations': 'Generation Activity & Quality',
     account: 'Admin Account'
   };
 
@@ -39,8 +39,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     <header
       style={{
         height: '64px',
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e2e8f0',
+        backgroundColor: 'var(--bg-card)',
+        borderBottom: '1px solid #dfe2d6',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -50,15 +50,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       }}
     >
       {/* Breadcrumb Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748b' }}>
-        <Shield size={16} style={{ color: '#6366f1' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
+        <Shield size={16} style={{ color: '#6d855f' }} />
         {segments.map((seg, idx) => {
           const isLast = idx === segments.length - 1;
           const label = breadcrumbLabels[seg] || seg;
           return (
             <React.Fragment key={idx}>
-              {idx > 0 && <ChevronRight size={14} style={{ color: '#94a3b8' }} />}
-              <span style={{ fontWeight: isLast ? 600 : 400, color: isLast ? '#0f172a' : '#64748b' }}>
+              {idx > 0 && <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
+              <span style={{ fontWeight: isLast ? 600 : 400, color: isLast ? '#626b5f' : '#687164' }}>
                 {label}
               </span>
             </React.Fragment>
@@ -96,7 +96,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           />
           <span>{isHealthy ? 'Operational' : 'Degraded'}</span>
           {health?.latency_ms !== undefined && health.latency_ms >= 0 && (
-            <span style={{ color: '#64748b', fontWeight: 400, fontSize: '11px' }}>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '11px' }}>
               ({health.latency_ms}ms)
             </span>
           )}
@@ -107,11 +107,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           onClick={() => window.location.reload()}
           title="Reload operational metrics"
           style={{
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
+            background: '#f7f6ef',
+            border: '1px solid #dfe2d6',
             borderRadius: '6px',
             padding: '6px 8px',
-            color: '#475569',
+            color: 'var(--text-main)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -129,12 +129,12 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              background: '#f1f5f9',
-              border: '1px solid #e2e8f0',
+              background: '#f0f1e9',
+              border: '1px solid #dfe2d6',
               borderRadius: '8px',
               padding: '6px 12px',
               cursor: 'pointer',
-              color: '#0f172a'
+              color: 'var(--text-main)'
             }}
           >
             <div
@@ -142,8 +142,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 width: '28px',
                 height: '28px',
                 borderRadius: '50%',
-                backgroundColor: '#6366f1',
-                color: '#ffffff',
+                backgroundColor: '#6d855f',
+                color: 'var(--text-main)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -155,7 +155,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             </div>
             <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
               <div style={{ fontSize: '13px', fontWeight: 600 }}>{adminUser?.username || 'Admin'}</div>
-              <div style={{ fontSize: '10px', color: '#6366f1', fontWeight: 700, textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '10px', color: '#6d855f', fontWeight: 700, textTransform: 'uppercase' }}>
                 {adminUser?.role ? adminUser.role.replace('_', ' ') : 'Super Admin'}
               </div>
             </div>
@@ -168,17 +168,17 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 right: 0,
                 top: '46px',
                 width: '220px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e2e8f0',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid #dfe2d6',
                 borderRadius: '8px',
                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
                 padding: '6px',
                 zIndex: 50
               }}
             >
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', marginBottom: '4px' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Signed in as</div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{adminUser?.email || 'admin'}</div>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f1e9', marginBottom: '4px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Signed in as</div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{adminUser?.email || 'admin'}</div>
               </div>
 
               <button
@@ -195,16 +195,16 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                   borderRadius: '6px',
                   border: 'none',
                   background: 'transparent',
-                  color: '#334155',
+                  color: 'var(--text-main)',
                   fontSize: '13px',
                   fontWeight: 500,
                   cursor: 'pointer',
                   textAlign: 'left'
                 }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f7f6ef')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
-                <KeyRound size={16} style={{ color: '#6366f1' }} />
+                <KeyRound size={16} style={{ color: '#6d855f' }} />
                 <span>Change Password</span>
               </button>
 
@@ -222,20 +222,20 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                   borderRadius: '6px',
                   border: 'none',
                   background: 'transparent',
-                  color: '#334155',
+                  color: 'var(--text-main)',
                   fontSize: '13px',
                   fontWeight: 500,
                   cursor: 'pointer',
                   textAlign: 'left'
                 }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f7f6ef')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
-                <UserIcon size={16} style={{ color: '#6366f1' }} />
+                <UserIcon size={16} style={{ color: '#6d855f' }} />
                 <span>Account Profile</span>
               </button>
 
-              <div style={{ borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
+              <div style={{ borderTop: '1px solid #f0f1e9', margin: '4px 0' }} />
 
               <button
                 onClick={() => {

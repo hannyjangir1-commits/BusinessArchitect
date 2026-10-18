@@ -21,7 +21,7 @@ def test_root_and_api_health_endpoints():
     assert res_root.status_code == 200
     data_root = res_root.json()
     assert data_root["status"] == "ok"
-    assert "Business Architect" in data_root["service"]
+    assert "Venture Atlas" in data_root["service"]
 
     # /api/health with database connectivity verification
     res_api = client.get("/api/health")
@@ -30,7 +30,7 @@ def test_root_and_api_health_endpoints():
     assert data_api["status"] in ("healthy", "degraded")
     assert data_api["database_connected"] is True
     assert "generation_configured" in data_api
-    assert "Business Architect" in data_api["service"]
+    assert "Venture Atlas" in data_api["service"]
 
 
 def test_supabase_database_url_normalization():

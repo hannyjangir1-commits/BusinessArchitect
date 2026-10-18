@@ -96,10 +96,10 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
             Projects Console
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             Inspect business architectures, module persistence, ownership transfers, and lifecycle governance
           </p>
         </div>
@@ -112,25 +112,25 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
       )}
 
       {/* Toolbar */}
-      <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px 20px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px 20px', border: '1px solid #dfe2d6', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, maxWidth: '400px' }}>
           <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Search by project name or owner..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
+              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
             />
           </div>
-          <button type="submit" style={{ padding: '8px 14px', background: '#6366f1', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+          <button type="submit" style={{ padding: '8px 14px', background: '#6d855f', color: 'var(--text-main)', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
             Search
           </button>
         </form>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
             <Filter size={15} />
             <span>Stage:</span>
             <select
@@ -139,7 +139,7 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
                 setStageFilter(e.target.value);
                 setPage(1);
               }}
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
             >
               <option value="all">All Stages</option>
               <option value="Idea">Idea</option>
@@ -152,29 +152,29 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
           <button
             onClick={fetchProjects}
             title="Refresh projects"
-            style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            style={{ background: '#f7f6ef', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
-            <RefreshCw size={15} style={{ color: '#475569' }} />
+            <RefreshCw size={15} style={{ color: 'var(--text-main)' }} />
           </button>
         </div>
       </div>
 
       {/* Projects Table */}
-      <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-            <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
             <p style={{ margin: 0 }}>Loading projects directory...</p>
           </div>
         ) : projects.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <FolderKanban size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
             <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No projects found matching criteria</p>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+              <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '14px 18px' }}>Project Name</th>
                 <th style={{ padding: '14px 18px' }}>Owner</th>
                 <th style={{ padding: '14px 18px' }}>Stage</th>
@@ -186,48 +186,48 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
             </thead>
             <tbody>
               {projects.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={p.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
                   <td style={{ padding: '14px 18px' }}>
-                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>ID: {p.id}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ID: {p.id}</div>
                   </td>
                   <td style={{ padding: '14px 18px' }}>
-                    <span style={{ fontWeight: 600, color: '#334155' }}>{p.owner_username}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.owner_username}</span>
                   </td>
                   <td style={{ padding: '14px 18px' }}>
-                    <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, backgroundColor: '#f1f5f9', color: '#475569' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, backgroundColor: '#f0f1e9', color: 'var(--text-main)' }}>
                       {p.stage}
                     </span>
                   </td>
-                  <td style={{ padding: '14px 18px', color: '#64748b' }}>
+                  <td style={{ padding: '14px 18px', color: 'var(--text-muted)' }}>
                     {p.active_module}
                   </td>
                   <td style={{ padding: '14px 18px' }}>
                     <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
-                      <span title="Saved modules" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#6366f1' }}>
+                      <span title="Saved modules" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#6d855f' }}>
                         <Layers size={13} /> {p.modules_count}
                       </span>
                       <span>•</span>
-                      <span title="Roadmap tasks" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#0ea5e9' }}>
+                      <span title="Roadmap tasks" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#7a916a' }}>
                         <CheckSquare size={13} /> {p.tasks_count}
                       </span>
                     </div>
                   </td>
-                  <td style={{ padding: '14px 18px', color: '#64748b', fontSize: '12px' }}>
+                  <td style={{ padding: '14px 18px', color: 'var(--text-muted)', fontSize: '12px' }}>
                     {new Date(p.created_at).toLocaleDateString()}
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <button
                         onClick={() => onSelectProject(p.id)}
-                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#4338ca', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', color: '#5d7550', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
                       >
                         Detail
                       </button>
                       <button
                         onClick={() => setTransferModalProj(p)}
                         title="Transfer Ownership"
-                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', cursor: 'pointer' }}
+                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', color: 'var(--text-main)', cursor: 'pointer' }}
                       >
                         <ArrowRightLeft size={13} />
                       </button>
@@ -247,13 +247,13 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
         )}
 
         {/* Pagination Footer */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
           <div>Showing {projects.length} of {total} total projects</div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => Math.max(1, p - 1))}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
+              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
             >
               Previous
             </button>
@@ -263,7 +263,7 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
+              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
             >
               Next
             </button>
@@ -274,15 +274,15 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
       {/* Transfer Ownership Modal */}
       {transferModalProj && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+          <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
               Transfer Ownership: {transferModalProj.name}
             </h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
               Reassign project ownership to another existing user account.
             </p>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 New Owner Username
               </label>
               <input
@@ -290,17 +290,17 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
                 placeholder="Target username"
                 value={targetUsername}
                 onChange={e => setTargetUsername(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setTransferModalProj(null)} style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer' }}>
+              <button onClick={() => setTransferModalProj(null)} style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
                 onClick={handleTransfer}
                 disabled={actionLoading || !targetUsername.trim()}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#6366f1', color: '#ffffff', fontWeight: 600, cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#6d855f', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer' }}
               >
                 {actionLoading ? 'Transferring...' : 'Transfer Ownership'}
               </button>
@@ -312,26 +312,26 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
       {/* Delete Project Modal */}
       {deleteModalProj && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+          <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#dc2626', marginBottom: '8px' }}>
               Permanently Delete Project
             </h3>
-            <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-main)', marginBottom: '16px' }}>
               This will permanently delete project <strong>{deleteModalProj.name}</strong>, including all its modules, versions, and roadmap tasks.
             </p>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
                 Type <strong>{deleteModalProj.name}</strong> to confirm:
               </label>
               <input
                 type="text"
                 value={confirmProjectName}
                 onChange={e => setConfirmProjectName(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setDeleteModalProj(null)} style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer' }}>
+              <button onClick={() => setDeleteModalProj(null)} style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
@@ -341,8 +341,8 @@ export const AdminProjectsPage: React.FC<AdminProjectsPageProps> = ({ onSelectPr
                   padding: '8px 16px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: confirmProjectName === deleteModalProj.name ? '#dc2626' : '#cbd5e1',
-                  color: '#ffffff',
+                  background: confirmProjectName === deleteModalProj.name ? '#dc2626' : '#d9ddcf',
+                  color: 'var(--text-main)',
                   fontWeight: 600,
                   cursor: confirmProjectName === deleteModalProj.name ? 'pointer' : 'not-allowed'
                 }}

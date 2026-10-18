@@ -9,7 +9,7 @@ import { ContextualAssistant } from './ContextualAssistant';
 import { DependenciesPanel } from './DependenciesPanel';
 import {
   Calendar, GitPullRequest, Milestone, ListTodo, SlidersHorizontal,
-  Workflow, AlertTriangle, RefreshCw, X, ShieldAlert, Sparkles
+  Workflow, RefreshCw, X, ShieldAlert, Sparkles
 } from 'lucide-react';
 import { RoadmapPlanningForm } from './RoadmapPlanningForm';
 
@@ -26,6 +26,7 @@ interface Props {
   onRenameVersion: (newName: string) => Promise<void>;
   onDeleteVersion: (versionId: string) => Promise<void>;
   onRestoreVersion: (versionId: string) => Promise<void>;
+  onDeleteModule?: () => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
   isGenerating?: boolean;
@@ -46,6 +47,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   onRenameVersion,
   onDeleteVersion,
   onRestoreVersion,
+  onDeleteModule,
   onExportPdf,
   isLoading,
   isGenerating = false,
@@ -60,6 +62,8 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   const isPlanningOpen = !moduleDetail?.active_version_id || planningOpenForVersion === moduleDetail.active_version_id;
   const feasibility = moduleDetail?.data?.feasibility_evaluation;
   const isStale = !!moduleDetail?.is_stale && !staleDismissed;
+  const today = new Date().toISOString().slice(0, 10);
+  const hasExpiredTimeline = tasks.length > 0 && tasks.every((task) => task.end_date && task.end_date < today);
 
   const planningForm = (
     <RoadmapPlanningForm
@@ -115,9 +119,9 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   }
 
   const phases = moduleDetail?.data?.phases || [
-    { name: 'Phase 1: Foundation & Architecture', color: '#3b82f6' },
+    { name: 'Phase 1: Foundation & Architecture', color: '#7a916a' },
     { name: 'Phase 2: Core Implementation', color: '#10b981' },
-    { name: 'Phase 3: Launch & Feedback', color: '#8b5cf6' }
+    { name: 'Phase 3: Launch & Feedback', color: '#a68757' }
   ];
 
   return (
@@ -153,15 +157,47 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           onDelete={onDeleteVersion}
           onRestore={onRestoreVersion}
           onExportPdf={onExportPdf}
+          onCreateNew={openPlanning}
+          onDeleteModule={onDeleteModule}
+          createLabel="Create New Roadmap"
+          isBusy={isLoading || isGenerating}
+          isCreateDisabled={isGenerateDisabled}
         />
       </div>
 
+      {hasExpiredTimeline && (
+        <div
+          role="status"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            padding: '12px 16px',
+            border: '1px solid #e4d5b8',
+            borderRadius: 10,
+            background: '#fbf7ef',
+            color: 'var(--text-main)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Calendar size={18} color="#9a7b45" aria-hidden="true" />
+            <span style={{ fontSize: 13 }}>
+              This roadmap has ended dates. Replan it to anchor the timeline to today ({today}) and keep the Gantt chart current.
+            </span>
+          </div>
+          <button className="btn-secondary" onClick={openPlanning} disabled={isGenerating}>
+            <RefreshCw size={14} /> Replan from today
+          </button>
+        </div>
+      )}
+
       {/* Freshness / Staleness Notification Banner (SYNC-004 to SYNC-006) */}
       {isStale && (
-        <div style={{ background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ background: '#f0f1e9', border: '1px solid #dbe4d4', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Sparkles size={18} color="#7c3aed" />
-            <div style={{ fontSize: 13, color: '#5b21b6' }}>
+            <Sparkles size={18} color="#a68757" />
+            <div style={{ fontSize: 13, color: '#8a7558' }}>
               <b>New Architecture Available:</b> {moduleDetail?.stale_reason || "Tech Stack was recently updated. Would you like to refresh your roadmap?"}
             </div>
           </div>
@@ -169,14 +205,14 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             <button
               onClick={handleAcceptStaleUpdate}
               className="btn-primary"
-              style={{ fontSize: 12, padding: '5px 12px', background: '#7c3aed', borderColor: '#7c3aed' }}
+              style={{ fontSize: 12, padding: '5px 12px', background: '#a68757', borderColor: '#a68757' }}
               disabled={isGenerating}
             >
               <RefreshCw size={12} className={isGenerating ? "animate-spin" : ""} /> Update Roadmap
             </button>
             <button
               onClick={() => setStaleDismissed(true)}
-              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 4 }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}
               title="Dismiss notification"
             >
               <X size={16} />
@@ -314,21 +350,21 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             <>
               <MilestoneCards summary={summary} />
               <div className="card" style={{ padding: 20 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Milestone size={18} color="#6366f1" /> Key Milestone Deliverables
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Milestone size={18} color="#6d855f" /> Key Milestone Deliverables
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
                   {tasks.filter(t => t.deliverables).map((t, idx) => (
-                    <div key={t.id || idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
+                    <div key={t.id || idx} style={{ background: '#f7f6ef', border: '1px solid #dfe2d6', borderRadius: 8, padding: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1' }}>{t.task_code}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6d855f' }}>{t.task_code}</span>
                         <span className={`badge-priority ${(t.priority || 'medium').toLowerCase()}`}>{t.priority}</span>
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>{t.title}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>{t.title}</div>
                       <div style={{ fontSize: 12, color: '#059669', background: '#ecfdf5', padding: '6px 10px', borderRadius: 6 }}>
                         <b>Deliverable:</b> {t.deliverables}
                       </div>
-                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 8 }}>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>
                         Target: {t.end_date} • Phase: {t.phase} {t.assigned_to ? `• Assigned: ${t.assigned_to}` : ''}
                       </div>
                     </div>

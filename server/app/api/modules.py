@@ -20,11 +20,13 @@ from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
 from app.core.telemetry import record_ai_operation, record_analytics_event
 from app.core.business_stage import normalize_business_stage
+from app.core.module_types import normalize_module_type
 
 router = APIRouter(prefix="/projects/{project_id}/modules", tags=["Modules & Version Control"])
 
 ALLOWED_CHAT_MODULES = {"overview", "bmc", "tech_stack", "execution_roadmap", "detailed_roadmap"}
 DISALLOWED_CHAT_MODULES = {"idea_validator", "market_research"}
+DELETABLE_MODULE_TYPES = {"bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap"}
 
 def _validate_module_data(module_type: str, data: Dict[str, Any]):
     if not isinstance(data, dict):
@@ -204,7 +206,7 @@ def _normalize_roadmap_schedule(data: Dict[str, Any], planning: RoadmapPlanningR
             task["start_date"] = start.isoformat()
             task["end_date"] = end.isoformat()
 
-    colors = ["#10b981", "#3b82f6", "#8b5cf6", "#f97316", "#eab308", "#06b6d4"]
+    colors = ["#78906c", "#9a815c", "#b09a68", "#687f5d", "#b77d68", "#bb816a"]
     raw_phases = {phase.get("name"): phase for phase in (result.get("phases") or []) if isinstance(phase, dict)}
     grouped: Dict[str, List[Dict[str, Any]]] = {}
     for task in tasks:
@@ -262,13 +264,87 @@ def _detect_and_break_dependency_cycles(tasks: List[Dict[str, Any]]) -> None:
 
 def _gather_cross_module_context(db: Session, project_id: str) -> Dict[str, Any]:
     context = {}
-    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project_id).all()
+    modules = db.query(ModuleContent).filter(
+        ModuleContent.project_id == project_id
+    ).order_by(ModuleContent.updated_at.desc()).all()
     for m in modules:
         if m.active_version_id:
             ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
             if ver and ver.data:
-                context[m.module_type] = ver.data
+                context.setdefault(normalize_module_type(m.module_type), ver.data)
     return context
+
+
+def _merge_legacy_roadmap_history(
+    db: Session,
+    canonical_module: ModuleContent,
+    legacy_module: ModuleContent,
+) -> None:
+    """Move legacy roadmap snapshots into the unified record without dropping history."""
+    canonical_versions = VersionService.get_versions(db, canonical_module.id)
+    legacy_versions = VersionService.get_versions(db, legacy_module.id)
+
+    canonical_active = next(
+        (version for version in canonical_versions if version.id == canonical_module.active_version_id),
+        None,
+    ) or next((version for version in canonical_versions if version.is_active), None)
+    if canonical_active is None and canonical_versions:
+        canonical_active = canonical_versions[-1]
+
+    legacy_active = next(
+        (version for version in legacy_versions if version.id == legacy_module.active_version_id),
+        None,
+    ) or next((version for version in legacy_versions if version.is_active), None)
+    if canonical_active is None and legacy_active is None and legacy_versions:
+        legacy_active = legacy_versions[-1]
+
+    active_version_id = canonical_active.id if canonical_active else (legacy_active.id if legacy_active else None)
+    next_number = max((version.version_number for version in canonical_versions), default=0) + 1
+
+    for offset, version in enumerate(legacy_versions):
+        version.module_content_id = canonical_module.id
+        version.version_number = next_number + offset
+        version.is_active = version.id == active_version_id
+
+    for version in canonical_versions:
+        version.is_active = version.id == active_version_id
+
+    canonical_module.active_version_id = active_version_id
+    # Flush the foreign-key moves before deleting the now-empty legacy parent;
+    # its ORM delete-orphan cascade must not remove the preserved snapshots.
+    db.flush()
+    db.delete(legacy_module)
+    db.flush()
+
+
+def _get_or_create_canonical_module(db: Session, project_id: str, module_type: str) -> ModuleContent:
+    """Reuse a legacy roadmap record on first write, preserving its full history."""
+    canonical_type = normalize_module_type(module_type)
+    module = db.query(ModuleContent).filter(
+        ModuleContent.project_id == project_id,
+        ModuleContent.module_type == canonical_type
+    ).first()
+    if module:
+        if canonical_type == "execution_roadmap":
+            legacy_module = db.query(ModuleContent).filter(
+                ModuleContent.project_id == project_id,
+                ModuleContent.module_type == "detailed_roadmap"
+            ).first()
+            if legacy_module:
+                _merge_legacy_roadmap_history(db, module, legacy_module)
+        return module
+
+    if canonical_type == "execution_roadmap":
+        legacy_module = db.query(ModuleContent).filter(
+            ModuleContent.project_id == project_id,
+            ModuleContent.module_type == "detailed_roadmap"
+        ).first()
+        if legacy_module:
+            legacy_module.module_type = canonical_type
+            db.flush()
+            return legacy_module
+
+    return VersionService.get_or_create_module(db, project_id, canonical_type)
 
 @router.get("/{module_type}", response_model=ModuleDetailResponse)
 def get_module(
@@ -276,10 +352,28 @@ def get_module(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
+    module_type = normalize_module_type(module_type)
     module = db.query(ModuleContent).filter(
         ModuleContent.project_id == project.id,
         ModuleContent.module_type == module_type
     ).first()
+
+    # Old projects may contain only the former module, or both former and
+    # unified rows. Reads of a legacy-only project remain side-effect free;
+    # when both rows exist, merge their version history so it remains visible.
+    if not module and module_type == "execution_roadmap":
+        module = db.query(ModuleContent).filter(
+            ModuleContent.project_id == project.id,
+            ModuleContent.module_type == "detailed_roadmap"
+        ).first()
+    elif module and module_type == "execution_roadmap":
+        legacy_module = db.query(ModuleContent).filter(
+            ModuleContent.project_id == project.id,
+            ModuleContent.module_type == "detailed_roadmap"
+        ).first()
+        if legacy_module:
+            _merge_legacy_roadmap_history(db, module, legacy_module)
+            db.commit()
 
     if not module:
         return ModuleDetailResponse(
@@ -343,6 +437,56 @@ def get_module(
         context_metadata=active_ver.data.get("context_metadata") if (active_ver and isinstance(active_ver.data, dict)) else None
     )
 
+@router.delete("/{module_type}", dependencies=[Depends(verify_csrf)])
+def delete_module(
+    module_type: str,
+    project: Project = Depends(get_user_project),
+    db: Session = Depends(get_db)
+):
+    """Delete one generated module and its saved versions for the owning project."""
+    canonical_type = normalize_module_type(module_type)
+    if canonical_type not in DELETABLE_MODULE_TYPES:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generated module not found")
+
+    stored_types = [canonical_type]
+    if canonical_type == "execution_roadmap":
+        # Remove both the current canonical row and any untouched legacy row.
+        stored_types.append("detailed_roadmap")
+
+    try:
+        modules = db.query(ModuleContent).filter(
+            ModuleContent.project_id == project.id,
+            ModuleContent.module_type.in_(stored_types)
+        ).all()
+        for module in modules:
+            db.delete(module)
+
+        deleted_tasks = 0
+        if canonical_type == "execution_roadmap":
+            deleted_tasks = db.query(RoadmapTask).filter(
+                RoadmapTask.project_id == project.id
+            ).delete(synchronize_session=False)
+
+        if modules or deleted_tasks:
+            # Child-row deletion is not an ORM update to Project, so its
+            # onupdate hook will not run unless we explicitly touch the row.
+            project.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete {canonical_type.replace('_', ' ')}"
+        )
+
+    return {
+        "message": f"{canonical_type.replace('_', ' ').title()} deleted successfully",
+        "module_type": canonical_type,
+        "deleted_records": len(modules),
+        "deleted_tasks": deleted_tasks
+    }
+
 @router.post("/{module_type}/generate", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def generate_module(
     module_type: str,
@@ -350,6 +494,7 @@ def generate_module(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
+    module_type = normalize_module_type(module_type)
     # Enforce input readiness validation before invoking AI service
     is_ready, missing_fields, error_msgs = ReadinessValidationService.validate_project_readiness(project, module_type)
     if not is_ready:
@@ -357,7 +502,7 @@ def generate_module(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
                 "error": "READINESS_VALIDATION_FAILED",
-                "message": "Project details are insufficient or invalid for AI blueprint synthesis.",
+                "message": "Project details are insufficient or invalid for blueprint generation.",
                 "missing_fields": missing_fields,
                 "reasons": error_msgs,
                 "action_required": "Please update your project parameters in the Overview module before generating."
@@ -365,7 +510,7 @@ def generate_module(
         )
 
     proj_info = _get_project_dict(project)
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
     cross_ctx = _gather_cross_module_context(db, project.id)
     t0 = time.time()
 
@@ -385,7 +530,7 @@ def generate_module(
 
         # Stage 2: Tailored module synthesis
         if module_type == "bmc":
-            generated = ai_service.generate_bmc(proj_info, brief)
+            generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx)
             data_dict = generated.model_dump()
         elif module_type == "tech_stack":
             generated = ai_service.generate_tech_stack(proj_info, brief, cross_module_context=cross_ctx)
@@ -471,8 +616,9 @@ def generate_module(
         raise
     except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
-        err_msg = str(e)
-        err_cat = "timeout" if "timeout" in err_msg.lower() else ("parse_error" if "json" in err_msg.lower() or "validation" in err_msg.lower() else "api_error")
+        terminal_provider_error = ai_service._terminal_provider_error_message(e)
+        err_msg = terminal_provider_error or str(e)
+        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in err_msg.lower() else ("parse_error" if "json" in err_msg.lower() or "validation" in err_msg.lower() else "api_error"))
         record_ai_operation(
             db,
             user_id=project.user_id,
@@ -486,11 +632,11 @@ def generate_module(
             error_message=err_msg,
             structured_validation_passed=False,
             persistence_status="failed",
-            is_retryable=True
+            is_retryable=terminal_provider_error is None
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Generation failed: {str(e)}"
+            detail=f"Generation failed: {err_msg}"
         )
 
 @router.post("/{module_type}/accept-update", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -509,6 +655,7 @@ def modify_module_with_ai(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
+    module_type = normalize_module_type(module_type)
     """
     Section-specific AI modification chat.
     Validates that modification is allowed on this module.
@@ -520,7 +667,7 @@ def modify_module_with_ai(
             detail=f"Section-specific AI modification chat is disabled for {module_type.replace('_', ' ').title()} as per system rules."
         )
 
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
     if not module.active_version_id:
         raise HTTPException(
             status_code=400,
@@ -617,8 +764,9 @@ def modify_module_with_ai(
         raise
     except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
-        err_msg = str(e)
-        err_cat = "timeout" if "timeout" in err_msg.lower() else "api_error"
+        terminal_provider_error = ai_service._terminal_provider_error_message(e)
+        err_msg = terminal_provider_error or str(e)
+        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in err_msg.lower() else "api_error")
         record_ai_operation(
             db,
             user_id=project.user_id,
@@ -632,11 +780,11 @@ def modify_module_with_ai(
             error_message=err_msg,
             structured_validation_passed=False,
             persistence_status="failed",
-            is_retryable=True
+            is_retryable=terminal_provider_error is None
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI modification failed: {str(e)}"
+            detail=f"Module update failed: {err_msg}"
         )
 
 @router.post("/{module_type}/resolve-conflict", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -646,8 +794,9 @@ def resolve_version_conflict(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
+    module_type = normalize_module_type(module_type)
     """User-confirmed replacement of an existing version when the 5-version limit is reached."""
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
 
     target_ver = db.query(ModuleVersion).filter(
         ModuleVersion.id == req.replace_version_id,
@@ -691,6 +840,8 @@ def resolve_version_conflict(
             )
         except Exception as e:
             dur_ms = int((time.time() - t0) * 1000)
+            terminal_provider_error = ai_service._terminal_provider_error_message(e)
+            err_msg = terminal_provider_error or str(e)
             record_ai_operation(
                 db,
                 user_id=project.user_id,
@@ -700,15 +851,15 @@ def resolve_version_conflict(
                 model_name=settings.GEMINI_MODEL,
                 duration_ms=dur_ms,
                 status="failed",
-                error_category="validation_error" if "validation" in str(e).lower() else "api_error",
-                error_message=str(e),
+                error_category="provider_error" if terminal_provider_error else ("validation_error" if "validation" in err_msg.lower() else "api_error"),
+                error_message=err_msg,
                 structured_validation_passed=False,
                 persistence_status="failed",
-                is_retryable=True
+                is_retryable=terminal_provider_error is None
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"AI modification during conflict resolution failed: {str(e)}"
+            detail=f"Module update during conflict resolution failed: {err_msg}"
             )
 
     if not new_data:
@@ -760,7 +911,8 @@ def rename_version(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module_type = normalize_module_type(module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
     renamed = VersionService.rename_version(db, module, version_id, req.version_name)
     return {"message": "Version renamed successfully", "version_name": renamed.version_name}
 
@@ -771,8 +923,17 @@ def delete_version(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module_type = normalize_module_type(module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
     VersionService.delete_version(db, module, version_id)
+    if module_type == "execution_roadmap":
+        active_version = db.query(ModuleVersion).filter(
+            ModuleVersion.id == module.active_version_id,
+            ModuleVersion.module_content_id == module.id
+        ).first()
+        tasks_data = active_version.data.get("tasks", []) if active_version and isinstance(active_version.data, dict) else []
+        _reconcile_roadmap_tasks(db, project, tasks_data)
+        db.commit()
     return {"message": "Version successfully deleted"}
 
 @router.post("/{module_type}/versions/{version_id}/restore", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -782,7 +943,8 @@ def restore_version(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module_type = normalize_module_type(module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
     new_ver = VersionService.restore_version(db, module, version_id, commit=False)
 
     if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_ver.data, dict):
@@ -809,8 +971,9 @@ def export_module_pdf_alias(
     db: Session = Depends(get_db)
 ):
     """Exports a dedicated PDF for a single specified module."""
+    module_type = normalize_module_type(module_type)
     proj_dict = _get_project_dict(project)
-    module = VersionService.get_or_create_module(db, project.id, module_type)
+    module = _get_or_create_canonical_module(db, project.id, module_type)
 
     if not module or not module.active_version_id:
         # If overview or default, generate fallback data

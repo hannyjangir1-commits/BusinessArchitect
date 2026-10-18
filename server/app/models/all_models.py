@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint
+    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint, text, false
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -110,50 +110,15 @@ class RoadmapTask(Base):
     dependencies = Column(JSON, default=list, nullable=False)       # List of task_codes ["TSK-01"]
     deliverables = Column(Text, nullable=True)
     effort = Column(String(64), nullable=True)
+    assigned_to = Column(String(128), default="Unassigned", server_default="Unassigned", nullable=False)
+    assigned_role = Column(String(128), nullable=True)
+    department = Column(String(128), nullable=True)
+    steps = Column(JSON, default=list, server_default=text("'[]'"), nullable=False)
+    is_overloaded = Column(Boolean, default=False, server_default=false(), nullable=False)
     order_index = Column(Integer, default=0, nullable=False)
     is_ai_generated = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
-
-    @property
-    def assigned_to(self) -> str:
-        return getattr(self, "_assigned_to", "Unassigned") or "Unassigned"
-
-    @assigned_to.setter
-    def assigned_to(self, val: str):
-        self._assigned_to = val
-
-    @property
-    def assigned_role(self) -> Optional[str]:
-        return getattr(self, "_assigned_role", None)
-
-    @assigned_role.setter
-    def assigned_role(self, val: Optional[str]):
-        self._assigned_role = val
-
-    @property
-    def department(self) -> Optional[str]:
-        return getattr(self, "_department", None)
-
-    @department.setter
-    def department(self, val: Optional[str]):
-        self._department = val
-
-    @property
-    def steps(self) -> List[str]:
-        return getattr(self, "_steps", []) or []
-
-    @steps.setter
-    def steps(self, val: List[str]):
-        self._steps = val
-
-    @property
-    def is_overloaded(self) -> bool:
-        return getattr(self, "_is_overloaded", False) or False
-
-    @is_overloaded.setter
-    def is_overloaded(self, val: bool):
-        self._is_overloaded = val
 
     project = relationship("Project", back_populates="tasks")
 

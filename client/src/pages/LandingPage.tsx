@@ -65,18 +65,18 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0b0f19', color: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-workspace)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navbar */}
       <header style={{
         height: 72,
-        borderBottom: '1px solid #1e293b',
+        borderBottom: '1px solid var(--border-color)',
         padding: '0 36px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         position: 'sticky',
         top: 0,
-        backgroundColor: 'rgba(11, 15, 25, 0.92)',
+        backgroundColor: 'rgba(255, 254, 250, 0.96)',
         backdropFilter: 'blur(8px)',
         zIndex: 50
       }}>
@@ -85,17 +85,17 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, #6d855f, #a68757)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+            boxShadow: '0 4px 12px rgba(109, 133, 95, 0.3)'
           }}>
-            <Layers size={22} color="#fff" />
+            <Layers size={22} color="var(--text-main)" />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2, color: '#ffffff' }}>Business Architect</div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#818cf8', letterSpacing: 0.8 }}>ENTERPRISE BLUEPRINT</div>
+            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2, color: 'var(--text-main)' }}>Venture Atlas</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#82936d', letterSpacing: 0.8 }}>ENTERPRISE BLUEPRINT</div>
           </div>
         </div>
 
@@ -103,25 +103,25 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
         <nav style={{ display: 'flex', alignItems: 'center', gap: 28 }} className="landing-desktop-nav">
           <button
             onClick={() => scrollToSection('features')}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', transition: 'color 0.15s ease' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', transition: 'color 0.15s ease' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-main)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
           >
             Workspace Modules
           </button>
           <button
             onClick={() => scrollToSection('workflow')}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', transition: 'color 0.15s ease' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', transition: 'color 0.15s ease' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-main)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
           >
             Planning Workflow
           </button>
           <button
             onClick={() => scrollToSection('architecture')}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', transition: 'color 0.15s ease' }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', transition: 'color 0.15s ease' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-main)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
           >
             Enterprise Architecture
           </button>
@@ -133,8 +133,8 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             onClick={() => { setIsLoginTab(true); setErrorMsg(null); setAuthModalOpen(true); }}
             style={{
               background: 'transparent',
-              border: '1px solid #334155',
-              color: '#cbd5e1',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-muted)',
               padding: '8px 16px',
               borderRadius: 8,
               fontSize: 13,
@@ -142,8 +142,8 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#ffffff'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#cbd5e1'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6d855f'; e.currentTarget.style.color = 'var(--text-main)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--text-main)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
           >
             Sign In
           </button>
@@ -165,12 +165,12 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           gap: 8,
           padding: '6px 16px',
           borderRadius: 9999,
-          background: 'rgba(99, 102, 241, 0.12)',
-          color: '#818cf8',
+          background: 'rgba(109, 133, 95, 0.12)',
+          color: '#82936d',
           fontSize: 12,
           fontWeight: 700,
           marginBottom: 26,
-          border: '1px solid rgba(99, 102, 241, 0.25)',
+          border: '1px solid rgba(109, 133, 95, 0.25)',
           letterSpacing: 0.3
         }}>
           <ShieldCheck size={14} /> Structured Venture Architecture & Planning Workspace
@@ -182,11 +182,11 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           lineHeight: 1.14,
           letterSpacing: -1,
           marginBottom: 22,
-          color: '#ffffff'
+          color: 'var(--text-main)'
         }}>
           Turn your business idea into an{' '}
           <span style={{
-            background: 'linear-gradient(90deg, #818cf8 0%, #c084fc 100%)',
+            background: 'linear-gradient(90deg, #82936d 0%, #b99b68 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
@@ -196,7 +196,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
         <p style={{
           fontSize: 'clamp(15px, 2vw, 18px)',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           lineHeight: 1.6,
           maxWidth: 760,
           margin: '0 auto 38px auto'
@@ -208,16 +208,16 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           <button
             onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
             className="btn-primary"
-            style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgba(99, 102, 241, 0.4)' }}
+            style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgba(109, 133, 95, 0.4)' }}
           >
             Create Your Blueprint <ArrowRight size={17} />
           </button>
           <button
             onClick={() => scrollToSection('features')}
             style={{
-              background: '#151c2e',
-              color: '#f8fafc',
-              border: '1px solid #222f47',
+              background: 'var(--bg-card)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border-color)',
               padding: '13px 24px',
               borderRadius: 10,
               fontSize: 14,
@@ -225,8 +225,8 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6366f1'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#222f47'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6d855f'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
           >
             Explore the Workspace
           </button>
@@ -236,28 +236,28 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
       {/* Interactive Workspace Preview Showcase */}
       <section id="architecture" style={{ padding: '0 32px 70px 32px', maxWidth: 1160, margin: '0 auto', width: '100%' }}>
         <div style={{
-          background: '#151c2e',
-          border: '1px solid #222f47',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
           borderRadius: 16,
           padding: 24,
-          boxShadow: '0 20px 40px -15px rgba(0,0,0,0.5)',
+          boxShadow: '0 12px 30px -18px rgba(70, 78, 63, 0.18)',
           overflow: 'hidden'
         }}>
           {/* Mock Workspace Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', paddingBottom: 16, marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 16, marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', marginLeft: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginLeft: 8 }}>
                 Venture Workspace — CloudScale Platform (Growth Stage)
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: '#1e293b', color: '#94a3b8' }}>
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
                 9 Core Modules
               </span>
-              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 600 }}>
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: 'rgba(109, 133, 95, 0.2)', color: '#82936d', fontWeight: 600 }}>
                 Active Version: V2
               </span>
             </div>
@@ -266,52 +266,52 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           {/* Mock Multi-Module Dashboard Preview */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
             {/* Box 1: BMC */}
-            <div style={{ background: '#0d121f', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
+            <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Compass size={17} color="#6366f1" />
-                <h4 style={{ fontSize: 13.5, fontWeight: 700, color: '#f8fafc', margin: 0 }}>Business Model Canvas</h4>
+                <Compass size={17} color="#6d855f" />
+                <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Business Model Canvas</h4>
               </div>
-              <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
                 Alexander Osterwalder's 9-block grid with value proposition, channels, revenue streams, and cost drivers.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
-                <div style={{ background: '#151c2e', padding: '6px 8px', borderRadius: 6, color: '#cbd5e1' }}>Value: B2B API Suite</div>
-                <div style={{ background: '#151c2e', padding: '6px 8px', borderRadius: 6, color: '#cbd5e1' }}>Revenue: Usage Tiers</div>
+                <div style={{ background: 'var(--bg-card)', padding: '6px 8px', borderRadius: 6, color: 'var(--text-muted)' }}>Value: B2B API Suite</div>
+                <div style={{ background: 'var(--bg-card)', padding: '6px 8px', borderRadius: 6, color: 'var(--text-muted)' }}>Revenue: Usage Tiers</div>
               </div>
             </div>
 
             {/* Box 2: Tech Stack */}
-            <div style={{ background: '#0d121f', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
+            <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Cpu size={17} color="#3b82f6" />
-                <h4 style={{ fontSize: 13.5, fontWeight: 700, color: '#f8fafc', margin: 0 }}>Technology Architecture</h4>
+                <Cpu size={17} color="#7a916a" />
+                <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Technology Architecture</h4>
               </div>
-              <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
                 Multi-tier architecture recommendations evaluating scalability, database suitability, and migration risk.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
-                <div style={{ background: '#151c2e', padding: '6px 8px', borderRadius: 6, color: '#cbd5e1' }}>API: FastAPI Async</div>
-                <div style={{ background: '#151c2e', padding: '6px 8px', borderRadius: 6, color: '#cbd5e1' }}>DB: PostgreSQL + Redis</div>
+                <div style={{ background: 'var(--bg-card)', padding: '6px 8px', borderRadius: 6, color: 'var(--text-muted)' }}>API: FastAPI Async</div>
+                <div style={{ background: 'var(--bg-card)', padding: '6px 8px', borderRadius: 6, color: 'var(--text-muted)' }}>DB: PostgreSQL + Redis</div>
               </div>
             </div>
 
             {/* Box 3: Gantt Timeline */}
-            <div style={{ background: '#0d121f', border: '1px solid #1e293b', borderRadius: 12, padding: 18 }}>
+            <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Calendar size={17} color="#10b981" />
-                <h4 style={{ fontSize: 13.5, fontWeight: 700, color: '#f8fafc', margin: 0 }}>Execution Roadmap</h4>
+                <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Execution Roadmap</h4>
               </div>
-              <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
                 5-phase chronological Gantt view with milestone tracking, task dependencies, and sprint deliverables.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                   <span>Phase 1: Architecture Review</span>
                   <span style={{ color: '#10b981', fontWeight: 600 }}>100%</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                   <span>Phase 2: Core Platform Services</span>
-                  <span style={{ color: '#3b82f6', fontWeight: 600 }}>65%</span>
+                  <span style={{ color: '#7a916a', fontWeight: 600 }}>65%</span>
                 </div>
               </div>
             </div>
@@ -322,110 +322,110 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
       {/* Feature Sections: 9 Coherent Workspace Capabilities */}
       <section id="features" style={{ padding: '60px 32px 80px 32px', maxWidth: 1160, margin: '0 auto', width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <h2 style={{ fontSize: 28, fontWeight: 800, color: '#ffffff', letterSpacing: -0.5, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-main)', letterSpacing: -0.5, marginBottom: 12 }}>
             Complete Venture Architecture Workspace
           </h2>
-          <p style={{ fontSize: 15, color: '#94a3b8', maxWidth: 640, margin: '0 auto' }}>
+          <p style={{ fontSize: 15, color: 'var(--text-muted)', maxWidth: 640, margin: '0 auto' }}>
             Nine dedicated planning modules designed to take your venture from initial hypothesis to synchronized operational execution.
           </p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {/* Card 1 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(109, 133, 95, 0.15)', color: '#82936d', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Compass size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>1. Business Model Canvas</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>1. Business Model Canvas</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Alexander Osterwalder's canonical 9-block grid with radial vector diagram, structured block editing, and high-resolution SVG export.
             </p>
           </div>
 
           {/* Card 2 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(129, 149, 117, 0.18)', color: '#687f5d', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Cpu size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>2. Technology Architecture</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>2. Technology Architecture</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Stage-aware system patterns across frontend, backend, database, and cloud infrastructure, evaluating scalability and trade-offs.
             </p>
           </div>
 
           {/* Card 3 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
             <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <CheckCircle2 size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>3. Idea Validator</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>3. Idea Validator</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Empirical hypothesis evaluation scoring customer demand, differentiation moat, defensibility, and strategic risk mitigation.
             </p>
           </div>
 
           {/* Card 4 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
             <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <TrendingUp size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>4. Market Research</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>4. Market Research</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Competitive landscape mapping, target customer ICP personas, industry market dynamics, and defensible wedge strategies.
             </p>
           </div>
 
           {/* Card 5 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
             <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Calendar size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>5. Execution Roadmap</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>5. Execution Roadmap</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Interactive Gantt timeline with five delivery phases, critical path dependency tracking, and milestone completion progress.
             </p>
           </div>
 
           {/* Card 6 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(183, 155, 117, 0.2)', color: '#a68757', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <ListTodo size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>6. Detailed Task Management</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>6. Detailed Task Management</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Granular sprint task breakdowns with priority badges, delivery timelines, effort estimation, and status lifecycle tracking.
             </p>
           </div>
 
           {/* Card 7 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(183, 155, 117, 0.18)', color: '#718765', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Layers size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>7. Version History</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
-              Immutable snapshot versioning with rollback safety, diff comparison, and structured revision management across every section.
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>7. Version History</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+              Immutable snapshot versioning with rollback safety and structured revision management across every section.
             </p>
           </div>
 
           {/* Card 8 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(236, 72, 153, 0.15)', color: '#f472b6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(190, 140, 121, 0.2)', color: '#9a6654', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Bot size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>8. Blueprint Assistant</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
-              Context-aware planning assistant to refine strategic parameters, add milestones, or evaluate technical trade-offs on the fly.
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>8. Planning Copilot</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+              Planning Copilot guidance to refine strategic parameters, add milestones, or evaluate technical trade-offs.
             </p>
           </div>
 
           {/* Card 9 */}
-          <div style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(20, 184, 166, 0.15)', color: '#2dd4bf', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(129, 149, 117, 0.2)', color: '#5d7550', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <FileSpreadsheet size={22} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#ffffff' }}>9. Project Export</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: 0 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>9. Project Export</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
               Publication-ready executive PDF dossiers and vector SVG diagrams formatted for stakeholder presentations and investor review.
             </p>
           </div>
@@ -433,12 +433,12 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
       </section>
 
       {/* Workflow Section */}
-      <section id="workflow" style={{ padding: '60px 32px 80px 32px', maxWidth: 1040, margin: '0 auto', width: '100%', borderTop: '1px solid #1e293b' }}>
+      <section id="workflow" style={{ padding: '60px 32px 80px 32px', maxWidth: 1040, margin: '0 auto', width: '100%', borderTop: '1px solid var(--border-color)' }}>
         <div style={{ textAlign: 'center', marginBottom: 44 }}>
-          <h2 style={{ fontSize: 28, fontWeight: 800, color: '#ffffff', letterSpacing: -0.5, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-main)', letterSpacing: -0.5, marginBottom: 12 }}>
             A Structured Planning Workflow
           </h2>
-          <p style={{ fontSize: 15, color: '#94a3b8', maxWidth: 580, margin: '0 auto' }}>
+          <p style={{ fontSize: 15, color: 'var(--text-muted)', maxWidth: 580, margin: '0 auto' }}>
             Follow a proven path from concept articulation to synchronized engineering execution.
           </p>
         </div>
@@ -451,10 +451,10 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             { step: '04', title: 'Organize Execution', desc: 'Decompose phases into tasks, establish dependencies, and assign priorities.' },
             { step: '05', title: 'Track & Export', desc: 'Save immutable snapshots, manage versions, and export executive PDF reports.' }
           ].map((item) => (
-            <div key={item.step} style={{ background: '#151c2e', border: '1px solid #1e293b', borderRadius: 12, padding: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#818cf8', marginBottom: 8 }}>STEP {item.step}</div>
-              <h4 style={{ fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 6 }}>{item.title}</h4>
-              <p style={{ fontSize: 12.5, color: '#94a3b8', lineHeight: 1.5, margin: 0 }}>{item.desc}</p>
+            <div key={item.step} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#82936d', marginBottom: 8 }}>STEP {item.step}</div>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>{item.title}</h4>
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{item.desc}</p>
             </div>
           ))}
         </div>
@@ -463,7 +463,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
       {/* Footer */}
       <footer style={{
         marginTop: 'auto',
-        borderTop: '1px solid #1e293b',
+        borderTop: '1px solid var(--border-color)',
         padding: '36px 40px',
         display: 'flex',
         alignItems: 'center',
@@ -471,15 +471,15 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
         flexWrap: 'wrap',
         gap: 16,
         fontSize: 13,
-        color: '#64748b'
+        color: 'var(--text-muted)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Layers size={18} color="#6366f1" />
-          <span style={{ color: '#94a3b8', fontWeight: 600 }}>Business Architect</span>
+          <Layers size={18} color="#6d855f" />
+          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Venture Atlas</span>
           <span>— Enterprise Blueprint Workspace</span>
         </div>
         <div>
-          <span>© 2026 Business Architect. All rights reserved.</span>
+          <span>© 2026 Venture Atlas. All rights reserved.</span>
         </div>
       </footer>
 
@@ -499,11 +499,11 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
                   width: 32,
                   height: 32,
                   borderRadius: 8,
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, #6d855f, #a68757)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#ffffff'
+                  color: 'var(--text-main)'
                 }}>
                   <Layers size={18} />
                 </div>

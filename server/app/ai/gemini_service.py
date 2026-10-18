@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.schemas.modules import (
     GenerationBrief, BMCData, TechStackData, TechItem,
     IdeaValidatorData, ValidationRisk, ValidationExperiment,
-    MarketResearchData, CompetitorProfile,
+    MarketResearchData, CompetitorProfile, ResearchSource,
     ExecutionRoadmapData, RoadmapPhase, RoadmapTaskItem, RoadmapFeasibilityEvaluation
 )
 from app.services.system_setting_service import get_setting_int
@@ -60,7 +60,9 @@ class GeminiAIService:
                 attempts=total_attempts,
                 initial_delay=1.0,
                 max_delay=5.0,
-                http_status_codes=[503, 429, 500]
+                # A quota/rate-limit response is terminal for this request. Retrying it
+                # for every candidate model multiplies provider calls without helping.
+                http_status_codes=[503, 500]
             )
         )
         return genai.Client(api_key=self.api_key, http_options=http_options)
@@ -74,6 +76,28 @@ class GeminiAIService:
             if m not in candidates:
                 candidates.append(m)
         return candidates
+
+    @staticmethod
+    def _terminal_provider_error_message(error: Exception) -> Optional[str]:
+        """Return a safe, actionable message for provider errors that retries cannot fix."""
+        code = getattr(error, "code", None) or getattr(error, "status_code", None)
+        try:
+            code = int(code)
+        except (TypeError, ValueError):
+            code = None
+
+        error_text = str(error).lower()
+        if code == 429 or any(marker in error_text for marker in ("resource_exhausted", "quota", "rate limit", "http 429")):
+            return (
+                "The configured generation provider is rate-limited or its quota is exhausted. "
+                "Check the provider account's usage and billing limits, then retry after the limit resets."
+            )
+        if code in (401, 403) or any(marker in error_text for marker in ("unauthorized", "permission denied", "api key not valid", "http 401", "http 403")):
+            return (
+                "The configured generation provider rejected its credentials or access. "
+                "Verify the server-side key and model permissions, then retry."
+            )
+        return None
 
     def _execute_json_prompt(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         """Execute a structured generation prompt across model candidates with JSON response validation."""
@@ -116,9 +140,77 @@ class GeminiAIService:
                 return json.loads(raw_text)
             except Exception as e:
                 logger.warning(f"Gemini call with model {model_name} failed: {e}")
+                terminal_message = self._terminal_provider_error_message(e)
+                if terminal_message:
+                    raise RuntimeError(terminal_message) from e
                 last_error = e
 
         raise RuntimeError(f"All Gemini generation attempts failed. Last error: {last_error}")
+
+    def _execute_grounded_json_prompt(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        output_model: Any
+    ) -> Tuple[Dict[str, Any], List[ResearchSource]]:
+        """Generate schema-validated JSON with Google Search grounding and extracted citations."""
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY is not configured")
+
+        client = self._get_client()
+        last_error = None
+        response_format = {
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": output_model.model_json_schema()
+        }
+
+        for model_name in self._get_candidate_models():
+            try:
+                interaction = client.interactions.create(
+                    model=model_name,
+                    input=user_prompt,
+                    system_instruction=system_prompt,
+                    tools=[{"type": "google_search"}],
+                    response_format=response_format,
+                    store=False
+                )
+                raw_text = (getattr(interaction, "output_text", None) or "").strip()
+                if not raw_text:
+                    raise ValueError(f"Empty grounded response returned from model {model_name}")
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                elif raw_text.startswith("```"):
+                    raw_text = raw_text[3:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                parsed = json.loads(raw_text.strip())
+
+                sources: Dict[str, ResearchSource] = {}
+                for step in getattr(interaction, "steps", None) or []:
+                    if getattr(step, "type", None) != "model_output":
+                        continue
+                    for content in getattr(step, "content", None) or []:
+                        for annotation in getattr(content, "annotations", None) or []:
+                            url = getattr(annotation, "url", None)
+                            if getattr(annotation, "type", None) != "url_citation" or not url:
+                                continue
+                            if not url.startswith(("https://", "http://")):
+                                continue
+                            sources[url] = ResearchSource(
+                                title=getattr(annotation, "title", None) or url,
+                                url=url
+                            )
+
+                return parsed, list(sources.values())
+            except Exception as e:
+                logger.warning("Grounded Gemini call with model %s failed: %s", model_name, e)
+                terminal_message = self._terminal_provider_error_message(e)
+                if terminal_message:
+                    raise RuntimeError(terminal_message) from e
+                last_error = e
+
+        raise RuntimeError(f"All grounded Gemini generation attempts failed. Last error: {last_error}")
 
     # =========================================================================
     # STAGE 1: Server-Side Generation Brief
@@ -200,6 +292,9 @@ Planning Inputs: {json.dumps(planning_inputs or {}, default=str)}
                     brief.stage_considerations = f"[{stage} stage] " + brief.stage_considerations
                 return brief
             except Exception as e:
+                terminal_message = self._terminal_provider_error_message(e)
+                if terminal_message:
+                    raise RuntimeError(terminal_message) from e
                 logger.warning("LLM brief synthesis failed, utilizing deterministic domain brief: %s", e)
 
         # Deterministic domain brief fallback
@@ -221,8 +316,13 @@ Planning Inputs: {json.dumps(planning_inputs or {}, default=str)}
     # =========================================================================
     # STAGE 2: Module Syntheses
     # =========================================================================
-    def generate_bmc(self, project_info: Dict[str, Any], brief: Optional[GenerationBrief] = None) -> BMCData:
-        brief = brief or self.build_generation_brief(project_info, "bmc")
+    def generate_bmc(
+        self,
+        project_info: Dict[str, Any],
+        brief: Optional[GenerationBrief] = None,
+        cross_module_context: Optional[Dict[str, Any]] = None
+    ) -> BMCData:
+        brief = brief or self.build_generation_brief(project_info, "bmc", cross_module_context)
         if self.api_key:
             user_prompt = f"""Generate a 9-block Business Model Canvas guided by this Generation Brief:
 Brief Summary: {brief.venture_summary}
@@ -238,6 +338,8 @@ Description: {project_info.get('description')}
 Target Customers: {project_info.get('target_customers')}
 Goals: {project_info.get('goals')}
 Budget: {project_info.get('budget')}
+Read-only context from other generated modules (use for consistency; do not modify those saved modules):
+{json.dumps(cross_module_context or {}, ensure_ascii=False, default=str)}
 """
             raw_json = self._execute_json_prompt(BMC_SYSTEM_PROMPT, user_prompt)
             return BMCData(**raw_json)
@@ -292,8 +394,19 @@ Industry: {project_info.get('industry')}
 Description: {project_info.get('description')}
 Target Customers: {project_info.get('target_customers')}
 Budget: {project_info.get('budget')}
+Read-only context from other generated modules (use supplied facts and mark gaps; do not modify those saved modules):
+{json.dumps(cross_module_context or {}, ensure_ascii=False, default=str)}
 """
-            raw_json = self._execute_json_prompt(IDEA_VALIDATOR_SYSTEM_PROMPT, user_prompt)
+            raw_json, source_references = self._execute_grounded_json_prompt(
+                IDEA_VALIDATOR_SYSTEM_PROMPT, user_prompt, IdeaValidatorData
+            )
+            raw_json["source_references"] = [source.model_dump() for source in source_references]
+            raw_json["evidence_note"] = (
+                "Market claims were grounded in Google Search sources listed below. "
+                "Treat projections and user-supplied information as assumptions."
+                if source_references else
+                "No source citations were returned. This is a preliminary hypothesis score, not independently verified market evidence."
+            )
             return IdeaValidatorData(**raw_json)
 
         return self._fallback_idea_validator(project_info, brief)
@@ -316,8 +429,35 @@ Industry: {project_info.get('industry')}
 Description: {project_info.get('description')}
 Target Customers: {project_info.get('target_customers')}
 Budget: {project_info.get('budget')}
+Read-only context from other generated modules (use for consistency; do not modify those saved modules):
+{json.dumps(cross_module_context or {}, ensure_ascii=False, default=str)}
 """
-            raw_json = self._execute_json_prompt(MARKET_RESEARCH_SYSTEM_PROMPT, user_prompt)
+            raw_json, source_references = self._execute_grounded_json_prompt(
+                MARKET_RESEARCH_SYSTEM_PROMPT, user_prompt, MarketResearchData
+            )
+            grounded_urls = {source.url for source in source_references}
+            raw_json["source_references"] = [source.model_dump() for source in source_references]
+            for competitor in raw_json.get("competitor_profiles", []):
+                # Do not retain source names or URLs invented by the model.
+                competitor["sources"] = [
+                    source for source in competitor.get("sources", [])
+                    if source in grounded_urls
+                ]
+            if not source_references:
+                # Without returned grounding citations, model-written market
+                # figures and named competitors cannot be presented as research.
+                raw_json["competitor_profiles"] = []
+                raw_json["target_market_size"] = (
+                    "Not verified from available sources. Define a geography and customer segment, "
+                    "then calculate TAM/SAM/SOM from current cited sources."
+                )
+                raw_json["provenance_note"] = (
+                    "Google Search did not return source citations for this result. "
+                    "Market size, competitor, market share, pricing, and growth claims were removed because they could not be verified."
+                )
+                raw_json.setdefault("research_gaps", []).append(
+                    "No source citations were returned; verify market size, competitor claims, and pricing with primary sources."
+                )
             return MarketResearchData(**raw_json)
 
         return self._fallback_market_research(project_info, brief)
@@ -479,7 +619,13 @@ Budget: {project_info.get('budget')}
                         return route_advice + response.text.strip()
                     except Exception as e:
                         logger.warning(f"Copilot model {model_name} failed: {e}")
+                        terminal_message = self._terminal_provider_error_message(e)
+                        if terminal_message:
+                            raise RuntimeError(terminal_message) from e
             except Exception as e:
+                terminal_message = self._terminal_provider_error_message(e)
+                if terminal_message:
+                    raise RuntimeError(terminal_message) from e
                 logger.warning("LLM Copilot failed, utilizing context-aware fallback advisor: %s", e)
 
         # High-Fidelity Domain Fallback Advisor
@@ -521,7 +667,13 @@ Budget: {project_info.get('budget')}
     def _fallback_bmc(self, project_info: Dict[str, Any], brief: GenerationBrief) -> BMCData:
         name = project_info.get("name") or "Enterprise Venture"
         desc = (project_info.get("description") or "").lower()
-        is_pcb = "pcb" in desc or "electronics" in desc or "hardware" in desc
+        context_text = " ".join((
+            str(project_info.get("name") or ""),
+            str(project_info.get("industry") or ""),
+            str(project_info.get("target_customers") or ""),
+            str(project_info.get("description") or "")
+        )).lower()
+        is_pcb = any(token in context_text for token in ("pcb", "electronics", "hardware", "circuit", "eda", "cad"))
         is_non_tech = brief.technical_depth == "non_technical_business"
 
         if is_pcb:
@@ -612,7 +764,13 @@ Budget: {project_info.get('budget')}
     def _fallback_tech_stack(self, project_info: Dict[str, Any], brief: GenerationBrief) -> TechStackData:
         name = project_info.get("name") or "Project"
         desc = (project_info.get("description") or "").lower()
-        is_pcb = "pcb" in desc or "electronics" in desc or "hardware" in desc
+        context_text = " ".join((
+            str(project_info.get("name") or ""),
+            str(project_info.get("industry") or ""),
+            str(project_info.get("target_customers") or ""),
+            str(project_info.get("description") or "")
+        )).lower()
+        is_pcb = any(token in context_text for token in ("pcb", "electronics", "hardware", "circuit", "eda", "cad"))
         is_non_tech = brief.technical_depth == "non_technical_business"
         existing = project_info.get("existing_stack") or {}
 
@@ -830,10 +988,23 @@ Budget: {project_info.get('budget')}
                 )
             ]
 
+        existing_components = []
+        for category, entries in existing.items():
+            values = entries if isinstance(entries, list) else [entries]
+            for entry in values:
+                if isinstance(entry, str) and entry.strip():
+                    existing_components.append(f"{category}: {entry.strip()}")
         existing_eval = {
-            "compatible_elements": [t for t in existing.keys()] if existing else ["Standard modern web protocols"],
-            "incompatible_or_redundant": ["Legacy unmaintained dependencies"] if existing else [],
-            "migration_trade_offs": "Gradual phase-in recommended to avoid disrupting active customer workflows."
+            "evaluation_status": "not_verified_offline" if existing_components else "no_existing_stack",
+            "existing_components": existing_components,
+            "compatible_elements": [],
+            "incompatible_or_redundant": [],
+            "migration_trade_offs": (
+                "The existing stack was captured, but offline mode cannot verify compatibility, support status, or migration risk. "
+                "Preserve these components until a grounded compatibility review is available."
+                if existing_components else
+                "No existing stack was supplied for compatibility review."
+            )
         }
 
         return TechStackData(
@@ -841,74 +1012,131 @@ Budget: {project_info.get('budget')}
             architecture_pattern=pattern,
             recommendations=recommendations,
             existing_stack_evaluation=existing_eval,
-            assumptions=brief.key_assumptions or ["Deployment environment supports standard container runtimes."]
+            assumptions=(brief.key_assumptions or []) + [
+                "Offline starter recommendations are a provisional outline; verify workload, budget, security, and compatibility before adoption."
+            ]
         )
 
     def _fallback_idea_validator(self, project_info: Dict[str, Any], brief: GenerationBrief) -> IdeaValidatorData:
         name = project_info.get("name") or "Venture"
         stage = project_info.get("stage") or "Idea"
-        budget = project_info.get("budget") or "Standard lean"
-        desc = (project_info.get("description") or "").lower()
-        is_pcb = "pcb" in desc or "electronics" in desc or "hardware" in desc
+        description = (project_info.get("description") or "").strip()
+        target_customers = (project_info.get("target_customers") or "").strip()
+        industry = (project_info.get("industry") or "").strip()
+        budget = (project_info.get("budget") or "").strip()
+        context_text = " ".join((name, description, target_customers, industry)).lower()
+        is_pcb = any(token in context_text for token in ("pcb", "electronics", "hardware", "circuit", "eda"))
         is_non_tech = brief.technical_depth == "non_technical_business"
+        scope_tokens = ("enterprise", "hardware", "rocket", "semiconductor", "medical device", "global platform")
+        large_scope = any(token in context_text for token in scope_tokens)
+        limited_budget = any(token in budget.lower() for token in ("bootstrapped", "minimal", "under $", "$0", "$500", "$1,000", "$1000"))
 
-        # Explainable score calculation
-        if stage == "Idea":
-            score = 76
-            factors = {"problem_clarity": 82, "market_demand": 74, "feasibility": 78, "defensibility": 68, "budget_alignment": 80}
-        elif stage == "MVP":
-            score = 82
-            factors = {"problem_clarity": 88, "market_demand": 80, "feasibility": 84, "defensibility": 75, "budget_alignment": 85}
-        elif stage == "Post-launch":
-            score = 86
-            factors = {"problem_clarity": 90, "market_demand": 85, "feasibility": 88, "defensibility": 80, "budget_alignment": 88}
+        # This offline score measures the quality and feasibility of the supplied
+        # inputs. Market demand remains conservative because no external evidence
+        # is available; stage alone never increases the score.
+        problem_clarity = min(
+            92,
+            35 + min(len(description), 150) // 5 + (12 if target_customers else 0) + (6 if project_info.get("goals") else 0)
+        )
+        market_demand = 45
+        feasibility = 58 if description and target_customers else 42
+        if large_scope and limited_budget:
+            feasibility = max(20, feasibility - 22)
+        defensibility = 55 if description and len(description) >= 40 else 40
+        budget_alignment = 45 if not budget else (24 if large_scope and limited_budget else 55)
+        factors = {
+            "problem_clarity": problem_clarity,
+            "market_demand": market_demand,
+            "feasibility": feasibility,
+            "defensibility": defensibility,
+            "budget_alignment": budget_alignment
+        }
+        score = round(
+            problem_clarity * 0.25
+            + market_demand * 0.25
+            + feasibility * 0.20
+            + defensibility * 0.15
+            + budget_alignment * 0.15
+        )
+
+        customer_label = target_customers or "a target customer group that still needs to be defined"
+        problem = (
+            f"{stage}-stage hypothesis based on the supplied description: {description}"
+            if description else
+            f"{stage}-stage assessment is limited because no specific customer problem or product description was supplied."
+        )
+        fit = (
+            f"Target customers supplied: {target_customers}. Validate urgency, current alternatives, and willingness to pay with these buyers."
+            if target_customers else
+            "Target customer details are missing. Define a specific buyer, user, and purchase decision before treating demand as likely."
+        )
+        diff = (
+            f"No defensible advantage is verified offline. Test whether the proposed offer ({description}) is meaningfully better "
+            "than the customer's current alternative."
+            if description else
+            "No distinct advantage can be assessed until the product and customer problem are described."
+        )
+
+        if not budget:
+            budget_eval = "No budget was supplied, so scope and runway fit cannot be assessed."
+        elif large_scope and limited_budget:
+            budget_eval = (
+                f"The stated budget ({budget}) appears unlikely to support the full scope as described. "
+                "Price a narrow proof-of-value slice and defer infrastructure, staffing, and secondary features."
+            )
         else:
-            score = 90
-            factors = {"problem_clarity": 92, "market_demand": 90, "feasibility": 91, "defensibility": 87, "budget_alignment": 90}
+            budget_eval = (
+                f"The stated budget ({budget}) has not been compared with verified supplier, staffing, hosting, "
+                "regulatory, or acquisition costs. Build a bottom-up estimate before committing."
+            )
 
+        stage_guidance = {
+            "Idea": "At Idea stage, prioritize problem interviews and a low-cost proof of demand before building the full product.",
+            "MVP": "At MVP stage, measure activation and completion of the core workflow before expanding features.",
+            "Post-launch": "At Post-launch stage, use retention, reliability, and support evidence to choose the next investment.",
+            "Growth": "At Growth stage, validate channel economics, operational capacity, and reliability before scaling spend."
+        }.get(stage, f"Align the next test with the current {stage} stage.")
+
+        feasibility_text = (
+            f"{stage_guidance} Technical and operational feasibility is not independently confirmed; validate scope, "
+            "team capacity, dependencies, and regulatory needs."
+        )
+        risks = [
+            ValidationRisk(
+                risk="Market demand and willingness to pay are unverified.",
+                severity="High",
+                mitigation=f"Interview qualified {customer_label} and ask for a costly commitment such as a paid pilot, deposit, or signed trial."
+            ),
+            ValidationRisk(
+                risk="Project scope may exceed available budget or delivery capacity." if (large_scope or limited_budget) else "Delivery and operating costs have not been estimated from actual requirements.",
+                severity="High" if large_scope and limited_budget else "Medium",
+                mitigation="Estimate the smallest end-to-end workflow, include ongoing operating costs, and phase work against the available budget."
+            )
+        ]
         if is_pcb:
-            problem = "Hardware designers lose 15-25% of development time managing disconnected CAD files, manual BOM distributor lookups, and unexpected DFM rejections from fabrication houses."
-            fit = "Strong urgency among university engineering programs and agile hardware startups who cannot afford $10,000+ legacy desktop EDA licenses."
-            diff = "Native browser multi-user layout collaboration paired with instantaneous pre-fabrication DFM verification."
-            budget_eval = f"Current budget ({budget}) is adequate for cloud software MVP. Hardware testing laboratories or physical pick-and-place lines would require external capital."
-            risks = [
-                ValidationRisk(risk="Browser WebGL performance limits on massive 16-layer circuit boards", severity="High", mitigation="Implement chunked spatial LOD rendering and offload heavy layout calculations to Rust WebAssembly"),
-                ValidationRisk(risk="Resistance of conservative hardware engineers to switch from legacy desktop tools", severity="Medium", mitigation="Provide 100% lossless Altium/KiCad schematic import and export compatibility")
-            ]
-            experiments = [
-                ValidationExperiment(experiment="Run KiCad import benchmark test with 10 electronics engineering student teams", metric="Successful import rate without schematic netlist errors", target_criteria="> 90% lossless conversion across 20 test designs"),
-                ValidationExperiment(experiment="Distributor API live pricing smoke test", metric="Accuracy of component stock status vs real-time checkout", target_criteria="100% sync on top 500 active jellybean passives")
-            ]
+            risks.append(ValidationRisk(
+                risk="Representative electronics design files, rule checks, and manufacturing handoff may expose compatibility gaps.",
+                severity="High",
+                mitigation="Test imports, exports, design-rule checks, and fabrication handoff using customer-provided files and documented acceptance criteria."
+            ))
         elif is_non_tech:
-            problem = "Local consumers face inconsistent product quality and impersonal service, while corporate offices struggle with reliable catering logistics."
-            fit = "Strong foot traffic appeal in dense commercial/residential corridors with high disposable income."
-            diff = "Uncompromising local artisanal quality combined with frictionless mobile ordering and personalized customer recognition."
-            budget_eval = f"Current budget ({budget}) provides sufficient runway for store fit-out and initial inventory working capital. Careful lease negotiation is critical."
-            risks = [
-                ValidationRisk(risk="Lease cost inflation and fixed retail overhead", severity="High", mitigation="Negotiate tiered lease based on initial sales milestones with flexible renewal terms"),
-                ValidationRisk(risk="Supplier ingredient price volatility", severity="Medium", mitigation="Establish fixed-price quarterly supply contracts with multiple local farms")
-            ]
-            experiments = [
-                ValidationExperiment(experiment="Pop-up market weekend tasting and preorder booth", metric="Customer email signups and paid preorder commitment", target_criteria="> 75 preorders collected across 2 market days"),
-                ValidationExperiment(experiment="Corporate lunch sample drop to 10 local office managers", metric="Inquiry rate for recurring weekly office catering", target_criteria="At least 2 corporate catering contracts signed within 14 days")
-            ]
-        else:
-            problem = "Modern business teams waste over 8 hours weekly reconciling fragmented SaaS data across disjointed tools without actionable visibility."
-            fit = "Product managers and team leads expressing high frustration with manual spreadsheet updates and lost communication context."
-            diff = "Lightweight, zero-code unified orchestrator that delivers actionable intelligence in under 5 minutes of setup."
-            budget_eval = f"Current budget ({budget}) is well-matched to a lean digital MVP launch. Paid customer acquisition should be funded strictly from early customer revenues."
-            risks = [
-                ValidationRisk(risk="High churn if initial time-to-value exceeds 10 minutes", severity="High", mitigation="Implement guided 3-click onboarding wizard with pre-populated project templates"),
-                ValidationRisk(risk="Competitor copying of core workflow features", severity="Medium", mitigation="Build defensible proprietary workflow telemetry and deep integration connectors")
-            ]
-            experiments = [
-                ValidationExperiment(experiment="Customer interview sprint with 20 qualified operations managers", metric="Willingness to join closed beta and prepay annual pilot", target_criteria="At least 5 signed pilot letters of intent (LOIs)"),
-                ValidationExperiment(experiment="Interactive demo landing page with feature priority vote", metric="Visitor to demo engagement rate and waitlist conversion", target_criteria="> 8% conversion from 400 targeted LinkedIn visitors")
-            ]
+            risks.append(ValidationRisk(
+                risk="Local operating requirements, supplier reliability, and customer acquisition costs are not yet verified.",
+                severity="Medium",
+                mitigation="Run a small paid pilot or pop-up and record actual costs, conversion, repeat purchase, and supplier performance."
+            ))
 
-        alternatives = [
-            "Alternative 1: Focus initial release strictly on single core pain point before expanding feature breadth.",
-            "Alternative 2: Offer early adopter pricing with annual prepayment to self-fund secondary milestone development."
+        experiments = [
+            ValidationExperiment(
+                experiment=f"Interview qualified {customer_label} about the last time they faced this problem.",
+                metric="Share of interviewees who describe a recent workaround and agree to a follow-up test",
+                target_criteria="Set the decision threshold before interviews; do not treat interest alone as purchase evidence."
+            ),
+            ValidationExperiment(
+                experiment="Test a clickable prototype, service trial, or manual concierge version of the core offer.",
+                metric="Completion of the core customer outcome and willingness to make a concrete commitment",
+                target_criteria="Compare observed use and commitments with a threshold chosen before the test."
+            )
         ]
 
         return IdeaValidatorData(
@@ -916,159 +1144,91 @@ Budget: {project_info.get('budget')}
             score_factors=factors,
             problem_clarity=problem,
             customer_fit=fit,
-            value_proposition=f"Clear, defensible positioning tailored for {name} ({stage} stage).",
-            market_assumptions=brief.key_assumptions or ["Customer segment experiences urgent pain and possesses discretionary budget to solve it."],
+            value_proposition=(
+                f"Potential value proposition for {name}: solve the stated problem for {customer_label}; "
+                "the benefit and differentiation still need customer evidence."
+            ),
+            market_assumptions=[
+                f"{customer_label} experiences the stated problem often enough to seek a solution.",
+                "The buyer has authority and budget to pay for an effective alternative."
+            ],
             differentiation=diff,
-            feasibility="Technical and operational feasibility confirmed within target parameters.",
+            feasibility=feasibility_text,
             budget_feasibility=budget_eval,
-            scope_reduction_alternatives=alternatives,
+            scope_reduction_alternatives=[
+                "Reduce the first release to one measurable customer outcome and one target customer group.",
+                "Defer secondary workflows and use manual operations until demand and cost assumptions are tested."
+            ],
             risks=risks,
             validation_experiments=experiments,
             suggested_next_actions=[
-                "Schedule 5 discovery interviews with qualified target users this week",
-                "Deploy minimal proof-of-concept prototype to validate core technical assumption",
-                "Refine unit economics model with validated supplier and operational pricing inputs"
-            ]
+                "Specify the target buyer, user, and problem using the project's actual customer segment.",
+                "Run customer interviews and record evidence separately from assumptions.",
+                "Create a bottom-up scope and budget estimate, then compare it with available runway."
+            ],
+            evidence_note=(
+                "Preliminary offline heuristic based on input completeness and scope signals. It has no live market, "
+                "competitor-growth, sector-revenue, or pricing evidence; use the score as a prompt for validation, not an empirical forecast."
+            ),
+            source_references=[]
         )
 
     def _fallback_market_research(self, project_info: Dict[str, Any], brief: GenerationBrief) -> MarketResearchData:
         name = project_info.get("name") or "Venture"
-        desc = (project_info.get("description") or "").lower()
-        budget = project_info.get("budget") or "Standard"
-        is_pcb = "pcb" in desc or "electronics" in desc or "hardware" in desc
-        is_non_tech = brief.technical_depth == "non_technical_business"
+        description = (project_info.get("description") or "").strip()
+        industry = (project_info.get("industry") or "").strip() or "the stated industry"
+        target_customers = (project_info.get("target_customers") or "").strip()
+        budget = (project_info.get("budget") or "").strip()
+        customer_label = target_customers or "the intended customer group"
 
-        if is_pcb:
-            market_size = "Global Electronic Design Automation (EDA) software market: $14.2B in 2025, expanding at 9.4% CAGR through 2030 driven by IoT and custom silicon."
-            needs = [
-                "Real-time cloud collaboration eliminating local file locking and version conflicts",
-                "Instant component stock verification during design phase rather than fabrication delay",
-                "Affordable cloud licensing for students, universities, and early-stage startups"
-            ]
-            competitors = [
-                CompetitorProfile(
-                    name="Altium 365",
-                    strengths=["Entrenched enterprise standard", "Extensive component library database", "Deep routing capabilities"],
-                    weaknesses=["Expensive seat pricing ($4,000+/year)", "Heavy desktop Windows application requirement", "Steep learning curve"],
-                    pricing_model="High-tier annual subscription per user seat",
-                    market_share_estimate="Incumbent (Est. 35% commercial share)",
-                    sources=["EDA Market Industry Report 2025", "Public SEC disclosures"],
-                    as_of_date="2026",
-                    is_direct_competitor=True
-                ),
-                CompetitorProfile(
-                    name="EasyEDA / JLCPCB",
-                    strengths=["Direct low-cost fabrication integration", "Browser-based operation", "Low barrier to entry for hobbyists"],
-                    weaknesses=["Limited high-speed multi-layer DFM routing", "Vendor lock-in to single fabrication house", "Basic enterprise collaboration"],
-                    pricing_model="Freemium with subsidized fabrication margins",
-                    market_share_estimate="Challenger (Est. 20% hobbyist/student share)",
-                    sources=["Hardware Creator Survey 2025"],
-                    as_of_date="2026",
-                    is_direct_competitor=True
-                ),
-                CompetitorProfile(
-                    name="KiCad (Open Source Ecosystem)",
-                    strengths=["Completely free and open source", "Zero licensing restrictions", "Strong global community"],
-                    weaknesses=["No native cloud collaboration", "Manual file synchronization required", "No built-in live distributor supply chain telemetry"],
-                    pricing_model="Free Open Source (FOSS)",
-                    market_share_estimate="Significant adoption in academia and open-source hardware",
-                    sources=["CERN Open Hardware Forum"],
-                    as_of_date="2026",
-                    is_direct_competitor=False
-                )
-            ]
-            diff = [
-                "Native multi-tenant web browser collaboration with Google-Docs style simultaneous layout editing",
-                "Distributor-neutral component API integration comparing prices across DigiKey, Mouser, and LCSC in real time",
-                "Seamless KiCad lossless file import allowing immediate onboarding without project lock-in"
-            ]
-            late_entry = "Enter through universities, student robotics clubs, and hardware accelerators by offering frictionless free tiers, establishing the platform as the default tool before graduates enter enterprise engineering departments."
-            budget_fit = f"Given stated budget ({budget}), focus outbound marketing on university engineering faculties and open-source hardware communities where word-of-mouth adoption is high and acquisition cost is near zero."
-        elif is_non_tech:
-            market_size = "Local retail and artisanal food/service sector: $850M regional metropolitan market, growing at 5.2% annually driven by demand for local authenticity and premium craft experiences."
-            needs = [
-                "Consistent, verified quality and transparency in local ingredient sourcing",
-                "Rapid, predictable mobile ordering and pickup with zero wait times during peak hours",
-                "Warm, community-centric hospitality that makes customers feel recognized"
-            ]
-            competitors = [
-                CompetitorProfile(
-                    name="National Chain Operator (e.g. Starbucks / Panera)",
-                    strengths=["Ubiquitous locations", "Heavy capital reserves", "Sophisticated mobile app and loyalty rewards"],
-                    weaknesses=["Impersonal mass-produced experience", "Lower perceived artisanal quality", "Standardized menu without local flair"],
-                    pricing_model="Mass-market retail pricing",
-                    market_share_estimate="Dominant chain presence (Est. 45% local market)",
-                    sources=["National Restaurant Association Report"],
-                    as_of_date="2026",
-                    is_direct_competitor=False
-                ),
-                CompetitorProfile(
-                    name="Established Local Boutique Incumbent",
-                    strengths=["Loyal neighborhood following", "Recognized brand presence in commercial center"],
-                    weaknesses=["Outdated ordering technology", "Frequent stock-outs during rush periods", "Inconsistent customer service"],
-                    pricing_model="Premium boutique pricing",
-                    market_share_estimate="Local independent (Est. 15% neighborhood share)",
-                    sources=["Local Chamber of Commerce Business Directory"],
-                    as_of_date="2026",
-                    is_direct_competitor=True
-                )
-            ]
-            diff = [
-                "Curated specialty menu with direct farm-to-table traceability",
-                "Frictionless curbside pickup app that guarantees orders ready in under 3 minutes",
-                "Active community gathering space hosting weekend tastings and workshops"
-            ]
-            late_entry = "Win market share from established incumbents by offering a superior digital-first ordering experience and partnering with adjacent local businesses (boutique gyms, creative agencies) for cross-promotional customer acquisition."
-            budget_fit = f"Current budget ({budget}) supports targeted hyper-local social campaigns (radius: 3 miles) and high-touch sampling partnerships rather than broad billboard or paid print advertising."
-        else:
-            market_size = "Global workflow automation and operational intelligence market: $19.6B, with a 13.8% CAGR driven by enterprise digital transformation and hybrid workforce demands."
-            needs = [
-                "Rapid time-to-value without requiring dedicated DevOps or systems integration consultants",
-                "Bi-directional synchronization across legacy databases and modern cloud SaaS APIs",
-                "Granular role-based access control and transparent audit logging"
-            ]
-            competitors = [
-                CompetitorProfile(
-                    name="Legacy Enterprise Incumbent",
-                    strengths=["Comprehensive enterprise feature checklist", "Global sales force", "Deep compliance certifications"],
-                    weaknesses=["Six-month implementation cycles", "Complex six-figure multi-year contracts", "Requires dedicated professional services"],
-                    pricing_model="Enterprise annual contracts ($50k-$200k+)",
-                    market_share_estimate="Incumbent (Est. 40% enterprise share)",
-                    sources=["Gartner Enterprise Magic Quadrant 2025"],
-                    as_of_date="2026",
-                    is_direct_competitor=True
-                ),
-                CompetitorProfile(
-                    name="Point Solution Automation Startup",
-                    strengths=["Modern user interface", "Low initial price point", "Self-service signup"],
-                    weaknesses=["Lacks deep architectural customization", "Weak enterprise audit telemetry", "Frequent API rate limit throttles"],
-                    pricing_model="Product-led self-serve ($29-$99/user/month)",
-                    market_share_estimate="Challenger (Est. 12% mid-market share)",
-                    sources=["SaaS Industry Benchmark Review 2025"],
-                    as_of_date="2026",
-                    is_direct_competitor=True
-                )
-            ]
-            diff = [
-                "Zero-code visual orchestration that automates cross-system workflows in under 15 minutes",
-                "Out-of-the-box telemetry and anomaly detection powered by lightweight AI models",
-                "Flexible transparent consumption-based pricing that aligns directly with customer ROI"
-            ]
-            late_entry = "Displace entrenched incumbents by focusing on high-velocity mid-market teams who are underserved by slow enterprise legacy software and outgrowing simplistic entry-level point tools."
-            budget_fit = f"Allocating the {budget} budget into targeted developer content marketing, open-source utilities, and partner marketplace listings delivers 4x higher lead quality than unguided digital ads."
-
+        # Offline output is a planning hypothesis only. Do not invent sources,
+        # competitors, market sizes, growth rates, shares, or competitor pricing.
         return MarketResearchData(
-            provenance_note="AI-grounded analytical market assessment based on active industry benchmarks and disclosed business parameters.",
-            target_market_size=market_size,
-            customer_needs=needs,
-            competitor_profiles=competitors,
-            competitive_positioning=f"Positioning {name} as the modern, high-agility alternative delivering superior user experience and faster time-to-value.",
-            differentiation_factors=diff,
-            late_entry_differentiation=late_entry,
-            budget_fit_analysis=budget_fit,
-            opportunities=["Growing customer fatigue with expensive legacy contracts", "Expanding ecosystem integration standards"],
-            threats=["Incumbents discounting enterprise bundles to retain accounts", "Macroeconomic consolidation of departmental software budgets"],
-            research_gaps=["Primary customer interviews required to quantify exact monthly willingness-to-pay thresholds in target customer segment."]
+            provenance_note=(
+                "Offline preliminary analysis. Google Search grounding was unavailable, "
+                "so no current market facts or competitor claims are presented as verified."
+            ),
+            target_market_size=(
+                "Not verified. A defensible TAM/SAM/SOM estimate needs current, cited market "
+                "sources and a defined geography, segment, and pricing model."
+            ),
+            customer_needs=[
+                f"Validate whether {customer_label} experiences the problem described for {name}.",
+                "Measure how customers solve the problem today, including internal workarounds and substitute products.",
+                "Test willingness to pay against the customer's current cost, time loss, or risk."
+            ],
+            competitor_profiles=[],
+            competitive_positioning=(
+                f"Positioning is not verified for {name}. Compare the proposed offer with direct "
+                "competitors and substitutes after current sources are collected."
+            ),
+            differentiation_factors=[
+                f"Test whether the proposed offer solves this stated need: {description or 'project description not supplied'}.",
+                "Validate the advantage with target customers using a side-by-side comparison of current alternatives."
+            ],
+            late_entry_differentiation=(
+                f"Start with a narrow use case for {customer_label}, remove a documented friction point "
+                "from existing alternatives, and validate switching reasons before expanding scope."
+            ),
+            budget_fit_analysis=(
+                f"Budget supplied: {budget}. Competitive costs and customer acquisition requirements "
+                "were not benchmarked offline; validate a small, measurable launch scope before committing spend."
+                if budget else
+                "No budget was supplied. Set a spending ceiling and runway before judging whether the proposed scope is feasible."
+            ),
+            opportunities=[
+                f"Hypothesis to validate: {industry} customers may be underserved in the specific workflow described for {name}."
+            ],
+            threats=[
+                "Existing products, internal processes, or low-cost substitutes may already satisfy the need."
+            ],
+            research_gaps=[
+                "Live competitor search was unavailable; identify and verify up to three relevant direct or indirect alternatives.",
+                "Collect primary market-size sources with dates and a transparent TAM/SAM/SOM calculation.",
+                "Verify competitor capabilities, pricing, customer segment, and recent growth from primary sources.",
+                "Interview target customers to validate urgency, current alternatives, and willingness to pay."
+            ],
+            source_references=[]
         )
 
     def _fallback_roadmap(
@@ -1137,7 +1297,7 @@ Budget: {project_info.get('budget')}
         phases = [
             RoadmapPhase(
                 name="Phase 1: Research, Architecture & Core Foundations",
-                color="#3b82f6",
+                color="#78906c",
                 start_date=cur_d.isoformat(),
                 end_date=p1_end.isoformat(),
                 description="Establish essential architecture, validate core user assumptions, and deploy initial infrastructure."

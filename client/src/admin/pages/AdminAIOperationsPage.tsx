@@ -40,7 +40,7 @@ export const AdminAIOperationsPage: React.FC = () => {
       setStats(statsRes);
       setQuality(qualityRes);
     } catch (e: any) {
-      setErrorMsg(e.message || 'Failed to load AI operations data');
+      setErrorMsg(e.message || 'Failed to load generation activity');
     } finally {
       setLoading(false);
     }
@@ -78,17 +78,17 @@ export const AdminAIOperationsPage: React.FC = () => {
       {/* Page Title */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
-            AI Activity & Output Quality Console
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
+            Generation Activity & Quality
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             Inspect generation latency, error taxonomy, structured schema validation, and controlled retries.
           </p>
         </div>
         <button
           onClick={fetchData}
           title="Refresh metrics and operations"
-          style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#334155' }}
+          style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}
         >
           <RefreshCw size={13} className={loading ? 'spin-animate' : ''} />
           Refresh Data
@@ -102,15 +102,15 @@ export const AdminAIOperationsPage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid #dfe2d6', gap: '24px', marginBottom: '24px' }}>
         <button
           onClick={() => setActiveTab('requests')}
           style={{
             padding: '12px 4px',
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'requests' ? '2px solid #6366f1' : '2px solid transparent',
-            color: activeTab === 'requests' ? '#6366f1' : '#64748b',
+            borderBottom: activeTab === 'requests' ? '2px solid #6d855f' : '2px solid transparent',
+            color: activeTab === 'requests' ? '#6d855f' : '#687164',
             fontWeight: activeTab === 'requests' ? 700 : 500,
             fontSize: '14px',
             cursor: 'pointer',
@@ -129,8 +129,8 @@ export const AdminAIOperationsPage: React.FC = () => {
             padding: '12px 4px',
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'quality' ? '2px solid #6366f1' : '2px solid transparent',
-            color: activeTab === 'quality' ? '#6366f1' : '#64748b',
+            borderBottom: activeTab === 'quality' ? '2px solid #6d855f' : '2px solid transparent',
+            color: activeTab === 'quality' ? '#6d855f' : '#687164',
             fontWeight: activeTab === 'quality' ? 700 : 500,
             fontSize: '14px',
             cursor: 'pointer',
@@ -149,36 +149,36 @@ export const AdminAIOperationsPage: React.FC = () => {
         <>
           {/* KPI Stats Bar */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Processing Engine</div>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: '#4338ca', marginTop: '4px' }}>{stats?.configured_model || 'Gemini 2.5 Pro'}</div>
+            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Processing Engine</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: '#5d7550', marginTop: '4px' }}>{stats?.configured_model || 'Gemini 2.5 Pro'}</div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Success Rate</div>
+            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Success Rate</div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: (stats?.success_rate ?? 100) >= 80 ? '#16a34a' : '#ef4444', marginTop: '4px' }}>
                 {stats?.success_rate ?? 100}%
               </div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Latency (Median)</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{stats?.median_latency_ms || 0}ms</div>
+            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Latency (Median)</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>{stats?.median_latency_ms || 0}ms</div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Latency (p95)</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{stats?.p95_latency_ms || 0}ms</div>
+            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Latency (p95)</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>{stats?.p95_latency_ms || 0}ms</div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Total / Retried</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
-                {stats?.total_operations || 0} <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>({stats?.retried_operations || 0} retried)</span>
+            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total / Retried</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
+                {stats?.total_operations || 0} <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 500 }}>({stats?.retried_operations || 0} retried)</span>
               </div>
             </div>
           </div>
 
           {/* Filter Toolbar */}
-          <div style={{ background: '#ffffff', borderRadius: '10px', padding: '14px 18px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '10px', padding: '14px 18px', border: '1px solid #dfe2d6', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
                 <Filter size={15} />
                 <span>Status:</span>
                 <select
@@ -187,7 +187,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                     setStatusFilter(e.target.value);
                     setPage(1);
                   }}
-                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
                 >
                   <option value="all">All Outcomes</option>
                   <option value="success">Success</option>
@@ -197,7 +197,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
                 <span>Module:</span>
                 <select
                   value={moduleFilter}
@@ -205,7 +205,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                     setModuleFilter(e.target.value);
                     setPage(1);
                   }}
-                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
                 >
                   <option value="all">All Modules</option>
                   <option value="bmc">BMC</option>
@@ -218,28 +218,28 @@ export const AdminAIOperationsPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ fontSize: '12px', color: '#64748b' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {total} operation{total !== 1 ? 's' : ''} recorded
             </div>
           </div>
 
           {/* Operations Table */}
-          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
             {loading ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-                <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
+              <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
                 <p style={{ margin: 0 }}>Loading operation telemetry...</p>
               </div>
             ) : ops.length === 0 ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+              <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Cpu size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
                 <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No generation operations recorded matching criteria</p>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8' }}>AI requests will appear here once users generate blueprints or roadmap tasks.</p>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>Generation requests will appear here once users create a blueprint or roadmap tasks.</p>
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                  <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                     <th style={{ padding: '14px 18px' }}>Operation / Module</th>
                     <th style={{ padding: '14px 18px' }}>Type</th>
                     <th style={{ padding: '14px 18px' }}>Status</th>
@@ -251,12 +251,12 @@ export const AdminAIOperationsPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {ops.map(o => (
-                    <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr key={o.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
                       <td style={{ padding: '14px 18px' }}>
-                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{o.module_type?.replace('_', ' ').toUpperCase()}</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>ID: {o.id}</div>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{o.module_type?.replace('_', ' ').toUpperCase()}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>ID: {o.id}</div>
                       </td>
-                      <td style={{ padding: '14px 18px', textTransform: 'capitalize', color: '#475569', fontWeight: 500 }}>
+                      <td style={{ padding: '14px 18px', textTransform: 'capitalize', color: 'var(--text-main)', fontWeight: 500 }}>
                         {o.operation_type}
                       </td>
                       <td style={{ padding: '14px 18px' }}>
@@ -266,14 +266,14 @@ export const AdminAIOperationsPage: React.FC = () => {
                             borderRadius: '4px',
                             fontSize: '11px',
                             fontWeight: 700,
-                            backgroundColor: o.status === 'success' ? '#dcfce7' : o.status === 'retried' ? '#e0e7ff' : '#fee2e2',
-                            color: o.status === 'success' ? '#15803d' : o.status === 'retried' ? '#4338ca' : '#b91c1c'
+                            backgroundColor: o.status === 'success' ? '#dcfce7' : o.status === 'retried' ? '#e8ede2' : '#fee2e2',
+                            color: o.status === 'success' ? '#15803d' : o.status === 'retried' ? '#5d7550' : '#b91c1c'
                           }}
                         >
                           {o.status.toUpperCase()}
                         </span>
                       </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 600, color: '#334155' }}>
+                      <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--text-main)' }}>
                         {o.duration_ms || 0}ms
                       </td>
                       <td style={{ padding: '14px 18px' }}>
@@ -287,7 +287,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '14px 18px', color: '#64748b', fontSize: '12px' }}>
+                      <td style={{ padding: '14px 18px', color: 'var(--text-muted)', fontSize: '12px' }}>
                         {new Date(o.created_at).toLocaleTimeString()}
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
@@ -299,9 +299,9 @@ export const AdminAIOperationsPage: React.FC = () => {
                             style={{
                               padding: '5px 10px',
                               borderRadius: '4px',
-                              border: '1px solid #cbd5e1',
+                              border: '1px solid #d9ddcf',
                               background: '#ffffff',
-                              color: '#4338ca',
+                              color: '#5d7550',
                               cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: 600,
@@ -319,7 +319,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                           </button>
                         )}
                         {o.status !== 'success' && o.is_retryable === false && (
-                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Non-retryable</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Non-retryable</span>
                         )}
                       </td>
                     </tr>
@@ -330,13 +330,13 @@ export const AdminAIOperationsPage: React.FC = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+              <div style={{ padding: '14px 20px', borderTop: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
                 <div>Showing {ops.length} of {total} operations</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage(p => Math.max(1, p - 1))}
-                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
+                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
                   >
                     Previous
                   </button>
@@ -346,7 +346,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
+                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
                   >
                     Next
                   </button>
@@ -362,49 +362,49 @@ export const AdminAIOperationsPage: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Quality Summary Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Validation Pass Rate</div>
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Validation Pass Rate</div>
               <div style={{ fontSize: '28px', fontWeight: 800, color: '#16a34a', marginTop: '6px' }}>
                 {quality?.structured_validation_rate ?? 100}%
               </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
                 {quality?.structured_validation_passed || 0} of {quality?.total_evaluated_operations || 0} passed
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Parse Failures</div>
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Parse Failures</div>
               <div style={{ fontSize: '28px', fontWeight: 800, color: (quality?.parse_failures || 0) > 0 ? '#ef4444' : '#10b981', marginTop: '6px' }}>
                 {quality?.parse_failures || 0}
               </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
                 JSON schema parse exceptions
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Persistence Failures</div>
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Persistence Failures</div>
               <div style={{ fontSize: '28px', fontWeight: 800, color: (quality?.persistence_failures || 0) > 0 ? '#ef4444' : '#10b981', marginTop: '6px' }}>
                 {quality?.persistence_failures || 0}
               </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
                 Database commit failures
               </div>
             </div>
           </div>
 
           {/* Module Performance Table */}
-          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 16px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 16px' }}>
               Module-Specific Performance & Reliability
             </h3>
 
             {(!stats?.module_performance || stats.module_performance.length === 0) ? (
-              <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>No module performance data available yet.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>No module performance data available yet.</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                  <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                     <th style={{ padding: '12px 16px' }}>Module</th>
                     <th style={{ padding: '12px 16px' }}>Total Operations</th>
                     <th style={{ padding: '12px 16px' }}>Success Count</th>
@@ -414,18 +414,18 @@ export const AdminAIOperationsPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {stats.module_performance.map((m: any) => (
-                    <tr key={m.module_type} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#0f172a' }}>
+                    <tr key={m.module_type} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-main)' }}>
                         {m.module_type.replace('_', ' ').toUpperCase()}
                       </td>
-                      <td style={{ padding: '12px 16px', color: '#475569' }}>{m.total}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-main)' }}>{m.total}</td>
                       <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: 600 }}>{m.success}</td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{ fontWeight: 700, color: (m.success_rate ?? 100) >= 80 ? '#16a34a' : '#ef4444' }}>
                           {m.success_rate != null ? `${m.success_rate}%` : 'N/A'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.avg_duration_ms}ms</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{m.avg_duration_ms}ms</td>
                     </tr>
                   ))}
                 </tbody>
@@ -435,8 +435,8 @@ export const AdminAIOperationsPage: React.FC = () => {
 
           {/* Error Categories Breakdown */}
           {stats?.error_categories && Object.keys(stats.error_categories).length > 0 && (
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 16px' }}>
+            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 16px' }}>
                 Error Category Distribution
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>

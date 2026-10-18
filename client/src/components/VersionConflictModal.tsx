@@ -41,8 +41,8 @@ export const VersionConflictModal: React.FC<Props> = ({
               <AlertTriangle size={18} />
             </div>
             <div>
-              <h3 style={{ color: '#0f172a' }}>Maximum 5 Versions Reached</h3>
-              <p style={{ fontSize: 11.5, color: '#64748b' }}>Section: {moduleTitle}</p>
+              <h3 style={{ color: 'var(--text-main)' }}>Maximum 5 Versions Reached</h3>
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Section: {moduleTitle}</p>
             </div>
           </div>
           <button onClick={onCancel} className="modal-close-btn" disabled={isLoading}>✕</button>
@@ -77,7 +77,7 @@ export const VersionConflictModal: React.FC<Props> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  background: selectedVersionId === v.id ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-card)',
+                  background: selectedVersionId === v.id ? 'rgba(109, 133, 95, 0.12)' : 'var(--bg-card)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}

@@ -213,10 +213,10 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
           {teamMembers.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
               {teamMembers.map((m, idx) => (
-                <div key={idx} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{m.name}</span>
-                  <span style={{ color: '#6366f1' }}>({m.roles.join(', ') || 'General'})</span>
-                  <span style={{ color: '#64748b' }}>[{m.department || 'General'}]</span>
+                <div key={idx} style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: 6, padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{m.name}</span>
+                  <span style={{ color: '#6d855f' }}>({m.roles.join(', ') || 'General'})</span>
+                  <span style={{ color: 'var(--text-muted)' }}>[{m.department || 'General'}]</span>
                   <button type="button" onClick={() => handleRemoveMember(idx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }}>
                     &times;
                   </button>

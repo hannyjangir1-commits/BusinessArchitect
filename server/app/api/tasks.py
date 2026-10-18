@@ -208,6 +208,11 @@ def create_task(
         dependencies=req.dependencies or [],
         deliverables=req.deliverables,
         effort=req.effort,
+        assigned_to=req.assigned_to or "Unassigned",
+        assigned_role=req.assigned_role,
+        department=req.department,
+        steps=req.steps or [],
+        is_overloaded=req.is_overloaded or False,
         is_ai_generated=False
     )
     db.add(task)
@@ -285,6 +290,16 @@ def update_task(
         task.deliverables = req.deliverables
     if req.effort is not None:
         task.effort = req.effort
+    if "assigned_to" in req.model_fields_set:
+        task.assigned_to = req.assigned_to or "Unassigned"
+    if "assigned_role" in req.model_fields_set:
+        task.assigned_role = req.assigned_role
+    if "department" in req.model_fields_set:
+        task.department = req.department
+    if "steps" in req.model_fields_set and req.steps is not None:
+        task.steps = req.steps
+    if req.is_overloaded is not None:
+        task.is_overloaded = req.is_overloaded
 
     db.commit()
     db.refresh(task)

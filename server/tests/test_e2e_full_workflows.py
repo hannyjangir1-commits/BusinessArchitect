@@ -1,6 +1,7 @@
 import os
 import time
 import uuid
+from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
@@ -323,6 +324,137 @@ def test_workflow_11_version_rename_delete_restore(primary_user):
     )
     assert del_resp.status_code == 200
     assert del_resp.json()["message"] == "Version successfully deleted"
+
+def test_workflow_11b_module_delete_and_fresh_generation_controls(primary_user):
+    """Deleting a module removes all its versions; roadmap deletion also clears its tasks."""
+    from app.db.session import SessionLocal
+    from app.models.all_models import ModuleContent, ModuleVersion, RoadmapTask
+    from app.services.version_service import VersionService
+
+    cli = primary_user["client"]
+    headers = {"X-CSRF-Token": primary_user["csrf_token"]}
+    project_resp = cli.post("/api/projects", json={"name": "Module Lifecycle", "stage": "Idea / MVP"}, headers=headers)
+    assert project_resp.status_code == 201
+    project_id = project_resp.json()["id"]
+    project_updated_at_before_delete = datetime.fromisoformat(project_resp.json()["updated_at"])
+    module_types = ["bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap"]
+
+    db = SessionLocal()
+    try:
+        for module_type in module_types:
+            module = VersionService.get_or_create_module(db, project_id, module_type)
+            VersionService.save_new_version(db, module, {"example": module_type}, change_summary="initial")
+
+        # Legacy roadmap snapshots must be removed together with the canonical module.
+        legacy_roadmap = VersionService.get_or_create_module(db, project_id, "detailed_roadmap")
+        VersionService.save_new_version(db, legacy_roadmap, {"example": "legacy"}, change_summary="legacy")
+        db.add(RoadmapTask(
+            project_id=project_id,
+            task_code="TSK-01",
+            phase="Foundation",
+            title="Roadmap task",
+            start_date="2026-10-18",
+            end_date="2026-10-20"
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    # Removing another module leaves roadmap tasks alone.
+    tech_delete = cli.delete(f"/api/projects/{project_id}/modules/tech_stack", headers=headers)
+    assert tech_delete.status_code == 200, tech_delete.text
+    assert tech_delete.json()["module_type"] == "tech_stack"
+    project_after_tech_delete = cli.get(f"/api/projects/{project_id}").json()
+    assert "tech_stack" not in project_after_tech_delete["generated_modules"]
+    assert datetime.fromisoformat(project_after_tech_delete["updated_at"]) > project_updated_at_before_delete
+    db = SessionLocal()
+    try:
+        assert db.query(ModuleContent).filter_by(project_id=project_id, module_type="tech_stack").count() == 0
+        assert db.query(ModuleVersion).join(ModuleContent).filter(ModuleContent.project_id == project_id, ModuleContent.module_type == "tech_stack").count() == 0
+        assert db.query(RoadmapTask).filter_by(project_id=project_id).count() == 1
+    finally:
+        db.close()
+
+    # All other generated modules can be removed directly without AI instructions.
+    for module_type in ["bmc", "idea_validator", "market_research"]:
+        deleted = cli.delete(f"/api/projects/{project_id}/modules/{module_type}", headers=headers)
+        assert deleted.status_code == 200, deleted.text
+        detail = cli.get(f"/api/projects/{project_id}/modules/{module_type}")
+        assert detail.status_code == 200
+        assert detail.json()["data"] is None
+        assert detail.json()["versions"] == []
+
+    roadmap_delete = cli.delete(f"/api/projects/{project_id}/modules/execution_roadmap", headers=headers)
+    assert roadmap_delete.status_code == 200, roadmap_delete.text
+    assert roadmap_delete.json()["deleted_tasks"] == 1
+    assert cli.get(f"/api/projects/{project_id}/tasks").json() == []
+    project_after_roadmap_delete = cli.get(f"/api/projects/{project_id}").json()
+    assert "execution_roadmap" not in project_after_roadmap_delete["generated_modules"]
+
+    db = SessionLocal()
+    try:
+        assert db.query(ModuleContent).filter(
+            ModuleContent.project_id == project_id,
+            ModuleContent.module_type.in_(["execution_roadmap", "detailed_roadmap"])
+        ).count() == 0
+        assert db.query(ModuleVersion).join(ModuleContent).filter(
+            ModuleContent.project_id == project_id,
+            ModuleContent.module_type.in_(["execution_roadmap", "detailed_roadmap"])
+        ).count() == 0
+    finally:
+        db.close()
+
+    csrf_rejected = cli.delete(f"/api/projects/{project_id}/modules/bmc")
+    assert csrf_rejected.status_code == 403
+
+def test_deleting_active_roadmap_version_restores_its_task_set(primary_user):
+    """The single Delete action falls back to the prior roadmap and its task data."""
+    from app.db.session import SessionLocal
+    from app.models.all_models import RoadmapTask
+    from app.services.version_service import VersionService
+
+    cli = primary_user["client"]
+    headers = {"X-CSRF-Token": primary_user["csrf_token"]}
+    project_resp = cli.post("/api/projects", json={"name": "Roadmap Version Delete", "stage": "Idea / MVP"}, headers=headers)
+    assert project_resp.status_code == 201
+    project_id = project_resp.json()["id"]
+    db = SessionLocal()
+    try:
+        module = VersionService.get_or_create_module(db, project_id, "execution_roadmap")
+        first = VersionService.save_new_version(db, module, {"tasks": []}, change_summary="first roadmap")
+        current = VersionService.save_new_version(db, module, {
+            "tasks": [{
+                "task_code": "TSK-02",
+                "phase": "Build",
+                "title": "Task from current roadmap",
+                "start_date": "2026-10-18",
+                "end_date": "2026-10-20"
+            }]
+        }, change_summary="current roadmap")
+        first_id = first.id
+        current_id = current.id
+        db.add(RoadmapTask(
+            project_id=project_id,
+            task_code="TSK-02",
+            phase="Build",
+            title="Task from current roadmap",
+            start_date="2026-10-18",
+            end_date="2026-10-20",
+            is_ai_generated=True
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    delete_response = cli.delete(
+        f"/api/projects/{project_id}/modules/execution_roadmap/versions/{current_id}",
+        headers=headers
+    )
+    assert delete_response.status_code == 200, delete_response.text
+    active_response = cli.get(f"/api/projects/{project_id}/modules/execution_roadmap")
+    assert active_response.status_code == 200
+    assert active_response.json()["active_version_id"] == first_id
+    assert cli.get(f"/api/projects/{project_id}/tasks").json() == []
 
 def test_workflow_12_per_project_navigation_memory(primary_user):
     """Scenario 12: Active module is persisted per project and restored."""

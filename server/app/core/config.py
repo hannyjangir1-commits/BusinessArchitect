@@ -15,7 +15,7 @@ else:
 
 class Settings:
     def __init__(self):
-        self.PROJECT_NAME: str = "Business Architect — Enterprise Blueprint"
+        self.PROJECT_NAME: str = "Venture Atlas — Business Planning"
         self.APP_ENV: str = os.getenv("APP_ENV", "development")
         self.IS_PROD: bool = self.APP_ENV.lower() == "production"
 

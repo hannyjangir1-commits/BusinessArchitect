@@ -36,7 +36,7 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
       <div className="card">
         <div className="card-header-row">
           <div className="card-title">
-            <LayoutDashboard size={18} color="#6366f1" />
+            <LayoutDashboard size={18} color="#6d855f" />
             <span>Executive Business Overview</span>
           </div>
           {savedSuccess && (
@@ -126,7 +126,7 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
                     style={{
                       fontSize: 11.5,
                       fontWeight: 600,
-                      background: 'rgba(99, 102, 241, 0.15)',
+                      background: 'rgba(109, 133, 95, 0.15)',
                       color: 'var(--primary)',
                       padding: '3px 8px',
                       borderRadius: 6

@@ -24,7 +24,7 @@ const LEFT_COLUMN_WIDTH = 365;
 const PIXELS_PER_DAY = 4.5;
 const ROW_PHASE = 42;
 const ROW_TASK = 38;
-const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f97316', '#eab308', '#06b6d4', '#ec4899'];
+const COLORS = ['#10b981', '#7a916a', '#a68757', '#f97316', '#eab308', '#879579', '#b77d68'];
 
 const utcDate = (year: number, month: number, day: number) => new Date(Date.UTC(year, month, day));
 const parseDate = (value: string | undefined): Date => {
@@ -104,7 +104,7 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
   if (tasks.length === 0) {
     return (
       <div className="card" style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
-        <Calendar size={22} color="#6366f1" style={{ margin: '0 auto 8px' }} />
+        <Calendar size={22} color="#6d855f" style={{ margin: '0 auto 8px' }} />
         <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>No roadmap tasks yet</div>
         <div style={{ fontSize: 12, marginTop: 4 }}>Add tasks or generate a roadmap to build the timeline.</div>
       </div>
@@ -116,7 +116,7 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Calendar size={18} color="#6366f1" />
+          <Calendar size={18} color="#6d855f" />
           <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>Project Execution Timeline</h3>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -201,8 +201,8 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
           })()}
 
           {todayX >= 0 && todayX <= timeline.width && (
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: '#6366f1', zIndex: 3, pointerEvents: 'none' }}>
-              <div style={{ position: 'absolute', top: 3, left: -18, background: '#6366f1', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}>Today</div>
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: '#6d855f', zIndex: 3, pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: 3, left: -18, background: '#6d855f', color: 'var(--text-main)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}>Today</div>
             </div>
           )}
         </div>
@@ -210,7 +210,7 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
       <div style={{ padding: '9px 14px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 10.5, color: 'var(--text-muted)' }}>
         <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#16a34a', marginRight: 5 }} />Completed</span>
         <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#ef4444', marginRight: 5 }} />Overdue unfinished task</span>
-        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#6366f1', marginRight: 5 }} />Today</span>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#6d855f', marginRight: 5 }} />Today</span>
       </div>
     </div>
   );

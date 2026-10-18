@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Project } from '../types';
 import {
   Layers, ChevronLeft, ChevronRight, LayoutDashboard, Compass, Cpu, CheckCircle2,
-  TrendingUp, Calendar, ListTodo, Bot, ArrowRight, Plus, Check
+  TrendingUp, Calendar, Bot, ArrowRight, Plus, Check
 } from 'lucide-react';
 
 interface Props {
@@ -33,7 +33,7 @@ export const Sidebar: React.FC<Props> = ({
     { id: 'idea_validator', label: 'Idea Validator', icon: CheckCircle2 },
     { id: 'market_research', label: 'Market Research', icon: TrendingUp },
     { id: 'execution_roadmap', label: 'Roadmap & Execution Plan', icon: Calendar },
-    { id: 'blueprint_copilot', label: 'Planning Assistant', icon: Bot },
+    { id: 'blueprint_copilot', label: 'Planning Copilot', icon: Bot },
   ];
 
   return (
@@ -41,12 +41,12 @@ export const Sidebar: React.FC<Props> = ({
       {/* Brand Header with Expand/Collapse Toggle */}
       <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div className="brand-logo">
-          <div className="brand-icon-box" title="Business Architect">
+          <div className="brand-icon-box" title="Venture Atlas">
             <Layers size={20} />
           </div>
           {!isCollapsed && (
             <div className="brand-titles">
-              <h1>Business Architect</h1>
+              <h1>Venture Atlas</h1>
               <span>ENTERPRISE BLUEPRINT</span>
             </div>
           )}
@@ -57,7 +57,7 @@ export const Sidebar: React.FC<Props> = ({
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: 4,
             display: 'flex',
@@ -105,6 +105,7 @@ export const Sidebar: React.FC<Props> = ({
           const isActive = activeModule === item.id || (item.id === 'execution_roadmap' && activeModule === 'detailed_roadmap');
           // Only overview is default true, all other blueprints are strictly driven by persisted active version
           const badge = moduleVersionBadges[item.id] || { version: 'V1', isGenerated: item.id === 'overview' };
+          const moduleStatus = isActive ? 'Currently open' : badge.isGenerated ? 'Generated' : 'Not generated';
 
           return (
             <button
@@ -112,8 +113,8 @@ export const Sidebar: React.FC<Props> = ({
               data-module-id={item.id}
               className={`nav-item ${isActive ? 'active' : ''}`}
               onClick={() => onSelectModule(item.id)}
-              title={item.label}
-              aria-label={item.label}
+              title={`${item.label} · ${moduleStatus}`}
+              aria-label={`${item.label}, ${moduleStatus}`}
             >
               <div className="nav-item-left">
                 <Icon size={17} />
@@ -122,11 +123,11 @@ export const Sidebar: React.FC<Props> = ({
               {!isCollapsed && (
                 <div className="nav-item-right">
                   {isActive ? (
-                    <span className="status-dot-active" />
+                    <span className="status-dot-active" aria-hidden="true" />
                   ) : badge.isGenerated ? (
-                    <span className="status-dot-green"><Check size={10} strokeWidth={3} /></span>
+                    <span className="status-dot-green" aria-hidden="true"><Check size={10} strokeWidth={3} /></span>
                   ) : (
-                    <span className="status-dot-gray" />
+                    <span className="status-dot-gray" aria-hidden="true" />
                   )}
                 </div>
               )}
@@ -143,7 +144,7 @@ export const Sidebar: React.FC<Props> = ({
           title="Export Project (PDF)"
         >
           <div className="export-project-btn-left">
-            <div style={{ marginTop: 2, color: '#818cf8' }}>
+            <div style={{ marginTop: 2, color: '#82936d' }}>
               <Layers size={18} />
             </div>
             {!isCollapsed && (
@@ -153,7 +154,7 @@ export const Sidebar: React.FC<Props> = ({
               </div>
             )}
           </div>
-          {!isCollapsed && <ArrowRight size={15} color="#818cf8" />}
+          {!isCollapsed && <ArrowRight size={15} color="#82936d" />}
         </button>
 
         <button

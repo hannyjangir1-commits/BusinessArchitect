@@ -61,16 +61,16 @@ export const AdminSecurityPage: React.FC = () => {
     <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
             Security Center & Session Management
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             Audit authentication attempts, CSRF validations, privilege access, and manage active sessions
           </p>
         </div>
         <button
           onClick={fetchSecurityData}
-          style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
+          style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
         >
           <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
           <span>Refresh</span>
@@ -78,13 +78,13 @@ export const AdminSecurityPage: React.FC = () => {
       </div>
 
       {/* Active Sessions Card */}
-      <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '28px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 2px' }}>
               Active Authenticated Sessions ({sessions.length})
             </h3>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
               Live server-side sessions bound to HTTP-only cookies
             </p>
           </div>
@@ -99,7 +99,7 @@ export const AdminSecurityPage: React.FC = () => {
         <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>
+              <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700 }}>
                 <th style={{ padding: '10px 14px' }}>User</th>
                 <th style={{ padding: '10px 14px' }}>Role</th>
                 <th style={{ padding: '10px 14px' }}>Created</th>
@@ -109,20 +109,20 @@ export const AdminSecurityPage: React.FC = () => {
             </thead>
             <tbody>
               {sessions.map(s => (
-                <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={s.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
                   <td style={{ padding: '10px 14px' }}>
-                    <span style={{ fontWeight: 600, color: '#0f172a' }}>{s.username}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{s.username}</span>
                     {s.is_current && (
-                      <span style={{ marginLeft: '8px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: '10px', fontWeight: 700 }}>
+                      <span style={{ marginLeft: '8px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#e8ede2', color: '#5d7550', fontSize: '10px', fontWeight: 700 }}>
                         CURRENT
                       </span>
                     )}
                   </td>
-                  <td style={{ padding: '10px 14px', textTransform: 'uppercase', color: '#64748b', fontSize: '11px', fontWeight: 600 }}>
+                  <td style={{ padding: '10px 14px', textTransform: 'uppercase', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600 }}>
                     {s.role}
                   </td>
-                  <td style={{ padding: '10px 14px', color: '#64748b' }}>{new Date(s.created_at).toLocaleString()}</td>
-                  <td style={{ padding: '10px 14px', color: '#64748b' }}>{new Date(s.expires_at).toLocaleString()}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{new Date(s.created_at).toLocaleString()}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{new Date(s.expires_at).toLocaleString()}</td>
                   <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                     {!s.is_current && (
                       <button
@@ -141,9 +141,9 @@ export const AdminSecurityPage: React.FC = () => {
       </div>
 
       {/* Security Events Stream */}
-      <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
             Security Events & Incident Trail ({totalEvents})
           </h3>
           <select
@@ -152,7 +152,7 @@ export const AdminSecurityPage: React.FC = () => {
               setSeverityFilter(e.target.value);
               setPage(1);
             }}
-            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '12px' }}
           >
             <option value="all">All Severities</option>
             <option value="info">Info</option>
@@ -164,13 +164,13 @@ export const AdminSecurityPage: React.FC = () => {
         </div>
 
         {events.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
             No security incidents recorded.
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+              <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 18px' }}>Severity</th>
                 <th style={{ padding: '12px 18px' }}>Event Type</th>
                 <th style={{ padding: '12px 18px' }}>Request Path</th>
@@ -180,7 +180,7 @@ export const AdminSecurityPage: React.FC = () => {
             </thead>
             <tbody>
               {events.map(ev => (
-                <tr key={ev.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={ev.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
                   <td style={{ padding: '12px 18px' }}>
                     <span
                       style={{
@@ -189,23 +189,23 @@ export const AdminSecurityPage: React.FC = () => {
                         fontSize: '11px',
                         fontWeight: 700,
                         textTransform: 'uppercase',
-                        backgroundColor: ev.severity === 'high' || ev.severity === 'critical' ? '#fee2e2' : ev.severity === 'medium' ? '#fef3c7' : '#f1f5f9',
-                        color: ev.severity === 'high' || ev.severity === 'critical' ? '#b91c1c' : ev.severity === 'medium' ? '#b45309' : '#475569'
+                        backgroundColor: ev.severity === 'high' || ev.severity === 'critical' ? '#fee2e2' : ev.severity === 'medium' ? '#fef3c7' : '#f0f1e9',
+                        color: ev.severity === 'high' || ev.severity === 'critical' ? '#b91c1c' : ev.severity === 'medium' ? '#b45309' : '#687164'
                       }}
                     >
                       {ev.severity}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 18px', fontWeight: 600, color: '#0f172a' }}>
+                  <td style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--text-main)' }}>
                     {ev.event_type}
                   </td>
-                  <td style={{ padding: '12px 18px', color: '#64748b', fontFamily: 'monospace', fontSize: '12px' }}>
+                  <td style={{ padding: '12px 18px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '12px' }}>
                     {ev.request_path || 'N/A'}
                   </td>
-                  <td style={{ padding: '12px 18px', color: '#64748b', fontSize: '12px' }}>
+                  <td style={{ padding: '12px 18px', color: 'var(--text-muted)', fontSize: '12px' }}>
                     {ev.ip_address || 'unknown'}
                   </td>
-                  <td style={{ padding: '12px 18px', color: '#64748b', fontSize: '12px' }}>
+                  <td style={{ padding: '12px 18px', color: 'var(--text-muted)', fontSize: '12px' }}>
                     {new Date(ev.created_at).toLocaleString()}
                   </td>
                 </tr>

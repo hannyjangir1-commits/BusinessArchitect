@@ -156,6 +156,9 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 }
 
 export const api = {
+  health: (): Promise<{ status: string; database_connected: boolean; generation_configured: boolean }> =>
+    request('/api/health'),
+
   auth: {
     register: async (payload: any): Promise<SessionData> => {
       const res = await request<SessionData>('/api/auth/register', {
@@ -220,6 +223,9 @@ export const api = {
   modules: {
     get: (projectId: string, moduleType: string): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}`),
+
+    delete: (projectId: string, moduleType: string): Promise<{ message: string; module_type: string; deleted_records: number; deleted_tasks: number }> =>
+      request(`/api/projects/${projectId}/modules/${moduleType}`, { method: 'DELETE' }),
 
     generate: (projectId: string, moduleType: string, planningInputs?: RoadmapPlanningInputs): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}/generate`, {
@@ -365,19 +371,19 @@ export const api = {
     },
     dashboard: {
       getStats: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/dashboard/stats${qs ? `?${qs}` : ''}`);
       },
       getTrends: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/dashboard/trends${qs ? `?${qs}` : ''}`);
       }
     },
     users: {
       list: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/users${qs ? `?${qs}` : ''}`);
       },
@@ -409,7 +415,7 @@ export const api = {
     },
     projects: {
       list: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/projects${qs ? `?${qs}` : ''}`);
       },
@@ -427,7 +433,7 @@ export const api = {
     },
     aiOps: {
       list: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/ai-operations${qs ? `?${qs}` : ''}`);
       },
@@ -442,7 +448,7 @@ export const api = {
       getOverview: () =>
         request<any>('/api/admin/analytics/overview'),
       listEvents: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/analytics/events${qs ? `?${qs}` : ''}`);
       }
@@ -453,7 +459,7 @@ export const api = {
       getDatabase: () =>
         request<any>('/api/admin/system/database'),
       getLogs: (params: Record<string, any> = {}) => {
-        const clean = Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+        const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
         const qs = new URLSearchParams(clean).toString();
         return request<any>(`/api/admin/system/logs${qs ? `?${qs}` : ''}`);
       }

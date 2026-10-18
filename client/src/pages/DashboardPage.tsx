@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Project, User } from '../types';
 import {
   Layers, Plus, Search, ArrowRight, Trash2, Cpu, LogOut,
-  FolderKanban, AlertTriangle, Moon, Sun, CheckCircle, Clock,
+  FolderKanban, AlertTriangle, CheckCircle, Clock,
   CheckSquare, Square, Compass, ListTodo, Bot
 } from 'lucide-react';
 import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
@@ -44,21 +44,6 @@ export const DashboardPage: React.FC<Props> = ({
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
-
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('aba_theme') as 'light' | 'dark') || 'light';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    const nextTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(nextTheme);
-    localStorage.setItem('aba_theme', nextTheme);
-    document.documentElement.setAttribute('data-theme', nextTheme);
-  };
 
   const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -144,17 +129,17 @@ export const DashboardPage: React.FC<Props> = ({
             width: 36,
             height: 36,
             borderRadius: 8,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            color: '#ffffff',
+            background: 'linear-gradient(135deg, #6d855f, #a68757)',
+            color: 'var(--text-main)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 3px 10px rgba(99, 102, 241, 0.25)'
+            boxShadow: '0 3px 10px rgba(109, 133, 95, 0.25)'
           }}>
             <Layers size={20} />
           </div>
           <div>
-            <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)' }}>Business Architect</div>
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)' }}>Venture Atlas</div>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', letterSpacing: 0.6 }}>ENTERPRISE BLUEPRINT</div>
           </div>
         </div>
@@ -171,8 +156,8 @@ export const DashboardPage: React.FC<Props> = ({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.25)',
+                backgroundColor: 'rgba(109, 133, 95, 0.12)',
+                border: '1px solid rgba(109, 133, 95, 0.25)',
                 borderRadius: 8,
                 color: 'var(--primary)',
                 fontSize: 12,
@@ -183,15 +168,6 @@ export const DashboardPage: React.FC<Props> = ({
               <Cpu size={14} /> Admin Center
             </button>
           )}
-
-          <button
-            className="header-icon-btn"
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            onClick={toggleTheme}
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? <Moon size={16} color="#a5b4fc" /> : <Sun size={16} color="#64748b" />}
-          </button>
 
           <button
             onClick={() => setProfileModalOpen(true)}
@@ -211,8 +187,8 @@ export const DashboardPage: React.FC<Props> = ({
               width: 26,
               height: 26,
               borderRadius: '50%',
-              background: '#1e293b',
-              color: '#fff',
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-main)',
               fontSize: 11,
               fontWeight: 700,
               display: 'flex',
@@ -285,7 +261,7 @@ export const DashboardPage: React.FC<Props> = ({
                 fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: 12,
-                background: isLimitReached ? '#fee2e2' : 'rgba(99, 102, 241, 0.1)',
+                background: isLimitReached ? '#fee2e2' : 'rgba(109, 133, 95, 0.1)',
                 color: isLimitReached ? '#dc2626' : 'var(--primary)'
               }}>
                 {totalProjects} / {maxProjects} Limit
@@ -298,7 +274,7 @@ export const DashboardPage: React.FC<Props> = ({
               <div style={{
                 width: `${Math.min(100, (totalProjects / maxProjects) * 100)}%`,
                 height: '100%',
-                background: isLimitReached ? '#dc2626' : 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                background: isLimitReached ? '#dc2626' : 'linear-gradient(90deg, #6d855f, #a68757)',
                 borderRadius: 9999,
                 transition: 'width 0.3s ease'
               }} />
@@ -348,7 +324,7 @@ export const DashboardPage: React.FC<Props> = ({
                 { name: 'Business Model Canvas', icon: Compass, mod: 'bmc' },
                 { name: 'Technology Stack', icon: Cpu, mod: 'tech_stack' },
                 { name: 'Execution Roadmap', icon: ListTodo, mod: 'execution_roadmap' },
-                { name: 'Planning Assistant', icon: Bot, mod: 'blueprint_copilot' }
+                { name: 'Planning Copilot', icon: Bot, mod: 'blueprint_copilot' }
               ].map(q => {
                 const Icon = q.icon;
                 return (
@@ -391,7 +367,7 @@ export const DashboardPage: React.FC<Props> = ({
             width: '100%',
             maxWidth: 380
           }}>
-            <Search size={15} color="#94a3b8" />
+            <Search size={15} color="var(--text-muted)" />
             <input
               type="text"
               placeholder="Search by name, industry, or keyword..."
@@ -460,7 +436,7 @@ export const DashboardPage: React.FC<Props> = ({
               width: 58,
               height: 58,
               borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.12)',
+              background: 'rgba(109, 133, 95, 0.12)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -503,6 +479,19 @@ export const DashboardPage: React.FC<Props> = ({
                       onOpenProject(p.id);
                     }
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (isManageMode) {
+                        handleToggleSelectProject(p.id);
+                      } else {
+                        onOpenProject(p.id);
+                      }
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${isManageMode ? 'Select' : 'Open'} project ${p.name}`}
                   className="card"
                   style={{
                     cursor: 'pointer',
@@ -693,7 +682,7 @@ export const DashboardPage: React.FC<Props> = ({
                 lineHeight: 1.5,
                 marginTop: 10
               }}>
-                All associated module contents, version snapshots, execution roadmap tasks, and planning assistant conversations will be permanently deleted in an atomic transaction. This action cannot be undone.
+                All associated module contents, version snapshots, execution roadmap tasks, and Planning Copilot conversations will be permanently deleted in an atomic transaction. This action cannot be undone.
               </div>
             </div>
 
@@ -726,11 +715,6 @@ export const DashboardPage: React.FC<Props> = ({
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
         user={user}
-        onThemeChange={(newTheme) => {
-          setTheme(newTheme);
-          document.documentElement.setAttribute('data-theme', newTheme);
-        }}
-        currentTheme={theme}
         onUserUpdated={onUserUpdated}
       />
 

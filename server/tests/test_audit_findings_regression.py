@@ -260,7 +260,7 @@ def test_f06_fork_project_deep_copies_work(client, db):
     mod.active_version_id = ver.id
 
     # Add task
-    task = RoadmapTask(project_id=src.id, task_code="TSK-01", phase="Research", title="Market Study", start_date="2026-01-01", end_date="2026-01-10", status="In Progress", is_ai_generated=True)
+    task = RoadmapTask(project_id=src.id, task_code="TSK-01", phase="Research", title="Market Study", start_date="2026-01-01", end_date="2026-01-10", status="In Progress", assigned_to="Alice", assigned_role="Market Analyst", department="Research", steps=["Interview buyers"], is_overloaded=True, is_ai_generated=True)
     db.add(task)
 
     # Add copilot message
@@ -298,6 +298,11 @@ def test_f06_fork_project_deep_copies_work(client, db):
     assert len(forked_tasks) == 1
     assert forked_tasks[0].task_code == "TSK-01"
     assert forked_tasks[0].id != task.id
+    assert forked_tasks[0].assigned_to == "Alice"
+    assert forked_tasks[0].assigned_role == "Market Analyst"
+    assert forked_tasks[0].department == "Research"
+    assert forked_tasks[0].steps == ["Interview buyers"]
+    assert forked_tasks[0].is_overloaded is True
 
     forked_msgs = db.query(CopilotMessage).filter(CopilotMessage.project_id == fork_id).all()
     assert len(forked_msgs) == 1
@@ -442,8 +447,12 @@ def test_f12_health_checks(client):
 # =====================================================================
 # F-13: Ordinary user login rate limiting
 # =====================================================================
-def test_f13_user_login_rate_limiting(client, db):
+def test_f13_user_login_rate_limiting(client, db, monkeypatch):
     """Exceeding failed login limit triggers 429 Too Many Requests."""
+    # The limiter is deliberately disabled in APP_ENV=test. Exercise the same
+    # request path in development mode while keeping the test database isolated.
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "APP_ENV", "development")
     # Log 5 failures
     ip = "192.0.2.100"
     for i in range(5):

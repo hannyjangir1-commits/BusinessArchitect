@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Enterprise Blueprint & Business Architect API",
+    description="Venture Atlas business planning API",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -119,7 +119,7 @@ def api_health(response: Response):
 
     return {
         "status": "healthy" if db_connected else "degraded",
-        "service": "Business Architect Backend",
+        "service": "Venture Atlas Backend",
         "environment": settings.APP_ENV,
         "database_connected": db_connected,
         "generation_configured": is_configured,
@@ -144,14 +144,14 @@ def root_readiness(response: Response):
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {
             "status": "unhealthy",
-            "service": "Business Architect Web Service",
+            "service": "Venture Atlas Web Service",
             "database": "disconnected",
             "environment": settings.APP_ENV
         }
 
     return {
         "status": "ok",
-        "service": "Business Architect Web Service",
+        "service": "Venture Atlas Web Service",
         "database": "connected",
         "environment": settings.APP_ENV
     }
@@ -161,7 +161,7 @@ def root_readiness(response: Response):
 def root_liveness():
     return {
         "status": "alive",
-        "service": "Business Architect Web Service",
+        "service": "Venture Atlas Web Service",
         "environment": settings.APP_ENV
     }
 

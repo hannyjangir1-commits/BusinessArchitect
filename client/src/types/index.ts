@@ -122,6 +122,13 @@ export interface IdeaValidatorData {
   budget_feasibility?: string;
   scope_reduction_alternatives?: string[];
   score_factors?: Record<string, number>;
+  evidence_note?: string;
+  source_references?: ResearchSource[];
+}
+
+export interface ResearchSource {
+  title: string;
+  url: string;
 }
 
 export interface CompetitorProfile {
@@ -147,6 +154,7 @@ export interface MarketResearchData {
   research_gaps: string[];
   late_entry_differentiation?: string;
   budget_fit_analysis?: string;
+  source_references?: ResearchSource[];
 }
 
 export interface RoadmapPhase {

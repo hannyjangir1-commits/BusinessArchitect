@@ -152,7 +152,7 @@ export const AllTasksTable: React.FC<Props> = ({
       {/* Header bar */}
       <div className="tasks-card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)' }}>
             All Tasks ({tasks.length})
           </h3>
           <div className="task-filter-group">
@@ -184,8 +184,8 @@ export const AllTasksTable: React.FC<Props> = ({
         </div>
 
         <div className="tasks-action-group">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px' }}>
-            <Search size={14} color="#94a3b8" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f7f6ef', border: '1px solid #dfe2d6', borderRadius: 8, padding: '6px 10px' }}>
+            <Search size={14} color="var(--text-muted)" />
             <input
               type="text"
               placeholder="Search tasks..."
@@ -202,7 +202,7 @@ export const AllTasksTable: React.FC<Props> = ({
             onClick={onRegenerate}
             className="btn-secondary"
             disabled={isLoading || isGenerating || isGenerateDisabled}
-            title="Regenerate roadmap with AI"
+            title="Refresh roadmap"
           >
             {isGenerating ? (
               <>
@@ -237,7 +237,7 @@ export const AllTasksTable: React.FC<Props> = ({
           <tbody>
             {filteredTasks.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>
                   No tasks found matching your filter criteria.
                 </td>
               </tr>
@@ -245,7 +245,7 @@ export const AllTasksTable: React.FC<Props> = ({
               filteredTasks.map((t) => (
                 <tr key={t.id}>
                   <td><input type="checkbox" /></td>
-                  <td style={{ fontWeight: 700, color: '#475569', fontSize: 12 }}>{t.task_code}</td>
+                  <td style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: 12 }}>{t.task_code}</td>
                   <td>
                     <span className={`badge-priority ${t.priority.toLowerCase()}`}>
                       {t.priority}
@@ -254,11 +254,11 @@ export const AllTasksTable: React.FC<Props> = ({
                   <td>
                     <span className="badge-timeline">{t.timeline}</span>
                   </td>
-                  <td style={{ fontWeight: 600, color: '#0f172a' }}>{t.title}</td>
-                  <td style={{ color: '#64748b', fontSize: 12 }}>
+                  <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{t.title}</td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                     {t.description || '—'}
                   </td>
-                  <td style={{ color: '#6366f1', fontWeight: 600, fontSize: 12 }}>
+                  <td style={{ color: '#6d855f', fontWeight: 600, fontSize: 12 }}>
                     {t.dependencies && t.dependencies.length > 0 ? t.dependencies.join(', ') : '—'}
                   </td>
                   <td>
@@ -274,16 +274,16 @@ export const AllTasksTable: React.FC<Props> = ({
                     </select>
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b' }}>
-                      <span title="Edit task" style={{ display: 'inline-flex', cursor: 'pointer' }} onClick={() => handleOpenEdit(t)}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
+                      <button type="button" aria-label={`Edit task ${t.task_code}`} title="Edit task" style={{ display: 'inline-flex', cursor: 'pointer', border: 0, padding: 3, color: 'var(--text-muted)', background: 'transparent' }} onClick={() => handleOpenEdit(t)}>
                         <Edit3 size={15} />
-                      </span>
-                      <span title="Clone task" style={{ display: 'inline-flex', cursor: 'pointer' }} onClick={() => onAddTask({ ...t, task_code: `${t.task_code}-copy`, title: `${t.title} (Copy)` })}>
+                      </button>
+                      <button type="button" aria-label={`Clone task ${t.task_code}`} title="Clone task" style={{ display: 'inline-flex', cursor: 'pointer', border: 0, padding: 3, color: 'var(--text-muted)', background: 'transparent' }} onClick={() => onAddTask({ ...t, task_code: `${t.task_code}-copy`, title: `${t.title} (Copy)` })}>
                         <Copy size={14} />
-                      </span>
-                      <span title="Delete task" style={{ display: 'inline-flex', cursor: 'pointer', color: '#ef4444' }} onClick={() => handleDelete(t.id, t.task_code)}>
+                      </button>
+                      <button type="button" aria-label={`Delete task ${t.task_code}`} title="Delete task" style={{ display: 'inline-flex', cursor: 'pointer', border: 0, padding: 3, color: 'var(--danger-text)', background: 'transparent' }} onClick={() => handleDelete(t.id, t.task_code)}>
                         <Trash2 size={15} />
-                      </span>
+                      </button>
                     </div>
                   </td>
                 </tr>

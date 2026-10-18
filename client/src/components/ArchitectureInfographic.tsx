@@ -56,9 +56,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'client',
       name: 'Client & Presentation Tier',
       icon: Layers,
-      color: '#0284c7',
-      bg: '#f0f9ff',
-      borderColor: '#bae6fd',
+      color: '#6f865f',
+      bg: '#f0f1e9',
+      borderColor: '#dfe2d6',
       items: recommendations.filter(r =>
         /front|client|ui|mobile|web|presentation/i.test(r?.category || '') &&
         !/pos|payment|retail|commerce/i.test(r?.category || '')
@@ -68,9 +68,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'application',
       name: 'Application & API Services Tier',
       icon: Server,
-      color: '#6366f1',
-      bg: '#eef2ff',
-      borderColor: '#c7d2fe',
+      color: '#6d855f',
+      bg: '#f0f1e9',
+      borderColor: '#d6dccf',
       items: recommendations.filter(r =>
         /back|api|server|service|microservice/i.test(r?.category || '') &&
         !/pos|payment|retail|commerce/i.test(r?.category || '')
@@ -102,9 +102,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'security',
       name: 'Security, Observability & Platform Services',
       icon: ShieldCheck,
-      color: '#475569',
-      bg: '#f8fafc',
-      borderColor: '#cbd5e1',
+      color: 'var(--text-main)',
+      bg: '#f7f6ef',
+      borderColor: 'var(--text-muted)',
       items: recommendations.filter(r =>
         /sec|auth|monitor|telemetry|audit|service/i.test(r?.category || '') &&
         !/front|client|back|api|data|cloud|devops|pos|payment|commerce/i.test(r?.category || '')
@@ -181,10 +181,10 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       {/* Visual Diagram Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
             System Architecture Blueprint Infographic
           </h3>
-          <p style={{ fontSize: 12.5, color: '#64748b', margin: '3px 0 0 0' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
             Interactive multi-tier service topology. Click any node to explore role, rationale, risks, and implementation guidance.
           </p>
         </div>
@@ -195,7 +195,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           style={{ fontSize: 12, padding: '6px 12px', gap: 6, display: 'flex', alignItems: 'center' }}
           title="Download vector SVG architecture diagram"
         >
-          <Download size={14} color="#6366f1" />
+          <Download size={14} color="#6d855f" />
           <span>Download SVG Diagram</span>
         </button>
       </div>
@@ -207,7 +207,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           overflowX: 'auto',
           background: '#ffffff',
           borderRadius: 8,
-          border: '1px solid #e2e8f0',
+          border: '1px solid #dfe2d6',
           boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)'
         }}
       >
@@ -221,17 +221,17 @@ export const ArchitectureInfographic: React.FC<Props> = ({
         >
           <defs>
             <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#f8fafc" />
-              <stop offset="100%" stopColor="#ffffff" />
+              <stop offset="0%" stopColor="#f7f6ef" />
+              <stop offset="100%" stopColor="var(--text-main)" />
             </linearGradient>
             <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0f172a" floodOpacity="0.06" />
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--text-main)" floodOpacity="0.06" />
             </filter>
             <filter id="activeNodeGlow" x="-10%" y="-10%" width="120%" height="125%">
-              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#6366f1" floodOpacity="0.25" />
+              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#6d855f" floodOpacity="0.25" />
             </filter>
             <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#7c8478" />
             </marker>
           </defs>
 
@@ -240,9 +240,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
 
           {/* Header Banner */}
           <g transform="translate(30, 20)">
-            <rect width={svgWidth - 60} height="46" rx="8" fill="#1e293b" />
-            <text x="20" y="28" fill="#ffffff" fontSize="15" fontWeight="700" fontFamily="system-ui, -apple-system, sans-serif">
-              {projectName} — Architecture Topography ({techData.architecture_pattern || 'Standard Cloud'})
+            <rect width={svgWidth - 60} height="46" rx="8" fill="#e8ede2" />
+            <text x="20" y="28" fill="#626b5f" fontSize="15" fontWeight="700" fontFamily="system-ui, -apple-system, sans-serif">
+              {projectName} — {versionName} Architecture Topography ({techData.architecture_pattern || 'Standard Cloud'})
             </text>
           </g>
 
@@ -258,7 +258,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                   y1={startY}
                   x2={svgWidth / 2}
                   y2={endY}
-                  stroke="#94a3b8"
+                  stroke="#7c8478"
                   strokeWidth="2"
                   strokeDasharray="4 4"
                   markerEnd="url(#arrow)"
@@ -320,7 +320,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                       height={h}
                       rx="6"
                       fill="#ffffff"
-                      stroke={isSelected ? tier.color : '#e2e8f0'}
+                      stroke={isSelected ? tier.color : '#dfe2d6'}
                       strokeWidth={isSelected ? '2' : '1'}
                     />
                     {/* Left accent strip */}
@@ -335,7 +335,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                     <text
                       x="12"
                       y="22"
-                      fill="#0f172a"
+                      fill="#626b5f"
                       fontSize="13"
                       fontWeight="700"
                       fontFamily="system-ui, -apple-system, sans-serif"
@@ -349,7 +349,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                     <text
                       x="12"
                       y="39"
-                      fill="#64748b"
+                      fill="#687164"
                       fontSize="10.5"
                       fontWeight="600"
                       fontFamily="system-ui, -apple-system, sans-serif"
@@ -361,7 +361,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                     <text
                       x="12"
                       y="56"
-                      fill="#334155"
+                      fill="#626b5f"
                       fontSize="10"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
@@ -402,7 +402,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.15)',
             borderTopRightRadius: 8,
             borderBottomRightRadius: 8,
-            borderLeft: '1px solid #e2e8f0',
+            borderLeft: '1px solid #dfe2d6',
             zIndex: 40,
             display: 'flex',
             flexDirection: 'column',
@@ -413,18 +413,18 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           aria-labelledby="tech-drawer-title"
         >
           {/* Header */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f1e9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f7f6ef' }}>
             <div>
-              <span className="badge" style={{ fontSize: 11, background: '#ede9fe', color: '#6366f1', marginBottom: 4, display: 'inline-block' }}>
+              <span className="badge" style={{ fontSize: 11, background: '#e8ede2', color: '#6d855f', marginBottom: 4, display: 'inline-block' }}>
                 {selectedTech.category}
               </span>
-              <h4 id="tech-drawer-title" style={{ margin: '4px 0 0 0', fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+              <h4 id="tech-drawer-title" style={{ margin: '4px 0 0 0', fontSize: 17, fontWeight: 700, color: 'var(--text-main)' }}>
                 {selectedTech.technology || selectedTech.name}
               </h4>
             </div>
             <button
               onClick={() => setSelectedTech(null)}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4, borderRadius: 4 }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, borderRadius: 4 }}
               aria-label="Close"
             >
               <X size={18} />
@@ -434,10 +434,10 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Purpose & Role Description */}
             <div>
-              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 6px 0' }}>
+              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 6px 0' }}>
                 Architectural Role & Purpose
               </h5>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: '#1e293b' }}>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-main)' }}>
                 {selectedTech.role_description || selectedTech.purpose}
               </p>
             </div>
@@ -454,22 +454,22 @@ export const ArchitectureInfographic: React.FC<Props> = ({
 
             {/* Implementation Guidance */}
             {selectedTech.implementation_guidance && (
-              <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: 12 }}>
-                <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#3730a3', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ArrowRight size={15} color="#6366f1" /> Implementation Guidance
+              <div style={{ background: '#f0f1e9', border: '1px solid #d6dccf', borderRadius: 8, padding: 12 }}>
+                <h5 style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ArrowRight size={15} color="#6d855f" /> Implementation Guidance
                 </h5>
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#312e81' }}>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-muted)' }}>
                   {selectedTech.implementation_guidance}
                 </p>
               </div>
             )}
 
             {/* Cost Tier */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f7f6ef', border: '1px solid #dfe2d6', borderRadius: 8 }}>
               <DollarSign size={16} color="#059669" />
               <div>
-                <span style={{ fontSize: 11, color: '#64748b', display: 'block' }}>Estimated Cost Tier</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>Estimated Cost Tier</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
                   {selectedTech.estimated_cost_tier || 'Low / Free Tier'}
                 </span>
               </div>
@@ -489,7 +489,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
 
             {/* Migration Risk */}
             {selectedTech.migration_risk && (
-              <div style={{ fontSize: 12, color: '#64748b' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 <span style={{ fontWeight: 600 }}>Migration Note: </span>
                 {selectedTech.migration_risk}
               </div>

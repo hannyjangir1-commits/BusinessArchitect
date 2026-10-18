@@ -69,7 +69,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
     >
       <div
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'var(--bg-card)',
           borderRadius: '12px',
           width: '100%',
           maxWidth: '440px',
@@ -80,21 +80,21 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
         <div
           style={{
             padding: '18px 24px',
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: '1px solid #dfe2d6',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <KeyRound size={20} style={{ color: '#6366f1' }} />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+            <KeyRound size={20} style={{ color: '#6d855f' }} />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
               Rotate Admin Password
             </h3>
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
           >
             <X size={18} />
           </button>
@@ -122,7 +122,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
           )}
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
               Current Password
             </label>
             <div style={{ position: 'relative' }}>
@@ -135,7 +135,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                   width: '100%',
                   padding: '9px 36px 9px 12px',
                   borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid #d9ddcf',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -150,7 +150,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer'
                 }}
               >
@@ -160,7 +160,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
               New Password
             </label>
             <div style={{ position: 'relative' }}>
@@ -173,7 +173,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                   width: '100%',
                   padding: '9px 36px 9px 12px',
                   borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid #d9ddcf',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -188,20 +188,20 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer'
                 }}
               >
                 {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
               Minimum 8 characters with at least one letter and one number.
             </div>
           </div>
 
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
               Confirm New Password
             </label>
             <input
@@ -213,7 +213,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                 width: '100%',
                 padding: '9px 12px',
                 borderRadius: '6px',
-                border: '1px solid #cbd5e1',
+                border: '1px solid #d9ddcf',
                 fontSize: '14px',
                 outline: 'none'
               }}
@@ -228,9 +228,9 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
-                border: '1px solid #cbd5e1',
+                border: '1px solid #d9ddcf',
                 background: '#ffffff',
-                color: '#475569',
+                color: 'var(--text-main)',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer'
@@ -245,8 +245,8 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                 padding: '8px 18px',
                 borderRadius: '6px',
                 border: 'none',
-                background: '#6366f1',
-                color: '#ffffff',
+                background: '#6d855f',
+                color: 'var(--text-main)',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',

@@ -51,11 +51,11 @@ export const AdminAuditLogsPage: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ClipboardList size={26} color="#6366f1" />
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ClipboardList size={26} color="#6d855f" />
             Administrative Audit Trail
           </h1>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '14px' }}>
+          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
             Tamper-evident, server-side log of administrative actions, identity updates, and privilege changes.
           </p>
         </div>
@@ -67,9 +67,9 @@ export const AdminAuditLogsPage: React.FC = () => {
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
-            backgroundColor: '#1e293b',
-            color: '#f8fafc',
-            border: '1px solid #334155',
+            backgroundColor: 'var(--bg-subtle)',
+            color: 'var(--text-main)',
+            border: '1px solid #687164',
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
@@ -88,15 +88,15 @@ export const AdminAuditLogsPage: React.FC = () => {
           gap: '12px',
           alignItems: 'center',
           flexWrap: 'wrap',
-          backgroundColor: '#0f172a',
+          backgroundColor: 'var(--bg-subtle)',
           padding: '16px',
           borderRadius: '12px',
-          border: '1px solid #1e293b'
+          border: '1px solid var(--border-color)'
         }}
       >
         <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '8px', flex: 1, minWidth: '240px' }}>
           <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
               placeholder="Search by action, reason, target ID..."
@@ -105,10 +105,10 @@ export const AdminAuditLogsPage: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '9px 12px 9px 36px',
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid #687164',
                 borderRadius: '8px',
-                color: '#f8fafc',
+                color: 'var(--text-main)',
                 fontSize: '13px',
                 outline: 'none'
               }}
@@ -118,8 +118,8 @@ export const AdminAuditLogsPage: React.FC = () => {
             type="submit"
             style={{
               padding: '9px 18px',
-              backgroundColor: '#6366f1',
-              color: '#ffffff',
+              backgroundColor: '#6d855f',
+              color: 'var(--text-main)',
               border: 'none',
               borderRadius: '8px',
               cursor: 'pointer',
@@ -132,16 +132,16 @@ export const AdminAuditLogsPage: React.FC = () => {
         </form>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', color: '#94a3b8' }}>Target:</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Target:</span>
           <select
             value={targetFilter}
             onChange={(e) => { setTargetFilter(e.target.value); setPage(1); }}
             style={{
               padding: '9px 12px',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
+              backgroundColor: 'var(--bg-subtle)',
+              border: '1px solid #687164',
               borderRadius: '8px',
-              color: '#f8fafc',
+              color: 'var(--text-main)',
               fontSize: '13px'
             }}
           >
@@ -155,16 +155,16 @@ export const AdminAuditLogsPage: React.FC = () => {
             <option value="integrity">Integrity</option>
           </select>
 
-          <span style={{ fontSize: '13px', color: '#94a3b8', marginLeft: '6px' }}>Outcome:</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)', marginLeft: '6px' }}>Outcome:</span>
           <select
             value={outcomeFilter}
             onChange={(e) => { setOutcomeFilter(e.target.value); setPage(1); }}
             style={{
               padding: '9px 12px',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
+              backgroundColor: 'var(--bg-subtle)',
+              border: '1px solid #687164',
               borderRadius: '8px',
-              color: '#f8fafc',
+              color: 'var(--text-main)',
               fontSize: '13px'
             }}
           >
@@ -179,35 +179,35 @@ export const AdminAuditLogsPage: React.FC = () => {
       {/* Audit Log Table */}
       <div
         style={{
-          backgroundColor: '#0f172a',
+          backgroundColor: 'var(--bg-subtle)',
           borderRadius: '12px',
-          border: '1px solid #1e293b',
+          border: '1px solid var(--border-color)',
           overflow: 'hidden'
         }}
       >
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: '#f8fafc' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>
             Logged Audit Events ({total})
           </span>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Page {page} of {totalPages || 1}
           </span>
         </div>
 
         {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
             Loading audit records...
           </div>
         ) : logs.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
             No audit records match the selected filter.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
-                <tr style={{ backgroundColor: '#131d33', borderBottom: '1px solid #1e293b', color: '#94a3b8' }}>
+                <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Timestamp</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Actor</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Action</th>
@@ -222,17 +222,17 @@ export const AdminAuditLogsPage: React.FC = () => {
                   <tr
                     key={log.id}
                     style={{
-                      borderBottom: '1px solid #1e293b',
-                      color: '#e2e8f0',
+                      borderBottom: '1px solid var(--border-color)',
+                      color: '#dfe2d6',
                       transition: 'background-color 0.15s'
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1e293b55')}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--border-color)55')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', color: '#94a3b8', fontSize: '12px' }}>
+                    <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '12px' }}>
                       {new Date(log.timestamp).toLocaleString()}
                     </td>
-                    <td style={{ padding: '14px 16px', fontWeight: 500, color: '#f8fafc' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: 500, color: 'var(--text-main)' }}>
                       {log.actor_username}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
@@ -241,18 +241,18 @@ export const AdminAuditLogsPage: React.FC = () => {
                           display: 'inline-block',
                           padding: '3px 8px',
                           borderRadius: '6px',
-                          backgroundColor: '#1e293b',
-                          border: '1px solid #334155',
+                          backgroundColor: 'var(--bg-subtle)',
+                          border: '1px solid #687164',
                           fontSize: '12px',
                           fontFamily: 'monospace',
-                          color: '#c7d2fe'
+                          color: '#d6dccf'
                         }}
                       >
                         {log.action}
                       </span>
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#cbd5e1' }}>
-                      <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase' }}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-muted)' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>
                         {log.target_type || '—'}:
                       </span>{' '}
                       <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
@@ -274,7 +274,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#94a3b8', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-muted)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {log.reason || '—'}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
@@ -285,10 +285,10 @@ export const AdminAuditLogsPage: React.FC = () => {
                           alignItems: 'center',
                           gap: '4px',
                           padding: '6px 10px',
-                          backgroundColor: '#1e293b',
-                          border: '1px solid #334155',
+                          backgroundColor: 'var(--bg-subtle)',
+                          border: '1px solid #687164',
                           borderRadius: '6px',
-                          color: '#94a3b8',
+                          color: 'var(--text-muted)',
                           cursor: 'pointer',
                           fontSize: '12px'
                         }}
@@ -304,8 +304,8 @@ export const AdminAuditLogsPage: React.FC = () => {
         )}
 
         {/* Pagination controls */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid #1e293b' }}>
-          <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid var(--border-color)' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
             Showing {logs.length} of {total} records
           </span>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -317,9 +317,9 @@ export const AdminAuditLogsPage: React.FC = () => {
                 alignItems: 'center',
                 gap: '4px',
                 padding: '6px 12px',
-                backgroundColor: '#1e293b',
-                color: page <= 1 ? '#475569' : '#f8fafc',
-                border: '1px solid #334155',
+                backgroundColor: 'var(--bg-subtle)',
+                color: page <= 1 ? '#687164' : '#f7f6ef',
+                border: '1px solid #687164',
                 borderRadius: '6px',
                 cursor: page <= 1 ? 'not-allowed' : 'pointer',
                 fontSize: '12px'
@@ -327,7 +327,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             >
               <ChevronLeft size={14} /> Prev
             </button>
-            <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: '13px', color: '#94a3b8' }}>
+            <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: '13px', color: 'var(--text-muted)' }}>
               {page} / {totalPages || 1}
             </span>
             <button
@@ -338,9 +338,9 @@ export const AdminAuditLogsPage: React.FC = () => {
                 alignItems: 'center',
                 gap: '4px',
                 padding: '6px 12px',
-                backgroundColor: '#1e293b',
-                color: page >= totalPages ? '#475569' : '#f8fafc',
-                border: '1px solid #334155',
+                backgroundColor: 'var(--bg-subtle)',
+                color: page >= totalPages ? '#687164' : '#f7f6ef',
+                border: '1px solid #687164',
                 borderRadius: '6px',
                 cursor: page >= totalPages ? 'not-allowed' : 'pointer',
                 fontSize: '12px'
@@ -370,8 +370,8 @@ export const AdminAuditLogsPage: React.FC = () => {
         >
           <div
             style={{
-              backgroundColor: '#0f172a',
-              border: '1px solid #334155',
+              backgroundColor: 'var(--bg-subtle)',
+              border: '1px solid #687164',
               borderRadius: '16px',
               padding: '28px',
               maxWidth: '650px',
@@ -383,11 +383,11 @@ export const AdminAuditLogsPage: React.FC = () => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Shield size={20} color="#6366f1" />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Shield size={20} color="#6d855f" />
                   Audit Event Payload
                 </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                   Event ID: {selectedLog.id}
                 </p>
               </div>
@@ -396,7 +396,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: '20px',
                   cursor: 'pointer',
                   padding: '4px'
@@ -407,26 +407,26 @@ export const AdminAuditLogsPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', fontSize: '13px' }}>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase' }}>Timestamp</span>
-                <div style={{ color: '#f8fafc', fontWeight: 500, marginTop: '2px' }}>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Timestamp</span>
+                <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '2px' }}>
                   {new Date(selectedLog.timestamp).toLocaleString()}
                 </div>
               </div>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase' }}>Actor</span>
-                <div style={{ color: '#f8fafc', fontWeight: 500, marginTop: '2px' }}>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Actor</span>
+                <div style={{ color: 'var(--text-main)', fontWeight: 500, marginTop: '2px' }}>
                   {selectedLog.actor_username} (ID: {selectedLog.actor_id || 'system'})
                 </div>
               </div>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase' }}>Action</span>
-                <div style={{ color: '#818cf8', fontWeight: 600, fontFamily: 'monospace', marginTop: '2px' }}>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Action</span>
+                <div style={{ color: '#82936d', fontWeight: 600, fontFamily: 'monospace', marginTop: '2px' }}>
                   {selectedLog.action}
                 </div>
               </div>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase' }}>Outcome</span>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Outcome</span>
                 <div style={{ color: selectedLog.outcome === 'success' ? '#10b981' : '#ef4444', fontWeight: 600, marginTop: '2px' }}>
                   {selectedLog.outcome}
                 </div>
@@ -434,25 +434,25 @@ export const AdminAuditLogsPage: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <span style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Reason / Note</span>
-              <div style={{ marginTop: '6px', padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', color: '#cbd5e1', fontSize: '13px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Reason / Note</span>
+              <div style={{ marginTop: '6px', padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '13px' }}>
                 {selectedLog.reason || 'No supplementary reason specified.'}
               </div>
             </div>
 
             <div style={{ marginBottom: '24px' }}>
-              <span style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Structured Details / Metadata</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Structured Details / Metadata</span>
               <pre
                 style={{
                   marginTop: '6px',
                   padding: '14px',
-                  backgroundColor: '#050811',
+                  backgroundColor: 'var(--bg-subtle)',
                   borderRadius: '8px',
-                  color: '#38bdf8',
+                  color: '#718765',
                   fontSize: '12px',
                   fontFamily: 'monospace',
                   overflowX: 'auto',
-                  border: '1px solid #1e293b'
+                  border: '1px solid var(--border-color)'
                 }}
               >
                 {JSON.stringify(selectedLog.details, null, 2)}
@@ -464,8 +464,8 @@ export const AdminAuditLogsPage: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '10px',
-                backgroundColor: '#334155',
-                color: '#f8fafc',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-main)',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 600,

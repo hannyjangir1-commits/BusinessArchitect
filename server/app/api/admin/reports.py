@@ -151,7 +151,7 @@ def export_summary_pdf(
     )
 
     story = []
-    story.append(Paragraph("AI Business Architect — Enterprise Status Report", title_style))
+    story.append(Paragraph("Venture Atlas — Enterprise Status Report", title_style))
     story.append(Paragraph(f"Generated on {datetime.now(timezone.utc).strftime('%B %d, %Y at %H:%M UTC')} | Requested by {current_admin.username} ({current_admin.role})", subtitle_style))
     story.append(Spacer(1, 15))
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6366f1"), spaceAfter=15))
@@ -168,8 +168,8 @@ def export_summary_pdf(
         ["Key Metric", "Current Value", "Operational Status"],
         ["Registered User Accounts", str(total_users), "Active"],
         ["Total Business Architecture Projects", str(total_projs), "Active"],
-        ["Gemini AI Operations Executed", str(total_ai), "Operational"],
-        ["AI Generation Success Rate", success_rate, "Optimal" if total_ai == 0 or ai_success/total_ai >= 0.8 else "Degraded"],
+        ["Gemini Generation Operations Executed", str(total_ai), "Operational"],
+        ["Generation Success Rate", success_rate, "Optimal" if total_ai == 0 or ai_success/total_ai >= 0.8 else "Degraded"],
         ["Active Database Migrations", "Synchronized", "Verified"],
     ]
 

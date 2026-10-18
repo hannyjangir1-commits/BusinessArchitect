@@ -64,7 +64,7 @@ describe('VersionConflictModal', () => {
 });
 
 describe('ContextualAssistant', () => {
-  it('displays module-specific prompt chips for BMC', () => {
+  it('does not show suggestion prompts in BMC', () => {
     const onModify = vi.fn();
     const onClose = vi.fn();
 
@@ -82,8 +82,8 @@ describe('ContextualAssistant', () => {
     expect(screen.getByText('(Business Model Canvas)')).toBeDefined();
 
     // Suggested chips
-    expect(screen.getByText(/Refine value proposition/i)).toBeDefined();
-    expect(screen.getByText(/Add customer channels/i)).toBeDefined();
+    expect(screen.queryByText(/Refine value proposition/i)).toBeNull();
+    expect(screen.queryByText(/Add customer channels/i)).toBeNull();
 
     // Clicking close button calls onClose
     const closeBtn = screen.getByLabelText('Close assistant panel');
@@ -145,19 +145,14 @@ describe('ProfileModal', () => {
     document.documentElement.removeAttribute('data-theme');
   });
 
-  it('switches and persists theme in localStorage and data-theme', () => {
+  it('saves profile preferences without exposing a dark theme control', () => {
     const onClose = vi.fn();
-    const onThemeChange = vi.fn((theme: 'light' | 'dark') => {
-      document.documentElement.setAttribute('data-theme', theme);
-    });
 
     render(
       <ProfileModal
         isOpen={true}
         onClose={onClose}
         user={{ id: 'usr_1', username: 'founder_alice', email: 'alice@founder.io', role: 'user', created_at: '2026-10-01' }}
-        onThemeChange={onThemeChange}
-        currentTheme="light"
       />
     );
 
@@ -168,17 +163,8 @@ describe('ProfileModal', () => {
     const prefTab = screen.getByText('Preferences');
     fireEvent.click(prefTab);
 
-    // Toggle Dark Theme
-    const darkBtn = screen.getByText(/Dark Theme/i);
-    fireEvent.click(darkBtn);
-
-    // Submit save preferences
-    const saveBtn = screen.getByText('Save Preferences');
-    fireEvent.click(saveBtn);
-
-    expect(onThemeChange).toHaveBeenCalledWith('dark');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-    expect(localStorage.getItem('aba_theme')).toBe('dark');
+    expect(screen.queryByText(/Dark Theme/i)).toBeNull();
+    expect(screen.queryByText(/Light Theme/i)).toBeNull();
   });
 });
 

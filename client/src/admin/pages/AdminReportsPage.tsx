@@ -52,10 +52,10 @@ export const AdminReportsPage: React.FC = () => {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
           Reports & Data Exports
         </h1>
-        <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
           Export operational datasets with verified spreadsheet formula injection protection
         </p>
       </div>
@@ -63,19 +63,19 @@ export const AdminReportsPage: React.FC = () => {
       {/* Security alert callout */}
       <div
         style={{
-          backgroundColor: '#eff6ff',
-          border: '1px solid #bfdbfe',
+          backgroundColor: '#edf0e7',
+          border: '1px solid #dfe2d6',
           borderRadius: '10px',
           padding: '14px 18px',
           marginBottom: '28px',
           display: 'flex',
           alignItems: 'center',
           gap: '12px',
-          color: '#1e40af',
+          color: '#718765',
           fontSize: '13px'
         }}
       >
-        <ShieldCheck size={20} style={{ flexShrink: 0, color: '#2563eb' }} />
+        <ShieldCheck size={20} style={{ flexShrink: 0, color: '#a68757' }} />
         <div>
           <strong>Security Protection Enforced:</strong> All CSV exports are sanitized on the server against CSV/Formula Injection attacks. Any fields beginning with formula triggers (<code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>) are safely prefixed with single quotes.
         </div>
@@ -89,10 +89,10 @@ export const AdminReportsPage: React.FC = () => {
             <div
               key={rep.id}
               style={{
-                backgroundColor: '#ffffff',
+                backgroundColor: 'var(--bg-card)',
                 borderRadius: '12px',
                 padding: '24px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid #dfe2d6',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -106,8 +106,8 @@ export const AdminReportsPage: React.FC = () => {
                       width: '42px',
                       height: '42px',
                       borderRadius: '10px',
-                      backgroundColor: rep.id === 'summary_pdf' ? '#ede9fe' : '#e0e7ff',
-                      color: rep.id === 'summary_pdf' ? '#7c3aed' : '#4338ca',
+                      backgroundColor: rep.id === 'summary_pdf' ? '#e8ede2' : '#e8ede2',
+                      color: rep.id === 'summary_pdf' ? '#a68757' : '#5d7550',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -121,31 +121,31 @@ export const AdminReportsPage: React.FC = () => {
                       fontWeight: 700,
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      backgroundColor: '#f1f5f9',
-                      color: '#475569'
+                      backgroundColor: '#f0f1e9',
+                      color: 'var(--text-main)'
                     }}
                   >
                     {rep.format}
                   </span>
                 </div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px' }}>
                   {rep.title}
                 </h3>
-                <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
                   {rep.desc}
                 </p>
               </div>
 
-              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f0f1e9' }}>
                 <button
                   onClick={rep.action}
                   style={{
                     width: '100%',
                     padding: '9px 16px',
                     borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: '#ffffff',
-                    color: '#0f172a',
+                    border: '1px solid #d9ddcf',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-main)',
                     fontSize: '13px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -156,14 +156,14 @@ export const AdminReportsPage: React.FC = () => {
                     transition: 'all 0.15s ease'
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.backgroundColor = '#6366f1';
-                    e.currentTarget.style.borderColor = '#6366f1';
-                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.backgroundColor = '#6d855f';
+                    e.currentTarget.style.borderColor = '#6d855f';
+                    e.currentTarget.style.color = 'var(--text-main)';
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.backgroundColor = '#ffffff';
-                    e.currentTarget.style.borderColor = '#cbd5e1';
-                    e.currentTarget.style.color = '#0f172a';
+                    e.currentTarget.style.backgroundColor = 'var(--text-main)';
+                    e.currentTarget.style.borderColor = 'var(--text-muted)';
+                    e.currentTarget.style.color = 'var(--text-main)';
                   }}
                 >
                   <Download size={15} />

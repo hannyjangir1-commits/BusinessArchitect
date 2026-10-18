@@ -12,6 +12,7 @@ from app.schemas.project import (
 from app.api.deps import get_current_user, get_user_project, verify_csrf
 from app.core.telemetry import record_analytics_event
 from app.core.business_stage import normalize_business_stage
+from app.core.module_types import normalize_module_type
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -23,12 +24,14 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
 
     # Determine genuinely generated modules for this specific project
     modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
-    gen_mods = [m.module_type for m in modules if m.active_version_id is not None]
+    gen_mods = list(dict.fromkeys(
+        normalize_module_type(m.module_type)
+        for m in modules
+        if m.active_version_id is not None
+    ))
     if tasks_count > 0:
         if "execution_roadmap" not in gen_mods:
             gen_mods.append("execution_roadmap")
-        if "detailed_roadmap" not in gen_mods:
-            gen_mods.append("detailed_roadmap")
 
     return ProjectResponse(
         id=project.id,
@@ -41,7 +44,7 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
         business_context=project.business_context,
         budget=project.budget,
         existing_stack=project.existing_stack or {},
-        active_module=project.active_module or "overview",
+        active_module=normalize_module_type(project.active_module),
         tasks_count=tasks_count,
         completed_tasks_count=completed_count,
         progress_percentage=progress_percentage,
@@ -139,48 +142,75 @@ def update_project(
                 business_context=req.business_context or project.business_context,
                 budget=req.budget or project.budget,
                 existing_stack=req.existing_stack if req.existing_stack is not None else (copy.deepcopy(project.existing_stack) if project.existing_stack else {}),
-                active_module=project.active_module or "overview"
+                active_module=normalize_module_type(project.active_module)
             )
             db.add(new_project)
             db.flush()
 
-            # 1. Clone ModuleContent and ModuleVersion history
+            # 1. Clone module history under canonical names. Older projects may
+            # contain both roadmap module rows; keep their histories together
+            # under the one unified roadmap record in the copy.
             source_modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
-            for sm in source_modules:
+            module_groups = {}
+            for source_module in source_modules:
+                canonical_type = normalize_module_type(source_module.module_type)
+                module_groups.setdefault(canonical_type, []).append(source_module)
+
+            for canonical_type, grouped_modules in module_groups.items():
                 new_module = ModuleContent(
                     project_id=new_project.id,
-                    module_type=sm.module_type,
+                    module_type=canonical_type,
                     active_version_id=None
                 )
                 db.add(new_module)
                 db.flush()
 
-                # Clone all versions for this module
-                source_versions = db.query(ModuleVersion).filter(
-                    ModuleVersion.module_content_id == sm.id
+                versions_to_clone = []
+                active_source_module = max(
+                    grouped_modules,
+                    key=lambda candidate: (
+                        str(candidate.updated_at or candidate.created_at),
+                        candidate.module_type == canonical_type,
+                    ),
+                )
+                active_source_versions = db.query(ModuleVersion).filter(
+                    ModuleVersion.module_content_id == active_source_module.id
                 ).order_by(ModuleVersion.version_number.asc()).all()
+                active_source_version_id = active_source_module.active_version_id or next(
+                    (version.id for version in reversed(active_source_versions) if version.is_active),
+                    None,
+                )
 
-                ver_id_map = {}
-                for sv in source_versions:
+                for source_module in grouped_modules:
+                    source_versions = db.query(ModuleVersion).filter(
+                        ModuleVersion.module_content_id == source_module.id
+                    ).order_by(ModuleVersion.created_at.asc(), ModuleVersion.version_number.asc()).all()
+                    versions_to_clone.extend((source_module, version) for version in source_versions)
+
+                versions_to_clone.sort(
+                    key=lambda pair: (str(pair[1].created_at), pair[0].module_type == canonical_type, pair[1].version_number)
+                )
+                active_version_id = None
+                for index, (source_module, source_version) in enumerate(versions_to_clone, start=1):
+                    is_active = (
+                        source_module.id == active_source_module.id
+                        and source_version.id == active_source_version_id
+                    )
                     new_ver = ModuleVersion(
                         module_content_id=new_module.id,
-                        version_number=sv.version_number,
-                        version_name=sv.version_name,
-                        data=copy.deepcopy(sv.data),
-                        change_summary=sv.change_summary,
-                        is_active=sv.is_active
+                        version_number=index,
+                        version_name=source_version.version_name,
+                        data=copy.deepcopy(source_version.data),
+                        change_summary=source_version.change_summary,
+                        is_active=is_active,
+                        created_at=source_version.created_at,
                     )
                     db.add(new_ver)
                     db.flush()
-                    ver_id_map[sv.id] = new_ver.id
+                    if is_active:
+                        active_version_id = new_ver.id
 
-                # Remap active version reference
-                if sm.active_version_id and sm.active_version_id in ver_id_map:
-                    new_module.active_version_id = ver_id_map[sm.active_version_id]
-                elif source_versions and not sm.active_version_id:
-                    active_sv = next((sv for sv in reversed(source_versions) if sv.is_active), None)
-                    if active_sv and active_sv.id in ver_id_map:
-                        new_module.active_version_id = ver_id_map[active_sv.id]
+                new_module.active_version_id = active_version_id
 
             # 2. Clone RoadmapTask rows
             source_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).order_by(RoadmapTask.order_index.asc()).all()
@@ -199,6 +229,11 @@ def update_project(
                     dependencies=list(st.dependencies or []),
                     deliverables=st.deliverables,
                     effort=st.effort,
+                    assigned_to=st.assigned_to,
+                    assigned_role=st.assigned_role,
+                    department=st.department,
+                    steps=list(st.steps or []),
+                    is_overloaded=st.is_overloaded,
                     order_index=st.order_index,
                     is_ai_generated=st.is_ai_generated
                 )
@@ -241,7 +276,7 @@ def update_project(
     if req.existing_stack is not None:
         project.existing_stack = req.existing_stack
     if req.active_module is not None:
-        project.active_module = req.active_module
+        project.active_module = normalize_module_type(req.active_module)
 
     db.commit()
     db.refresh(project)
@@ -254,9 +289,9 @@ def update_active_module(
     db: Session = Depends(get_db)
 ):
     """Persists the active navigation tab per-project in the database."""
-    project.active_module = req.active_module
+    project.active_module = normalize_module_type(req.active_module)
     db.commit()
-    return {"message": "Active module navigation saved", "active_module": req.active_module}
+    return {"message": "Active module navigation saved", "active_module": project.active_module}
 
 @router.post("/bulk-delete", response_model=BulkDeleteProjectsResponse, dependencies=[Depends(verify_csrf)])
 def bulk_delete_projects(

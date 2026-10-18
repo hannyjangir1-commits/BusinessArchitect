@@ -9,7 +9,7 @@ interface Props {
   isLoading: boolean;
 }
 
-// Clean, lightweight Markdown component for AI Planning Assistant
+// Clean, lightweight Markdown component for Planning Copilot
 const MarkdownContent: React.FC<{ content: string; isUser: boolean }> = ({ content, isUser }) => {
   if (isUser) {
     return <span>{content}</span>;
@@ -69,7 +69,7 @@ const MarkdownContent: React.FC<{ content: string; isUser: boolean }> = ({ conte
           <code
             key={idx}
             style={{
-              background: 'rgba(99, 102, 241, 0.1)',
+              background: 'rgba(109, 133, 95, 0.1)',
               color: 'var(--primary)',
               padding: '2px 5px',
               borderRadius: 4,
@@ -101,8 +101,8 @@ const MarkdownContent: React.FC<{ content: string; isUser: boolean }> = ({ conte
           <pre
             key={`code-${elements.length}`}
             style={{
-              background: '#0f172a',
-              color: '#f8fafc',
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-main)',
               padding: '10px 14px',
               borderRadius: 8,
               fontSize: 12,
@@ -253,19 +253,19 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            color: '#ffffff',
+            background: 'linear-gradient(135deg, #6d855f, #a68757)',
+            color: 'var(--text-main)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 3px 10px rgba(99, 102, 241, 0.25)'
+            boxShadow: '0 3px 10px rgba(109, 133, 95, 0.25)'
           }}>
             <Bot size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Planning Assistant</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Planning Copilot</h3>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              Project-aware venture advisor & technical planning assistant for <b>{project.name}</b>
+              Project-aware business and technical guidance for <b>{project.name}</b>
             </p>
           </div>
         </div>
@@ -280,7 +280,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               width: 50,
               height: 50,
               borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.12)',
+              background: 'rgba(109, 133, 95, 0.12)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -290,7 +290,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               <Sparkles size={24} />
             </div>
             <h4 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
-              Ask Planning Assistant Anything
+              Ask Planning Copilot Anything
             </h4>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
               The assistant has full context of {project.name}'s business stage, technology stack, target customers, and roadmap.
@@ -326,7 +326,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    background: 'rgba(99, 102, 241, 0.12)',
+                    background: 'rgba(109, 133, 95, 0.12)',
                     color: 'var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
@@ -354,8 +354,8 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    background: '#1e293b',
-                    color: '#ffffff',
+                    background: 'var(--bg-subtle)',
+                    color: 'var(--text-main)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -375,7 +375,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.12)',
+              background: 'rgba(109, 133, 95, 0.12)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -395,7 +395,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               color: 'var(--text-muted)'
             }}>
               <Loader2 size={16} className="animate-spin" color="var(--primary)" />
-              <span>Planning Assistant is formulating response...</span>
+              <span>Planning Copilot is formulating a response...</span>
             </div>
           </div>
         )}
@@ -413,7 +413,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
         <input
           type="text"
           className="form-input"
-          placeholder={`Ask Planning Assistant about ${project.name}...`}
+              placeholder={`Ask Planning Copilot about ${project.name}...`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}

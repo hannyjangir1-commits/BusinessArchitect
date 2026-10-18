@@ -62,10 +62,10 @@ export const LogoutConfirmModal: React.FC<Props> = ({
             <AlertTriangle size={22} />
           </div>
           <div>
-            <h3 id="logout-title" style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+            <h3 id="logout-title" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
               Are you sure you want to log out?
             </h3>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
               Your current authenticated session will be securely terminated.
             </p>
           </div>
@@ -89,7 +89,7 @@ export const LogoutConfirmModal: React.FC<Props> = ({
               padding: '8px 18px',
               fontSize: 13,
               fontWeight: 600,
-              color: '#ffffff',
+              color: 'var(--text-main)',
               background: '#ef4444',
               border: 'none',
               borderRadius: 6,

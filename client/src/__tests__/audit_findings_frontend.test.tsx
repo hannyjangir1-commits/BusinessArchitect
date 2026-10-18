@@ -64,8 +64,6 @@ describe('F-15: Refresh app user state after profile updates', () => {
         isOpen={true}
         onClose={onClose}
         user={mockUser}
-        onThemeChange={vi.fn()}
-        currentTheme="light"
         onUserUpdated={onUserUpdated}
       />
     );
@@ -155,8 +153,8 @@ describe('F-16: Dashboard module shortcuts open their named modules', () => {
     fireEvent.click(roadmapBtn);
     expect(onOpenProject).toHaveBeenCalledWith('proj_first', 'execution_roadmap');
 
-    // Shortcut 4: Planning Assistant
-    const copilotBtn = screen.getByText('Planning Assistant');
+    // Shortcut 4: Planning Copilot
+    const copilotBtn = screen.getByText('Planning Copilot');
     fireEvent.click(copilotBtn);
     expect(onOpenProject).toHaveBeenCalledWith('proj_first', 'blueprint_copilot');
   });

@@ -61,11 +61,11 @@ export const AdminConfigPage: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Sliders size={26} color="#6366f1" />
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sliders size={26} color="#6d855f" />
             Configuration Center
           </h1>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '14px' }}>
+          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
             Manage safe runtime settings, processing service parameters, security limits, and inspect configuration status.
           </p>
         </div>
@@ -77,9 +77,9 @@ export const AdminConfigPage: React.FC = () => {
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
-            backgroundColor: '#1e293b',
-            color: '#f8fafc',
-            border: '1px solid #334155',
+            backgroundColor: 'var(--bg-subtle)',
+            color: 'var(--text-main)',
+            border: '1px solid #687164',
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
@@ -101,9 +101,9 @@ export const AdminConfigPage: React.FC = () => {
             gap: '10px',
             fontSize: '13px',
             fontWeight: 500,
-            backgroundColor: statusMsg.type === 'success' ? '#064e3b33' : '#7f1d1d33',
-            border: `1px solid ${statusMsg.type === 'success' ? '#059669' : '#dc2626'}`,
-            color: statusMsg.type === 'success' ? '#34d399' : '#f87171'
+            backgroundColor: statusMsg.type === 'success' ? '#e8ede2' : '#f9eae6',
+            border: `1px solid ${statusMsg.type === 'success' ? '#cfd7c6' : '#e8c6bf'}`,
+            color: statusMsg.type === 'success' ? '#52624a' : '#9a5146'
           }}
         >
           {statusMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -114,19 +114,19 @@ export const AdminConfigPage: React.FC = () => {
       {/* Secret / Environment Status (Non-editable, Safe Masked View) */}
       <div
         style={{
-          backgroundColor: '#0f172a',
+          backgroundColor: 'var(--bg-subtle)',
           borderRadius: '12px',
-          border: '1px solid #1e293b',
+          border: '1px solid var(--border-color)',
           padding: '24px'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
           <Lock size={20} color="#f59e0b" />
-          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
             Deployment Environment & Secrets Verification
           </h2>
         </div>
-        <p style={{ margin: '0 0 20px', color: '#94a3b8', fontSize: '13px' }}>
+        <p style={{ margin: '0 0 20px', color: 'var(--text-muted)', fontSize: '13px' }}>
           Sensitive credentials are never displayed, committed, or returned through APIs. Status flags verify presence only.
         </p>
 
@@ -135,8 +135,8 @@ export const AdminConfigPage: React.FC = () => {
             <div
               key={item.name}
               style={{
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid #687164',
                 borderRadius: '10px',
                 padding: '16px',
                 display: 'flex',
@@ -145,14 +145,14 @@ export const AdminConfigPage: React.FC = () => {
               }}
             >
               <div>
-                <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '13px', color: '#f8fafc' }}>
+                <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '13px', color: 'var(--text-main)' }}>
                   {item.name}
                 </div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                   Category: {item.category}
                 </div>
                 {item.value && (
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                     Active: {item.value}
                   </div>
                 )}
@@ -201,9 +201,9 @@ export const AdminConfigPage: React.FC = () => {
       <form onSubmit={handleSave}>
         <div
           style={{
-            backgroundColor: '#0f172a',
+            backgroundColor: 'var(--bg-subtle)',
             borderRadius: '12px',
-            border: '1px solid #1e293b',
+            border: '1px solid var(--border-color)',
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
@@ -212,11 +212,11 @@ export const AdminConfigPage: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Cpu size={20} color="#6366f1" />
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Cpu size={20} color="#6d855f" />
                 Validated Runtime Parameters
               </h2>
-              <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '13px' }}>
+              <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '13px' }}>
                 Changes are applied immediately and recorded in the audit trail.
               </p>
             </div>
@@ -228,8 +228,8 @@ export const AdminConfigPage: React.FC = () => {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '9px 20px',
-                backgroundColor: '#6366f1',
-                color: '#ffffff',
+                backgroundColor: '#6d855f',
+                color: 'var(--text-main)',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 600,
@@ -243,8 +243,8 @@ export const AdminConfigPage: React.FC = () => {
           </div>
 
           {loading ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-              <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
               Loading settings...
             </div>
           ) : (
@@ -254,9 +254,9 @@ export const AdminConfigPage: React.FC = () => {
                   key={s.key}
                   style={{
                     padding: '16px',
-                    backgroundColor: '#1e293b',
+                    backgroundColor: 'var(--bg-subtle)',
                     borderRadius: '10px',
-                    border: '1px solid #334155',
+                    border: '1px solid #687164',
                     display: 'grid',
                     gridTemplateColumns: 'minmax(240px, 1fr) 200px',
                     gap: '16px',
@@ -265,7 +265,7 @@ export const AdminConfigPage: React.FC = () => {
                 >
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '13px', color: '#f8fafc' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '13px', color: 'var(--text-main)' }}>
                         {s.key}
                       </span>
                       <span
@@ -274,15 +274,15 @@ export const AdminConfigPage: React.FC = () => {
                           textTransform: 'uppercase',
                           padding: '2px 6px',
                           borderRadius: '4px',
-                          backgroundColor: '#0f172a',
-                          color: '#94a3b8',
-                          border: '1px solid #334155'
+                          backgroundColor: 'var(--bg-subtle)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid #687164'
                         }}
                       >
                         {s.category}
                       </span>
                     </div>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                       {s.description}
                     </div>
                   </div>
@@ -295,10 +295,10 @@ export const AdminConfigPage: React.FC = () => {
                         style={{
                           width: '100%',
                           padding: '8px 12px',
-                          backgroundColor: '#0f172a',
-                          border: '1px solid #334155',
+                          backgroundColor: 'var(--bg-subtle)',
+                          border: '1px solid #687164',
                           borderRadius: '6px',
-                          color: '#f8fafc',
+                          color: 'var(--text-main)',
                           fontSize: '13px',
                           outline: 'none'
                         }}
@@ -314,10 +314,10 @@ export const AdminConfigPage: React.FC = () => {
                         style={{
                           width: '100%',
                           padding: '8px 12px',
-                          backgroundColor: '#0f172a',
-                          border: '1px solid #334155',
+                          backgroundColor: 'var(--bg-subtle)',
+                          border: '1px solid #687164',
                           borderRadius: '6px',
-                          color: '#f8fafc',
+                          color: 'var(--text-main)',
                           fontSize: '13px',
                           fontFamily: s.type === 'int' ? 'monospace' : 'inherit',
                           outline: 'none'

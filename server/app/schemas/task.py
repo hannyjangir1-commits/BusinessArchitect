@@ -19,6 +19,7 @@ class TaskCreateRequest(BaseModel):
     assigned_role: Optional[str] = None
     department: Optional[str] = None
     steps: Optional[List[str]] = Field(default_factory=list)
+    is_overloaded: Optional[bool] = False
 
 class TaskUpdateRequest(BaseModel):
     task_code: Optional[str] = None
@@ -37,6 +38,7 @@ class TaskUpdateRequest(BaseModel):
     assigned_role: Optional[str] = None
     department: Optional[str] = None
     steps: Optional[List[str]] = None
+    is_overloaded: Optional[bool] = None
 
 class TaskResponse(BaseModel):
     id: str

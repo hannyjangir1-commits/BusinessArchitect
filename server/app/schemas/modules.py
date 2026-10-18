@@ -19,7 +19,7 @@ class GenerationBrief(BaseModel):
 
 # --- BMC Schemas ---
 class BMCData(BaseModel):
-    tagline: Optional[str] = "AI-Driven Enterprise Solution"
+    tagline: Optional[str] = "A practical solution for its target customers"
     customer_segments: List[str] = Field(..., min_length=1)
     value_propositions: List[str] = Field(..., min_length=1)
     channels: List[str] = Field(..., min_length=1)
@@ -66,6 +66,12 @@ class ValidationExperiment(BaseModel):
     metric: str
     target_criteria: str
 
+
+class ResearchSource(BaseModel):
+    title: str
+    url: str
+
+
 class IdeaValidatorData(BaseModel):
     overall_viability_score: int = Field(default=85, ge=0, le=100)
     problem_clarity: str
@@ -80,6 +86,8 @@ class IdeaValidatorData(BaseModel):
     budget_feasibility: Optional[str] = None
     scope_reduction_alternatives: Optional[List[str]] = Field(default_factory=list)
     score_factors: Optional[Dict[str, int]] = Field(default_factory=dict)
+    evidence_note: Optional[str] = None
+    source_references: List[ResearchSource] = Field(default_factory=list)
 
     @property
     def score(self) -> int:
@@ -101,7 +109,7 @@ class CompetitorProfile(BaseModel):
     is_direct_competitor: Optional[bool] = True
 
 class MarketResearchData(BaseModel):
-    provenance_note: str = "AI-grounded analytical market assessment based on current business context."
+    provenance_note: str = "Context-based market assessment; verify assumptions against current evidence."
     target_market_size: str
     customer_needs: List[str]
     competitor_profiles: List[CompetitorProfile]
@@ -112,6 +120,7 @@ class MarketResearchData(BaseModel):
     research_gaps: List[str]
     late_entry_differentiation: Optional[str] = None
     budget_fit_analysis: Optional[str] = None
+    source_references: List[ResearchSource] = Field(default_factory=list)
 
 # --- Roadmap Schemas ---
 class RoadmapPhase(BaseModel):

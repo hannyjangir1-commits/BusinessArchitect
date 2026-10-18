@@ -68,7 +68,7 @@ describe('Phase 3 & 5: Module-Scoped Generation Progress', () => {
     expect(btn.hasAttribute('disabled')).toBe(true);
 
     // Verify no separate banner card exists
-    expect(document.querySelector('.card[style*="background: #f5f3ff"]')).toBeNull();
+    expect(document.querySelector('.card[style*="background: #f0f1e9"]')).toBeNull();
   });
 
   it('Tech Stack button does not show BMC progress when BMC request is running', () => {

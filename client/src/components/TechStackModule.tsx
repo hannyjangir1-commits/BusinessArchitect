@@ -13,6 +13,8 @@ interface Props {
   onRenameVersion: (newName: string) => Promise<void>;
   onDeleteVersion: (versionId: string) => Promise<void>;
   onRestoreVersion: (versionId: string) => Promise<void>;
+  onCreateNew?: () => Promise<void>;
+  onDeleteModule?: () => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
   isGenerating?: boolean;
@@ -28,6 +30,8 @@ export const TechStackModule: React.FC<Props> = ({
   onRenameVersion,
   onDeleteVersion,
   onRestoreVersion,
+  onCreateNew,
+  onDeleteModule,
   onExportPdf,
   isLoading,
   isGenerating = false,
@@ -55,13 +59,13 @@ export const TechStackModule: React.FC<Props> = ({
   if (!techData) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#ede9fe', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e8ede2', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <Cpu size={28} />
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
           Technology Stack Architecture Not Yet Generated
         </h3>
-        <p style={{ fontSize: 13, color: '#64748b', maxWidth: 480, margin: '0 auto 20px auto' }}>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
           Synthesize an enterprise-ready technology stack blueprint evaluated for {project.name}'s stage ({project.stage}) and existing technical assets.
         </p>
         <button
@@ -96,6 +100,13 @@ export const TechStackModule: React.FC<Props> = ({
     DevOps: Terminal,
     Services: Cpu
   };
+  const stackEvaluation = techData.existing_stack_evaluation || {};
+  const stackEvaluationStatus = stackEvaluation.evaluation_status;
+  const statusMessage = stackEvaluationStatus === 'not_verified_offline'
+    ? 'Your current components were captured, but compatibility and migration risk could not be verified in offline mode.'
+    : stackEvaluationStatus === 'no_existing_stack'
+      ? 'No existing stack was supplied for compatibility review.'
+      : 'Review the current components, compatibility notes, and migration trade-offs below.';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -127,6 +138,11 @@ export const TechStackModule: React.FC<Props> = ({
           onRestore={onRestoreVersion}
           onExportPdf={onExportPdf}
           onExportSvg={handleDownloadSvg}
+          onCreateNew={onCreateNew}
+          onDeleteModule={onDeleteModule}
+          createLabel="Create New Stack"
+          isBusy={isLoading || isGenerating}
+          isCreateDisabled={isGenerateDisabled}
         />
       </div>
 
@@ -141,9 +157,9 @@ export const TechStackModule: React.FC<Props> = ({
           />
 
           {/* Architectural Summary Banner */}
-          <div className="card" style={{ background: 'var(--bg-card)', borderLeft: '4px solid #6366f1' }}>
+          <div className="card" style={{ background: 'var(--bg-card)', borderLeft: '4px solid #6d855f' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#6366f1' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#6d855f' }}>
                 Architectural Blueprint
               </span>
               <span className="stage-badge-purple">
@@ -155,6 +171,35 @@ export const TechStackModule: React.FC<Props> = ({
             </p>
           </div>
 
+          <section className="card" aria-labelledby="existing-stack-review-title">
+            <div className="card-title" id="existing-stack-review-title">
+              <Layers size={16} /> Existing Stack Compatibility Review
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 8 }}>
+              {statusMessage}
+            </p>
+            {(stackEvaluation.existing_components || []).length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--text-main)' }}>
+                <b>Current components supplied:</b> {(stackEvaluation.existing_components as string[]).join(', ')}
+              </div>
+            )}
+            {(stackEvaluation.compatible_elements || []).length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--text-main)' }}>
+                <b>Compatible or planned to retain:</b> {(stackEvaluation.compatible_elements as string[]).join(', ')}
+              </div>
+            )}
+            {(stackEvaluation.incompatible_or_redundant || []).length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--text-main)' }}>
+                <b>Potential conflicts or redundancy:</b> {(stackEvaluation.incompatible_or_redundant as string[]).join(', ')}
+              </div>
+            )}
+            {stackEvaluation.migration_trade_offs && (
+              <p style={{ fontSize: 12.5, color: 'var(--text-main)', lineHeight: 1.5, margin: '10px 0 0' }}>
+                <b>Migration trade-offs:</b> {stackEvaluation.migration_trade_offs}
+              </p>
+            )}
+          </section>
+
           {/* Tiered Architectural Infographic Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
             {(techData?.recommendations || []).map((item, idx) => {
@@ -164,7 +209,7 @@ export const TechStackModule: React.FC<Props> = ({
                 <div key={idx} className="card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 6, background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 6, background: 'rgba(109, 133, 95, 0.15)', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Icon size={16} />
                       </div>
                       <div>

@@ -46,8 +46,8 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#0a0f1d',
-        backgroundImage: 'radial-gradient(circle at 50% 20%, rgba(99, 102, 241, 0.12), transparent 70%)',
+        backgroundColor: 'var(--bg-workspace)',
+        backgroundImage: 'radial-gradient(circle at 50% 20%, rgba(109, 133, 95, 0.12), transparent 70%)',
         padding: '20px',
         fontFamily: 'var(--font-family)'
       }}
@@ -56,10 +56,10 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
         style={{
           width: '100%',
           maxWidth: '420px',
-          backgroundColor: '#111827',
+          backgroundColor: 'var(--bg-workspace)',
           borderRadius: '16px',
-          border: '1px solid #1f2937',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          border: '1px solid #e7e9df',
+          boxShadow: '0 14px 36px -18px rgba(70, 78, 63, 0.2)',
           overflow: 'hidden'
         }}
       >
@@ -68,7 +68,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
           style={{
             padding: '32px 32px 24px',
             textAlign: 'center',
-            borderBottom: '1px solid #1f2937'
+            borderBottom: '1px solid #e7e9df'
           }}
         >
           <div
@@ -77,21 +77,21 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
               height: '54px',
               margin: '0 auto 16px',
               borderRadius: '14px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+              background: 'linear-gradient(135deg, #6d855f 0%, #5d7550 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)'
+              color: 'var(--text-main)',
+              boxShadow: '0 0 20px rgba(109, 133, 95, 0.4)'
             }}
           >
             <Shield size={28} />
           </div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f9fafb', margin: '0 0 6px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px' }}>
             Enterprise Admin Portal
           </h2>
-          <p style={{ fontSize: '13px', color: '#9ca3af', margin: 0 }}>
-            Business Architect — Control Center
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+            Venture Atlas — Control Center
           </p>
         </div>
 
@@ -108,7 +108,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',
-                color: '#f87171',
+                color: '#a94f43',
                 fontSize: '13px'
               }}
             >
@@ -120,7 +120,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
           <div style={{ marginBottom: '18px' }}>
             <label
               htmlFor="admin-username"
-              style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#d1d5db', marginBottom: '6px' }}
+              style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}
             >
               Administrator Username
             </label>
@@ -131,7 +131,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
                   left: '12px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: '#6b7280',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center'
                 }}
@@ -149,16 +149,16 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
                 style={{
                   width: '100%',
                   padding: '10px 12px 10px 38px',
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
+                  backgroundColor: 'var(--bg-subtle)',
+                  border: '1px solid #626b5f',
                   borderRadius: '8px',
-                  color: '#f9fafb',
+                  color: 'var(--text-main)',
                   fontSize: '14px',
                   outline: 'none',
                   transition: 'border-color 0.15s'
                 }}
-                onFocus={e => (e.target.style.borderColor = '#6366f1')}
-                onBlur={e => (e.target.style.borderColor = '#374151')}
+                onFocus={e => (e.target.style.borderColor = '#6d855f')}
+                onBlur={e => (e.target.style.borderColor = 'var(--text-main)')}
               />
             </div>
           </div>
@@ -166,7 +166,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
           <div style={{ marginBottom: '24px' }}>
             <label
               htmlFor="admin-password"
-              style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#d1d5db', marginBottom: '6px' }}
+              style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}
             >
               Master Password
             </label>
@@ -177,7 +177,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
                   left: '12px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: '#6b7280',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center'
                 }}
@@ -195,16 +195,16 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
                 style={{
                   width: '100%',
                   padding: '10px 40px 10px 38px',
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
+                  backgroundColor: 'var(--bg-subtle)',
+                  border: '1px solid #626b5f',
                   borderRadius: '8px',
-                  color: '#f9fafb',
+                  color: 'var(--text-main)',
                   fontSize: '14px',
                   outline: 'none',
                   transition: 'border-color 0.15s'
                 }}
-                onFocus={e => (e.target.style.borderColor = '#6366f1')}
-                onBlur={e => (e.target.style.borderColor = '#374151')}
+                onFocus={e => (e.target.style.borderColor = '#6d855f')}
+                onBlur={e => (e.target.style.borderColor = 'var(--text-main)')}
               />
               <button
                 type="button"
@@ -217,7 +217,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  color: '#9ca3af',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer'
                 }}
               >
@@ -232,8 +232,8 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
             style={{
               width: '100%',
               padding: '12px',
-              backgroundColor: '#6366f1',
-              color: '#ffffff',
+              backgroundColor: '#6d855f',
+              color: 'var(--text-main)',
               border: 'none',
               borderRadius: '8px',
               fontSize: '14px',
@@ -243,14 +243,14 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+              boxShadow: '0 4px 12px rgba(109, 133, 95, 0.3)',
               transition: 'background-color 0.15s'
             }}
             onMouseEnter={e => {
-              if (!loading) e.currentTarget.style.backgroundColor = '#4f46e5';
+              if (!loading) e.currentTarget.style.backgroundColor = '#5d7550';
             }}
             onMouseLeave={e => {
-              if (!loading) e.currentTarget.style.backgroundColor = '#6366f1';
+              if (!loading) e.currentTarget.style.backgroundColor = '#6d855f';
             }}
           >
             {loading ? (
@@ -270,7 +270,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess }
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#9ca3af',
+                color: 'var(--text-muted)',
                 fontSize: '12px',
                 cursor: 'pointer',
                 display: 'inline-flex',

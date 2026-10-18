@@ -56,40 +56,38 @@ An enterprise-grade business planning platform that transforms venture concepts 
    - HTTP-only session cookies with CSRF token verification.
    - Strict project isolation: users cannot access or mutate another user's projects, tasks, or versions.
 2. **Stage-Aware 3-Step Project Creation**:
-   - Step 1: Venture identity, industry, description, and stage (`Idea / MVP`, `Post-launch`, `Growth`).
-   - Step 2: Stage-aware discovery:
-     - For `Idea / MVP`: initial build budget & strategic goals.
-     - For `Post-launch` and `Growth`: dedicated multi-select **Existing Technology Stack Selector** (Frontend, Backend, Database, Cloud/Hosting, Storage, Auth, DevOps, Services, and custom technologies).
+   - Step 1: Venture identity, industry, description, and one of four stages: `Idea`, `MVP`, `Post-launch`, or `Growth`.
+   - Step 2 gathers the budget/runway and strategic goals for every stage, plus the existing technology stack where applicable.
    - Step 3: Review summary and AI blueprint generation.
 3. **Alexander Osterwalder 9-Block Business Model Canvas**:
-   - Deterministic SVG Radial Infographic inspired by the TempShare reference (center company node + 9 surrounding blocks + 9 dynamic connectors).
+   - Interactive radial SVG mind map (center company node + 9 surrounding blocks + dynamic connectors); selecting a block reveals every generated point, its guidance, and assumptions.
+   - Downloaded SVG includes the complete text and guidance in an appendix, not just the abbreviated on-card preview.
    - Structured 9-block grid view.
    - Section-specific AI modification chat.
 4. **Technology Stack Architecture**:
-   - Evaluates existing stack components, scalability bottlenecks, trade-offs, and migration risks.
+   - Recommendations adapt to the venture's stage, industry, budget, technical depth, and read-only context from other modules.
+   - Shows the supplied existing components and clearly labels compatibility as unverified when no grounded review is available.
    - Categorized tier cards (Frontend, Backend, Database, Cloud, Security, DevOps, Services).
    - Section-specific AI modification chat.
 5. **Idea Validator & Feasibility Report**:
-   - Overall viability score meter (0–100).
+   - Overall viability score meter (0–100) with a factor breakdown and evidence limitations.
    - Problem urgency, ICP fit, value proposition, and market assumptions.
    - Risk matrix with severity ratings and mitigation strategies.
    - Actionable validation experiments with target metrics.
+   - When grounded search is available, links to returned evidence; offline mode labels its score as a preliminary heuristic.
    - *Section-specific AI modification chat is deliberately absent per system rules.*
 6. **Market Research & Competitor Intelligence**:
-   - Explicit AI-grounded analytical provenance disclaimer.
-   - TAM / SAM / SOM market estimations.
-   - Competitor profiles (strengths, weaknesses, pricing models, market share estimates).
+   - Explicit research provenance, source links, and unresolved research gaps.
+   - Search-grounded market sizing and up to three sourced competitors when available.
+   - Offline mode does not invent competitor names, market size, growth, share, or pricing figures.
    - Competitive positioning wedge, opportunities, and threats.
    - *Section-specific AI modification chat is deliberately absent per system rules.*
-7. **Execution Roadmap & Interactive Gantt Chart**:
-   - 5 structured phases: *Planning & Research*, *System Design*, *Development*, *Testing & Deployment*, *Launch & Monitor*.
-   - Interactive SVG Gantt chart with Month View (Oct 2026 – Mar 2027), weekly columns (W1–W4), today line, and milestone diamonds.
-   - 30-Day, 60-Day, and 90-Day milestone cards with progress bars and fractions.
-   - Full task management table with filters (All, 30-Day, 60-Day, 90-Day), search, status dropdowns, priority badges, and dependency safety checks.
-   - Section-specific AI modification assistant on the right panel.
-8. **Detailed Operational Roadmap**:
-   - Tasks grouped dynamically by chronological monthly execution intervals.
-   - Synchronized with the centralized database tasks table.
+7. **Unified Roadmap & Execution Plan**:
+   - One module combines the roadmap mind map, detailed task breakdown, and interactive Gantt chart.
+   - Generation asks for stage, completed/in-progress work, timeline, budget/capacity constraints, custom tasks, and team members with multiple roles and skills.
+   - Task dates are planned from the requested/current start date; unfinished tasks are moved forward, completed work is retained, and dependencies are checked.
+   - The mind map is the first view; users can open task details and the member/role assignments from each task.
+   - Roadmap and technology stack share read-only context. Updating the stack marks an older roadmap as stale and offers a refresh; it does not silently change saved roadmap output.
 9. **Blueprint Copilot**:
    - Full-screen conversational AI venture partner with persistent project context injection.
    - Excluded from the consolidated project PDF export.
@@ -100,7 +98,7 @@ An enterprise-grade business planning platform that transforms venture concepts 
     - No silent overwrites or unexpected deletions.
     - Version display renaming, deletion, and restoration.
 11. **Per-Project Navigation Memory**:
-    - The active module tab is saved to Supabase per project.
+    - The active module tab is saved per project.
     - Reopening a project restores its last viewed module automatically.
 12. **Consolidated PDF & Module Exports**:
     - Single-module export button (PDF / SVG) in the workspace toolbar.
@@ -174,7 +172,13 @@ Open `http://localhost:5173` in your browser. Vite automatically proxies `/api` 
 ```bash
 cd server
 python -m pytest -v
+
+cd ../client
+npm test
+npm run build
 ```
+
+The backend test setup uses a temporary SQLite database created inside `server`, applies Alembic migrations, and disables real Gemini API calls. Tests do not use the repository `.env` database configuration.
 
 ---
 

@@ -11,7 +11,6 @@ import { TechStackModule } from './components/TechStackModule';
 import { IdeaValidatorModule } from './components/IdeaValidatorModule';
 import { MarketResearchModule } from './components/MarketResearchModule';
 import { ExecutionRoadmapModule } from './components/ExecutionRoadmapModule';
-import { DetailedRoadmapModule } from './components/DetailedRoadmapModule';
 import { BlueprintCopilotModule } from './components/BlueprintCopilotModule';
 import { NewProjectWizard } from './components/NewProjectWizard';
 import { VersionConflictModal } from './components/VersionConflictModal';
@@ -19,6 +18,9 @@ import { AdminApp } from './admin/AdminApp';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { Loader2, AlertCircle, X } from 'lucide-react';
 import './styles/index.css';
+
+const normalizeModuleType = (moduleType: string) =>
+  moduleType === 'detailed_roadmap' ? 'execution_roadmap' : moduleType;
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -98,7 +100,6 @@ export const App: React.FC = () => {
     idea_validator: { version: 'V1', isGenerated: false },
     market_research: { version: 'V1', isGenerated: false },
     execution_roadmap: { version: 'V1', isGenerated: false },
-    detailed_roadmap: { version: 'V1', isGenerated: false },
     blueprint_copilot: { version: 'V1', isGenerated: false }
   });
 
@@ -206,18 +207,17 @@ export const App: React.FC = () => {
         idea_validator: { version: 'V1', isGenerated: genModules.has('idea_validator') },
         market_research: { version: 'V1', isGenerated: genModules.has('market_research') },
         execution_roadmap: { version: 'V1', isGenerated: genModules.has('execution_roadmap') },
-        detailed_roadmap: { version: 'V1', isGenerated: genModules.has('detailed_roadmap') },
         blueprint_copilot: { version: 'V1', isGenerated: false }
       });
 
       // Restore the project's saved navigation module or use shortcut override (F-16)
-      const targetModule = targetModuleOverride || proj.active_module || 'execution_roadmap';
+      const targetModule = normalizeModuleType(targetModuleOverride || proj.active_module || 'execution_roadmap');
       activeModuleTypeRef.current = targetModule;
       setActiveModule(targetModule);
       loadModuleContent(proj.id, targetModule);
 
-      if (targetModuleOverride && targetModuleOverride !== proj.active_module) {
-        api.projects.updateActiveModule(proj.id, targetModuleOverride).catch(console.error);
+      if (targetModuleOverride && targetModule !== proj.active_module) {
+        api.projects.updateActiveModule(proj.id, targetModule).catch(console.error);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to open project');
@@ -227,15 +227,16 @@ export const App: React.FC = () => {
   // 3. Switch Module and Persist Per-Project Navigation Memory
   const handleSelectModule = async (moduleId: string) => {
     if (!currentProject) return;
-    activeModuleTypeRef.current = moduleId;
-    setActiveModule(moduleId);
+    const canonicalModuleId = normalizeModuleType(moduleId);
+    activeModuleTypeRef.current = canonicalModuleId;
+    setActiveModule(canonicalModuleId);
     setModuleDetail(null); // Clear stale module data immediately
-    loadModuleContent(currentProject.id, moduleId);
+    loadModuleContent(currentProject.id, canonicalModuleId);
 
     // Save navigation memory to backend
     try {
-      await api.projects.updateActiveModule(currentProject.id, moduleId);
-      setCurrentProject(prev => prev ? { ...prev, active_module: moduleId } : null);
+      await api.projects.updateActiveModule(currentProject.id, canonicalModuleId);
+      setCurrentProject(prev => prev ? { ...prev, active_module: canonicalModuleId } : null);
     } catch (e) {
       console.error('Failed to persist navigation memory', e);
     }
@@ -243,9 +244,10 @@ export const App: React.FC = () => {
 
   // 4. Load Content for Active Module
   const loadModuleContent = async (projectId: string, moduleType: string) => {
+    moduleType = normalizeModuleType(moduleType);
     setModuleLoading(true);
     try {
-      if (['overview', 'bmc', 'tech_stack', 'idea_validator', 'market_research', 'execution_roadmap', 'detailed_roadmap'].includes(moduleType)) {
+      if (['overview', 'bmc', 'tech_stack', 'idea_validator', 'market_research', 'execution_roadmap'].includes(moduleType)) {
         try {
           const detail = await api.modules.get(projectId, moduleType);
           if (activeProjectIdRef.current === projectId && activeModuleTypeRef.current === moduleType) {
@@ -259,7 +261,7 @@ export const App: React.FC = () => {
         }
       }
 
-      if (['execution_roadmap', 'detailed_roadmap'].includes(moduleType)) {
+      if (moduleType === 'execution_roadmap') {
         const taskList = await api.tasks.list(projectId);
         if (activeProjectIdRef.current === projectId) {
           setTasks(taskList);
@@ -269,7 +271,6 @@ export const App: React.FC = () => {
             setModuleBadges(prev => ({
               ...prev,
               execution_roadmap: { ...prev.execution_roadmap, isGenerated: taskList.length > 0 },
-              detailed_roadmap: { ...prev.detailed_roadmap, isGenerated: taskList.length > 0 }
             }));
           } catch {
             // Fallback calculation
@@ -296,7 +297,7 @@ export const App: React.FC = () => {
   const handleGenerateModule = async (moduleType: string, planningInputs?: RoadmapPlanningInputs) => {
     if (!currentProject) return;
     const targetProjectId = currentProject.id;
-    const targetModuleType = moduleType;
+    const targetModuleType = normalizeModuleType(moduleType);
     const genKey = `${targetProjectId}:${targetModuleType}`;
 
     // Prevent duplicate submissions if this module or another generation is already in flight
@@ -339,11 +340,6 @@ export const App: React.FC = () => {
         { text: 'Validating task dependency graphs and timelines...', pct: 70 },
         { text: 'Reconciling tasks and committing roadmap version...', pct: 95 }
       ],
-      detailed_roadmap: [
-        { text: 'Analyzing sprint deliverables...', pct: 20 },
-        { text: 'Sequencing phase tasks...', pct: 50 },
-        { text: 'Validating dependencies and saving roadmap...', pct: 90 }
-      ]
     };
 
     const stages = stageSequence[targetModuleType] || stageSequence.execution_roadmap;
@@ -391,7 +387,7 @@ export const App: React.FC = () => {
         return p;
       }));
 
-      if (['execution_roadmap', 'detailed_roadmap'].includes(targetModuleType)) {
+      if (targetModuleType === 'execution_roadmap') {
         const taskList = await api.tasks.list(targetProjectId);
         if (activeProjectIdRef.current === targetProjectId) {
           setTasks(taskList);
@@ -400,7 +396,6 @@ export const App: React.FC = () => {
           setModuleBadges(prev => ({
             ...prev,
             execution_roadmap: { ...prev.execution_roadmap, isGenerated: taskList.length > 0 },
-            detailed_roadmap: { ...prev.detailed_roadmap, isGenerated: taskList.length > 0 }
           }));
         }
       }
@@ -414,6 +409,11 @@ export const App: React.FC = () => {
             reasons: err.data.reasons || []
           });
         }
+      } else if (err.status === 409 && (
+        err.data?.error === 'VERSION_LIMIT_EXCEEDED' ||
+        (err.message && err.message.includes('VERSION_LIMIT_EXCEEDED'))
+      )) {
+        alert('This module already has 5 saved versions. Delete an older version from Manage All Versions, or delete the module and create a fresh one.');
       } else {
         alert(err.message || 'Blueprint generation failed. Please try again.');
       }
@@ -437,7 +437,7 @@ export const App: React.FC = () => {
       setModuleDetail(updated);
       updateBadgeForModule(activeModule, updated);
 
-      if (['execution_roadmap', 'detailed_roadmap'].includes(activeModule)) {
+      if (activeModule === 'execution_roadmap') {
         const taskList = await api.tasks.list(currentProject.id);
         setTasks(taskList);
         const sum = await api.tasks.getSummary(currentProject.id);
@@ -486,7 +486,7 @@ export const App: React.FC = () => {
       setConflictModalOpen(false);
       setConflictData(null);
 
-      if (['execution_roadmap', 'detailed_roadmap'].includes(activeModule)) {
+      if (activeModule === 'execution_roadmap') {
         const taskList = await api.tasks.list(currentProject.id);
         setTasks(taskList);
         const sum = await api.tasks.getSummary(currentProject.id);
@@ -520,6 +520,44 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDeleteModule = async (moduleType: string) => {
+    if (!currentProject) return;
+    const targetProjectId = currentProject.id;
+    const targetModuleType = normalizeModuleType(moduleType);
+    setModuleLoading(true);
+    try {
+      await api.modules.delete(targetProjectId, targetModuleType);
+
+      setProjects(prev => prev.map(project => project.id === targetProjectId
+        ? { ...project, generated_modules: (project.generated_modules || []).filter(type => normalizeModuleType(type) !== targetModuleType) }
+        : project));
+      setCurrentProject(prev => prev?.id === targetProjectId
+        ? { ...prev, generated_modules: (prev.generated_modules || []).filter(type => normalizeModuleType(type) !== targetModuleType) }
+        : prev);
+
+      if (activeProjectIdRef.current === targetProjectId) {
+        setModuleBadges(prev => ({
+          ...prev,
+          [targetModuleType]: { version: 'V1', isGenerated: false }
+        }));
+        if (activeModuleTypeRef.current === targetModuleType) setModuleDetail(null);
+        if (targetModuleType === 'execution_roadmap') {
+          setTasks([]);
+          setSummary({
+            milestone_30_progress: 0, milestone_30_completed: 0, milestone_30_total: 0,
+            milestone_60_progress: 0, milestone_60_completed: 0, milestone_60_total: 0,
+            milestone_90_progress: 0, milestone_90_completed: 0, milestone_90_total: 0,
+            total_tasks: 0, completed_tasks: 0, overall_progress: 0
+          });
+        }
+      }
+    } catch (err: any) {
+      alert(err.message || `Failed to delete ${targetModuleType.replaceAll('_', ' ')}.`);
+    } finally {
+      setModuleLoading(false);
+    }
+  };
+
   const handleRestoreVersion = async (versionId: string) => {
     if (!currentProject) return;
     try {
@@ -528,7 +566,7 @@ export const App: React.FC = () => {
       updateBadgeForModule(activeModule, restored);
 
       // Refresh task lists and summaries if restoring a roadmap version (F-08)
-      if (['execution_roadmap', 'detailed_roadmap'].includes(activeModule)) {
+      if (activeModule === 'execution_roadmap') {
         const [taskList, sum] = await Promise.all([
           api.tasks.list(currentProject.id),
           api.tasks.getSummary(currentProject.id)
@@ -624,8 +662,8 @@ export const App: React.FC = () => {
   if (isAdminRoute) {
     if (adminAuthChecking) {
       return (
-        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0f1d', color: '#ffffff', gap: 12 }}>
-          <Loader2 size={24} className="animate-spin" color="#6366f1" />
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-workspace)', color: 'var(--text-main)', gap: 12 }}>
+          <Loader2 size={24} className="animate-spin" color="#6d855f" />
           <span>Authenticating Admin Control Center...</span>
         </div>
       );
@@ -661,9 +699,9 @@ export const App: React.FC = () => {
   // Loading Screen
   if (authChecking) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d121f', color: '#ffffff', gap: 12 }}>
-        <Loader2 size={24} className="animate-spin" color="#6366f1" />
-        <span>Loading Business Architect...</span>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sidebar-bg)', color: 'var(--text-main)', gap: 12 }}>
+        <Loader2 size={24} className="animate-spin" color="#6d855f" />
+        <span>Loading Venture Atlas...</span>
       </div>
     );
   }
@@ -718,6 +756,7 @@ export const App: React.FC = () => {
           user={currentUser}
           onLogout={async () => { await api.auth.logout(); setCurrentUser(null); setCurrentProject(null); }}
           onEditProject={() => handleSelectModule('overview')}
+          onSelectModule={handleSelectModule}
           onUserUpdated={(updated) => setCurrentUser(updated)}
         />
 
@@ -794,6 +833,8 @@ export const App: React.FC = () => {
               onRenameVersion={handleRenameVersion}
               onDeleteVersion={handleDeleteVersion}
               onRestoreVersion={handleRestoreVersion}
+              onCreateNew={() => handleGenerateModule('bmc')}
+              onDeleteModule={() => handleDeleteModule('bmc')}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'bmc', currentProject.name)}
               isLoading={moduleLoading}
               isGenerating={Boolean(generatingProgress[`${currentProject.id}:bmc`])}
@@ -811,6 +852,8 @@ export const App: React.FC = () => {
               onRenameVersion={handleRenameVersion}
               onDeleteVersion={handleDeleteVersion}
               onRestoreVersion={handleRestoreVersion}
+              onCreateNew={() => handleGenerateModule('tech_stack')}
+              onDeleteModule={() => handleDeleteModule('tech_stack')}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'tech_stack', currentProject.name)}
               isLoading={moduleLoading}
               isGenerating={Boolean(generatingProgress[`${currentProject.id}:tech_stack`])}
@@ -824,6 +867,8 @@ export const App: React.FC = () => {
               project={currentProject}
               moduleDetail={moduleDetail as any}
               onGenerate={() => handleGenerateModule('idea_validator')}
+              onDeleteModule={() => handleDeleteModule('idea_validator')}
+              onDeleteVersion={handleDeleteVersion}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'idea_validator', currentProject.name)}
               isLoading={moduleLoading}
               isGenerating={Boolean(generatingProgress[`${currentProject.id}:idea_validator`])}
@@ -837,6 +882,8 @@ export const App: React.FC = () => {
               project={currentProject}
               moduleDetail={moduleDetail as any}
               onGenerate={() => handleGenerateModule('market_research')}
+              onDeleteModule={() => handleDeleteModule('market_research')}
+              onDeleteVersion={handleDeleteVersion}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'market_research', currentProject.name)}
               isLoading={moduleLoading}
               isGenerating={Boolean(generatingProgress[`${currentProject.id}:market_research`])}
@@ -859,25 +906,12 @@ export const App: React.FC = () => {
               onRenameVersion={handleRenameVersion}
               onDeleteVersion={handleDeleteVersion}
               onRestoreVersion={handleRestoreVersion}
+              onDeleteModule={() => handleDeleteModule('execution_roadmap')}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'execution_roadmap', currentProject.name)}
               isLoading={moduleLoading}
               isGenerating={Boolean(generatingProgress[`${currentProject.id}:execution_roadmap`])}
               generationProgress={generatingProgress[`${currentProject.id}:execution_roadmap`] || null}
               isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:execution_roadmap`]}
-            />
-          )}
-
-          {activeModule === 'detailed_roadmap' && (
-            <DetailedRoadmapModule
-              project={currentProject}
-              moduleDetail={moduleDetail}
-              tasks={tasks}
-              onUpdateStatus={(taskId, newStatus) => handleUpdateTask(taskId, { status: newStatus })}
-              onRenameVersion={handleRenameVersion}
-              onDeleteVersion={handleDeleteVersion}
-              onRestoreVersion={handleRestoreVersion}
-              onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'detailed_roadmap', currentProject.name)}
-              isLoading={moduleLoading}
             />
           )}
 

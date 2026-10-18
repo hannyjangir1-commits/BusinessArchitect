@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { UserCheck, Moon, Sun, Type, X, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { UserCheck, Type, X, Check, AlertCircle, Loader2 } from 'lucide-react';
 
 import { api } from '../services/api';
 
@@ -8,8 +8,6 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   user: User;
-  onThemeChange: (theme: 'light' | 'dark') => void;
-  currentTheme: 'light' | 'dark';
   onUserUpdated?: (updatedUser: User) => void;
 }
 
@@ -17,8 +15,6 @@ export const ProfileModal: React.FC<Props> = ({
   isOpen,
   onClose,
   user,
-  onThemeChange,
-  currentTheme,
   onUserUpdated
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'preferences'>('profile');
@@ -41,7 +37,6 @@ export const ProfileModal: React.FC<Props> = ({
 
   // Preferences fields
   const [fontPref, setFontPref] = useState(() => localStorage.getItem('aba_font') || 'system');
-  const [themePref, setThemePref] = useState<'light' | 'dark'>(currentTheme);
   const [prefSuccess, setPrefSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -104,9 +99,6 @@ export const ProfileModal: React.FC<Props> = ({
   const handleSavePreferences = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('aba_font', fontPref);
-    localStorage.setItem('aba_theme', themePref);
-    onThemeChange(themePref);
-
     if (fontPref === 'mono') {
       document.body.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
     } else {
@@ -159,8 +151,8 @@ export const ProfileModal: React.FC<Props> = ({
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: '#ede9fe',
-                color: '#6366f1',
+                background: '#e8ede2',
+                color: '#6d855f',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -424,55 +416,6 @@ export const ProfileModal: React.FC<Props> = ({
         {/* Tab 3: Workspace Preferences */}
         {activeTab === 'preferences' && (
           <form onSubmit={handleSavePreferences} style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
-                Workspace Theme
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setThemePref('light')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: '10px 14px',
-                    borderRadius: 6,
-                    border: themePref === 'light' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                    background: themePref === 'light' ? 'var(--bg-subtle)' : 'var(--bg-card)',
-                    color: themePref === 'light' ? 'var(--primary)' : 'var(--text-muted)',
-                    fontWeight: 600,
-                    fontSize: 12.5,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Sun size={15} /> Light Theme
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setThemePref('dark')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: '10px 14px',
-                    borderRadius: 6,
-                    border: themePref === 'dark' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                    background: themePref === 'dark' ? 'var(--bg-subtle)' : 'var(--bg-card)',
-                    color: themePref === 'dark' ? 'var(--primary)' : 'var(--text-muted)',
-                    fontWeight: 600,
-                    fontSize: 12.5,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Moon size={15} /> Dark Theme
-                </button>
-              </div>
-            </div>
-
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
                 Typography Preference

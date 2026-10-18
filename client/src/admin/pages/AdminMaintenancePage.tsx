@@ -67,11 +67,11 @@ export const AdminMaintenancePage: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Wrench size={26} color="#6366f1" />
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Wrench size={26} color="#6d855f" />
             Maintenance Center
           </h1>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '14px' }}>
+          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
             Control platform availability, trigger housekeeping routines, and clean up expired session artifacts safely.
           </p>
         </div>
@@ -83,9 +83,9 @@ export const AdminMaintenancePage: React.FC = () => {
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
-            backgroundColor: '#1e293b',
-            color: '#f8fafc',
-            border: '1px solid #334155',
+            backgroundColor: 'var(--bg-subtle)',
+            color: 'var(--text-main)',
+            border: '1px solid #687164',
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
@@ -107,9 +107,9 @@ export const AdminMaintenancePage: React.FC = () => {
             gap: '10px',
             fontSize: '13px',
             fontWeight: 500,
-            backgroundColor: msg.type === 'success' ? '#064e3b33' : '#7f1d1d33',
-            border: `1px solid ${msg.type === 'success' ? '#059669' : '#dc2626'}`,
-            color: msg.type === 'success' ? '#34d399' : '#f87171'
+            backgroundColor: msg.type === 'success' ? '#e8ede2' : '#f9eae6',
+            border: `1px solid ${msg.type === 'success' ? '#cfd7c6' : '#e8c6bf'}`,
+            color: msg.type === 'success' ? '#52624a' : '#9a5146'
           }}
         >
           {msg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -118,8 +118,8 @@ export const AdminMaintenancePage: React.FC = () => {
       )}
 
       {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-          <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6366f1' }} />
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
           Loading maintenance status...
         </div>
       ) : (
@@ -127,9 +127,9 @@ export const AdminMaintenancePage: React.FC = () => {
           {/* Card 1: Maintenance Mode Switch */}
           <div
             style={{
-              backgroundColor: '#0f172a',
+              backgroundColor: 'var(--bg-subtle)',
               borderRadius: '12px',
-              border: '1px solid #1e293b',
+              border: '1px solid var(--border-color)',
               padding: '24px',
               display: 'flex',
               flexDirection: 'column',
@@ -140,7 +140,7 @@ export const AdminMaintenancePage: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Power size={20} color={status?.maintenance_mode_active ? '#ef4444' : '#10b981'} />
-                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>
+                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
                     Platform Maintenance Mode
                   </h2>
                 </div>
@@ -151,9 +151,9 @@ export const AdminMaintenancePage: React.FC = () => {
                     gap: '4px',
                     padding: '4px 12px',
                     borderRadius: '999px',
-                    backgroundColor: status?.maintenance_mode_active ? '#7f1d1d33' : '#064e3b33',
-                    border: `1px solid ${status?.maintenance_mode_active ? '#dc2626' : '#059669'}`,
-                    color: status?.maintenance_mode_active ? '#f87171' : '#34d399',
+                    backgroundColor: status?.maintenance_mode_active ? '#f9eae6' : '#e8ede2',
+                    border: `1px solid ${status?.maintenance_mode_active ? '#e8c6bf' : '#cfd7c6'}`,
+                    color: status?.maintenance_mode_active ? '#9a5146' : '#52624a',
                     fontSize: '11px',
                     fontWeight: 700,
                     textTransform: 'uppercase'
@@ -163,12 +163,12 @@ export const AdminMaintenancePage: React.FC = () => {
                 </span>
               </div>
 
-              <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '13px', lineHeight: '1.5' }}>
+              <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: '13px', lineHeight: '1.5' }}>
                 When enabled, ordinary non-administrator requests are put on hold while system upgrades take place. Administrators retain full, uninterrupted access.
               </p>
 
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px', fontWeight: 500 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 500 }}>
                   Reason / Announcement Note:
                 </label>
                 <input
@@ -178,10 +178,10 @@ export const AdminMaintenancePage: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '9px 12px',
-                    backgroundColor: '#1e293b',
-                    border: '1px solid #334155',
+                    backgroundColor: 'var(--bg-subtle)',
+                    border: '1px solid #687164',
                     borderRadius: '8px',
-                    color: '#f8fafc',
+                    color: 'var(--text-main)',
                     fontSize: '13px',
                     outline: 'none'
                   }}
@@ -189,7 +189,7 @@ export const AdminMaintenancePage: React.FC = () => {
               </div>
 
               {status?.last_updated && (
-                <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Calendar size={13} />
                   Status Last Changed: {new Date(status.last_updated).toLocaleString()}
                 </div>
@@ -205,7 +205,7 @@ export const AdminMaintenancePage: React.FC = () => {
                     width: '100%',
                     padding: '12px',
                     backgroundColor: '#059669',
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     border: 'none',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -228,7 +228,7 @@ export const AdminMaintenancePage: React.FC = () => {
                     width: '100%',
                     padding: '12px',
                     backgroundColor: '#dc2626',
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     border: 'none',
                     borderRadius: '8px',
                     fontWeight: 600,
@@ -250,9 +250,9 @@ export const AdminMaintenancePage: React.FC = () => {
           {/* Card 2: Session Pruning & Housekeeping */}
           <div
             style={{
-              backgroundColor: '#0f172a',
+              backgroundColor: 'var(--bg-subtle)',
               borderRadius: '12px',
-              border: '1px solid #1e293b',
+              border: '1px solid var(--border-color)',
               padding: '24px',
               display: 'flex',
               flexDirection: 'column',
@@ -262,29 +262,29 @@ export const AdminMaintenancePage: React.FC = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <Trash2 size={20} color="#f59e0b" />
-                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
                   Expired Session Housekeeping
                 </h2>
               </div>
 
-              <p style={{ margin: '0 0 20px', color: '#94a3b8', fontSize: '13px', lineHeight: '1.5' }}>
+              <p style={{ margin: '0 0 20px', color: 'var(--text-muted)', fontSize: '13px', lineHeight: '1.5' }}>
                 User sessions that have exceeded their designated expiration window are safely pruned from the database. Active and valid sessions are untouched.
               </p>
 
               <div
                 style={{
                   padding: '20px',
-                  backgroundColor: '#1e293b',
+                  backgroundColor: 'var(--bg-subtle)',
                   borderRadius: '10px',
-                  border: '1px solid #334155',
+                  border: '1px solid #687164',
                   textAlign: 'center',
                   marginBottom: '20px'
                 }}
               >
-                <div style={{ fontSize: '32px', fontWeight: 800, color: '#f8fafc', fontFamily: 'monospace' }}>
+                <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'monospace' }}>
                   {status?.expired_sessions_pending_cleanup ?? 0}
                 </div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                   Expired Sessions Pending Deletion
                 </div>
               </div>
@@ -297,8 +297,8 @@ export const AdminMaintenancePage: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  backgroundColor: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? '#334155' : '#f59e0b',
-                  color: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? '#64748b' : '#000000',
+                  backgroundColor: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? '#687164' : '#f59e0b',
+                  color: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? '#687164' : '#000000',
                   border: 'none',
                   borderRadius: '8px',
                   fontWeight: 600,

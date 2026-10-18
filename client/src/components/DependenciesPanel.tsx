@@ -50,41 +50,41 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Overview Metric Banner */}
-      <div className="card" style={{ padding: '20px 24px', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
+      <div className="card" style={{ padding: '20px 24px', background: 'linear-gradient(135deg, #f7f6ef 0%, #f0f1e9 100%)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #6d855f, #a68757)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-main)' }}>
               <GitPullRequest size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                 Dependency Graph & Blocking Analysis
               </h3>
-              <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
                 Upstream prerequisites, downstream blockers, and critical delivery paths
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#6366f1' }}>{totalDependencies}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Relationships</div>
+            <div style={{ background: '#ffffff', border: '1px solid #dfe2d6', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#6d855f' }}>{totalDependencies}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Relationships</div>
             </div>
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+            <div style={{ background: '#ffffff', border: '1px solid #dfe2d6', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: blockedTasksCount > 0 ? '#ef4444' : '#10b981' }}>{blockedTasksCount}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Blocked Tasks</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Blocked Tasks</div>
             </div>
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+            <div style={{ background: '#ffffff', border: '1px solid #dfe2d6', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{completedTasksCount}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Finished</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Finished</div>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid #e2e8f0' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid #dfe2d6' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <Filter size={13} /> Filter:
           </span>
           <button
@@ -132,29 +132,29 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                   : isBlocked
                   ? '#ef4444'
                   : hasDeps
-                  ? '#6366f1'
-                  : '#cbd5e1'
+                  ? '#6d855f'
+                  : '#d9ddcf'
               }`
             }}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1', background: '#ede9fe', padding: '2px 8px', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6d855f', background: '#e8ede2', padding: '2px 8px', borderRadius: 6 }}>
                     {task.task_code}
                   </span>
-                  <span style={{ fontSize: 11.5, color: '#64748b', fontWeight: 600 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>
                     {task.phase} • {task.timeline}
                   </span>
                   <span className={`badge-priority ${task.priority.toLowerCase()}`} style={{ fontSize: 11 }}>
                     {task.priority}
                   </span>
                 </div>
-                <h4 style={{ fontSize: 14.5, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                <h4 style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                   {task.title}
                 </h4>
                 {task.description && (
-                  <p style={{ fontSize: 12.5, color: '#64748b', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
                     {task.description}
                   </p>
                 )}
@@ -176,13 +176,13 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                         ? '#dcfce7'
                         : task.status === 'Ongoing' || task.status === 'In Progress'
                         ? '#fef3c7'
-                        : '#f1f5f9',
+                        : '#f0f1e9',
                     color:
                       task.status === 'Finished'
                         ? '#166534'
                         : task.status === 'Ongoing' || task.status === 'In Progress'
                         ? '#92400e'
-                        : '#475569'
+                        : '#687164'
                   }}
                 >
                   {task.status === 'Finished' && <CheckCircle2 size={13} />}
@@ -193,14 +193,14 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
             </div>
 
             {/* Prerequisite and Dependent Relationships */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid #f0f1e9' }}>
               {/* Upstream Prerequisites */}
-              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              <div style={{ background: '#f7f6ef', padding: '10px 14px', borderRadius: 8, border: '1px solid #dfe2d6' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                   Upstream Prerequisites (Depends On)
                 </div>
                 {prerequisites.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
                     No upstream prerequisites (can start immediately)
                   </div>
                 ) : (
@@ -220,8 +220,8 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, color: '#4338ca' }}>{p.code}</span>
-                          <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                          <span style={{ fontWeight: 700, color: '#5d7550' }}>{p.code}</span>
+                          <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
                             {p.task?.title || 'External reference'}
                           </span>
                         </div>
@@ -244,12 +244,12 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
               </div>
 
               {/* Downstream Dependents */}
-              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              <div style={{ background: '#f7f6ef', padding: '10px 14px', borderRadius: 8, border: '1px solid #dfe2d6' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                   Downstream Dependents (Blocks)
                 </div>
                 {dependents.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
                     No other tasks depend on this task
                   </div>
                 ) : (
@@ -265,16 +265,16 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                           background: '#ffffff',
                           padding: '6px 10px',
                           borderRadius: 6,
-                          border: '1px solid #e2e8f0'
+                          border: '1px solid #dfe2d6'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, color: '#6366f1' }}>{d.task_code}</span>
-                          <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                          <span style={{ fontWeight: 700, color: '#6d855f' }}>{d.task_code}</span>
+                          <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
                             {d.title}
                           </span>
                         </div>
-                        <span style={{ fontSize: 11, color: '#64748b' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                           {d.timeline}
                         </span>
                       </div>

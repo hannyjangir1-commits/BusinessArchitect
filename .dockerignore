@@ -1,18 +1,80 @@
+# ==========================================
+# Docker Build Context Ignore Patterns
+# ==========================================
+
+# Version control & CI
+.git
+.git/
+.github
+.github/
+
+# Environment variables & local secrets (preserve example template)
 .env
 .env.*
 !.env.example
-.git/
-.github/
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python bytecode & cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+**/__pycache__/
+*.py[cod]
+**/*.py[cod]
 .pytest_cache/
+**/.pytest_cache/
+.mypy_cache/
+**/.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+.coverage
+**/.coverage
+htmlcov/
+**/htmlcov/
+
+# Python virtual environments
+.venv/
+**/.venv/
+venv/
+**/venv/
+env/
+**/env/
+
+# Node & frontend build artifacts and caches
 node_modules/
+**/node_modules/
 client/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.vite/
+**/.vite/
+coverage/
+**/coverage/
+
+# Local databases & test database dumps
 *.db
+**/*.db
 *.sqlite3
+**/*.sqlite3
 dev_database.db
-*.log
+**/dev_database.db
+
+# Operating system & editor metadata
 .DS_Store
+**/.DS_Store
 Thumbs.db
+**/Thumbs.db
+.idea/
+**/.idea/
+.vscode/
+**/.vscode/
+
+# Local logs & scripts
+*.log
+**/*.log
+run_app.bat
+stop_app.bat
+test-artifacts/
+state/

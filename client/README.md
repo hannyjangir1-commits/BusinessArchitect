@@ -1,32 +1,24 @@
-# React + TypeScript + Vite
+# Business Architect client
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The client is the React and TypeScript application for Business Architect. Vite serves the local development UI at `http://localhost:5173` and proxies `/api` requests to the FastAPI server at `http://127.0.0.1:8000`.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From this directory:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Start the backend from `../server` as described in the repository's [main README](../README.md). Configure local backend settings using a safe local database and the required environment variables.
+
+## Verify client changes
+
+```bash
+npm test
+npm run build
+npm run lint
+```
+
+The application presents four project stages (`Idea`, `MVP`, `Post-launch`, and `Growth`) and a single Roadmap & Execution Plan module. BMC and roadmap visualizations are interactive SVG mind maps; their full generated details are available through the module UI and exports.

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { VersionItem } from '../types';
-import { ChevronDown, Download, Edit3, Trash2, GitCompare, RotateCcw } from 'lucide-react';
+import { ChevronDown, Download, Edit3, RotateCcw } from 'lucide-react';
+import { ModuleLifecycleActions } from './ModuleLifecycleActions';
 
 interface Props {
   moduleType: string;
@@ -13,6 +14,11 @@ interface Props {
   onRestore: (versionId: string) => Promise<void>;
   onExportPdf: () => void;
   onExportSvg?: () => void;
+  onCreateNew?: () => Promise<void>;
+  onDeleteModule?: () => Promise<void>;
+  createLabel?: string;
+  isBusy?: boolean;
+  isCreateDisabled?: boolean;
 }
 
 export const VersionToolbar: React.FC<Props> = ({
@@ -25,7 +31,12 @@ export const VersionToolbar: React.FC<Props> = ({
   onDelete,
   onRestore,
   onExportPdf,
-  onExportSvg
+  onExportSvg,
+  onCreateNew,
+  onDeleteModule,
+  createLabel,
+  isBusy = false,
+  isCreateDisabled = false
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
@@ -47,47 +58,45 @@ export const VersionToolbar: React.FC<Props> = ({
     setRenameModalOpen(false);
   };
 
-  const handleDeleteActive = async () => {
-    if (!activeVersion) return;
-    if (versions.length <= 1) {
-      alert('Cannot delete the only saved version of this module.');
-      return;
-    }
-    if (window.confirm(`Are you sure you want to delete ${activeVersion.version_name}?`)) {
-      await onDelete(activeVersion.id);
-    }
-  };
-
   return (
     <div className="module-toolbar" style={{ position: 'relative' }}>
+      <ModuleLifecycleActions
+        moduleTitle={moduleTitle}
+        onCreateNew={onCreateNew}
+        onDeleteModule={onDeleteModule}
+        onDeleteVersion={onDelete}
+        versions={versions}
+        createLabel={createLabel}
+        isBusy={isBusy}
+        isCreateDisabled={isCreateDisabled}
+      />
+
       {/* Export This Module Dropdown */}
       <div style={{ position: 'relative' }}>
         <button
           className="btn-secondary"
           onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
         >
-          <Download size={14} color="#6366f1" />
+          <Download size={14} color="#6d855f" />
           <span>Export This Module</span>
           <ChevronDown size={14} />
         </button>
 
         {exportDropdownOpen && (
           <div
+            className="module-toolbar-menu module-export-menu"
             style={{
               position: 'absolute',
               top: '100%',
               right: 0,
               marginTop: 4,
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 8,
-              boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
               width: 180,
               zIndex: 100,
               overflow: 'hidden'
             }}
           >
             <button
+              className="module-toolbar-menu-item"
               onClick={() => { setExportDropdownOpen(false); onExportPdf(); }}
               style={{
                 width: '100%',
@@ -96,7 +105,6 @@ export const VersionToolbar: React.FC<Props> = ({
                 border: 'none',
                 background: 'transparent',
                 fontSize: 12.5,
-                color: '#0f172a',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -107,6 +115,7 @@ export const VersionToolbar: React.FC<Props> = ({
             </button>
             {onExportSvg && (
               <button
+                className="module-toolbar-menu-item"
                 onClick={() => { setExportDropdownOpen(false); onExportSvg(); }}
                 style={{
                   width: '100%',
@@ -115,12 +124,10 @@ export const VersionToolbar: React.FC<Props> = ({
                   border: 'none',
                   background: 'transparent',
                   fontSize: 12.5,
-                  color: '#0f172a',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  borderTop: '1px solid #f1f5f9'
+                  gap: 8
                 }}
               >
                 🎨 Download Vector SVG
@@ -133,19 +140,7 @@ export const VersionToolbar: React.FC<Props> = ({
       {/* Version Selector Pill */}
       <div style={{ position: 'relative' }}>
         <button
-          style={{
-            background: '#1e293b',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: 8,
-            padding: '8px 12px',
-            fontSize: 12.5,
-            fontWeight: 600,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            cursor: 'pointer'
-          }}
+          className="version-selector-button"
           onClick={() => setDropdownOpen(!dropdownOpen)}
         >
           <span>Version: {activeVersionName || (activeVersionNumber ? `V${activeVersionNumber}` : 'V1')}</span>
@@ -154,64 +149,43 @@ export const VersionToolbar: React.FC<Props> = ({
 
         {dropdownOpen && (
           <div
+            className="module-toolbar-menu module-version-menu"
             style={{
               position: 'absolute',
               top: '100%',
               right: 0,
               marginTop: 4,
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 8,
-              boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
               minWidth: 220,
               zIndex: 100,
               padding: 4
             }}
           >
-            <div style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+            <div className="version-menu-heading">
               Saved Versions ({versions.length}/5)
             </div>
             {versions.map((v) => (
               <div
                 key={v.id}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: v.is_active ? '#f5f3ff' : 'transparent',
-                  cursor: 'pointer'
-                }}
+                className={`module-version-menu-item ${v.is_active ? 'active' : ''}`}
                 onClick={() => {
                   setDropdownOpen(false);
                   if (!v.is_active) onRestore(v.id);
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12.5, fontWeight: v.is_active ? 700 : 500, color: v.is_active ? '#6366f1' : '#0f172a' }}>
+                  <div className="module-version-menu-name" style={{ fontWeight: v.is_active ? 700 : 500 }}>
                     {v.version_name} {v.is_active && '✓'}
                   </div>
                   {v.change_summary && (
-                    <div style={{ fontSize: 10.5, color: '#64748b' }}>{v.change_summary.slice(0, 32)}...</div>
+                    <div className="module-version-menu-summary">{v.change_summary.slice(0, 32)}...</div>
                   )}
                 </div>
               </div>
             ))}
-            <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 4, paddingTop: 4 }}>
+            <div className="module-version-menu-footer">
               <button
+                className="module-version-menu-manage"
                 onClick={() => { setDropdownOpen(false); setHistoryModalOpen(true); }}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#6366f1',
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
               >
                 Manage All Versions...
               </button>
@@ -220,17 +194,9 @@ export const VersionToolbar: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Action Buttons matching screenshot */}
-      <button className="btn-secondary" onClick={handleOpenRename} title="Rename current active version">
+      {/* Compact actions; version history remains available from the version menu. */}
+      <button className="btn-secondary" onClick={handleOpenRename} title="Rename current active version" aria-label="Rename current version">
         <Edit3 size={14} /> Rename
-      </button>
-
-      <button className="btn-secondary" onClick={handleDeleteActive} title="Delete active version">
-        <Trash2 size={14} color="#ef4444" /> Delete
-      </button>
-
-      <button className="btn-secondary" onClick={() => setHistoryModalOpen(true)} title="Compare version history">
-        <GitCompare size={14} /> Compare
       </button>
 
       {/* Rename Version Modal */}
@@ -252,7 +218,7 @@ export const VersionToolbar: React.FC<Props> = ({
                     onChange={(e) => setNewName(e.target.value)}
                     required
                   />
-                  <p style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                     E.g. "Subscription-Based Model", "Enterprise Expansion", or "Q4 Spikes"
                   </p>
                 </div>
@@ -270,7 +236,7 @@ export const VersionToolbar: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Manage / Compare Versions Modal */}
+      {/* Version History Modal */}
       {historyModalOpen && (
         <div className="modal-overlay">
           <div className="modal-card" style={{ maxWidth: 640 }}>
@@ -279,34 +245,25 @@ export const VersionToolbar: React.FC<Props> = ({
               <button onClick={() => setHistoryModalOpen(false)} className="modal-close-btn">✕</button>
             </div>
             <div className="modal-body">
-              <p style={{ fontSize: 12.5, color: '#64748b' }}>
-                Each section maintains up to 5 persistent versions. Restoring an earlier version activates that snapshot directly without duplicating it.
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                Each section maintains up to 5 saved versions. Restore an older snapshot here. Use the module header's Delete button to delete the active version.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
                 {versions.map((v) => (
                   <div
                     key={v.id}
-                    style={{
-                      border: '1px solid #e2e8f0',
-                      borderRadius: 8,
-                      padding: '12px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: v.is_active ? '#f5f3ff' : '#ffffff',
-                      borderColor: v.is_active ? '#c7d2fe' : '#e2e8f0'
-                    }}
+                    className={`version-history-entry ${v.is_active ? 'active' : ''}`}
                   >
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13.5, color: '#0f172a' }}>{v.version_name}</span>
+                        <span className="version-history-entry-name">{v.version_name}</span>
                         {v.is_active && (
-                          <span style={{ fontSize: 10, fontWeight: 700, background: '#6366f1', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--primary)', color: 'var(--text-main)', padding: '1px 6px', borderRadius: 4 }}>
                             Active
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3 }}>
+                      <div className="version-history-entry-summary">
                         {v.change_summary || 'Initial creation'} • {new Date(v.created_at).toLocaleDateString()}
                       </div>
                     </div>
@@ -322,19 +279,6 @@ export const VersionToolbar: React.FC<Props> = ({
                           style={{ padding: '4px 10px', fontSize: 12 }}
                         >
                           <RotateCcw size={12} /> Restore
-                        </button>
-                      )}
-                      {versions.length > 1 && (
-                        <button
-                          onClick={async () => {
-                            if (window.confirm(`Delete ${v.version_name}?`)) {
-                              await onDelete(v.id);
-                            }
-                          }}
-                          style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 4 }}
-                          title="Delete version"
-                        >
-                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>

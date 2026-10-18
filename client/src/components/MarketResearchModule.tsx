@@ -1,11 +1,14 @@
 import React from 'react';
 import { Project, ModuleDetail, MarketResearchData } from '../types';
 import { TrendingUp, Sparkles, Shield, Info, Download, Loader2 } from 'lucide-react';
+import { ModuleLifecycleActions } from './ModuleLifecycleActions';
 
 interface Props {
   project: Project;
   moduleDetail: ModuleDetail<MarketResearchData> | null;
   onGenerate: () => Promise<void>;
+  onDeleteModule?: () => Promise<void>;
+  onDeleteVersion?: (versionId: string) => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
   isGenerating?: boolean;
@@ -17,6 +20,8 @@ export const MarketResearchModule: React.FC<Props> = ({
   project,
   moduleDetail,
   onGenerate,
+  onDeleteModule,
+  onDeleteVersion,
   onExportPdf,
   isLoading,
   isGenerating = false,
@@ -28,10 +33,10 @@ export const MarketResearchModule: React.FC<Props> = ({
   if (!data) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#ede9fe', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e8ede2', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <TrendingUp size={28} />
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
           Market Research & Competitor Intelligence Not Yet Generated
         </h3>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
@@ -77,35 +82,47 @@ export const MarketResearchModule: React.FC<Props> = ({
           </div>
         </div>
 
-        <button onClick={onExportPdf} className="btn-secondary">
-          <Download size={14} color="#6366f1" /> Export This Module (PDF)
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ModuleLifecycleActions
+            moduleTitle="Market Research"
+            onCreateNew={onGenerate}
+            onDeleteModule={onDeleteModule}
+            onDeleteVersion={onDeleteVersion}
+            versions={moduleDetail.versions || []}
+            createLabel="Run New Research"
+            isBusy={isLoading || isGenerating}
+            isCreateDisabled={isGenerateDisabled}
+          />
+          <button onClick={onExportPdf} className="btn-secondary">
+            <Download size={14} color="#6d855f" /> Export This Module (PDF)
+          </button>
+        </div>
       </div>
 
       {/* Provenance Notice */}
       <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Info size={16} color="#3b82f6" />
+        <Info size={16} color="#7a916a" />
         <span style={{ fontSize: 12, color: 'var(--text-main)' }}>
-          <b>Provenance Note:</b> {data.provenance_note || 'Structured analytical market assessment based on industry benchmarks and disclosed business context.'}
+          <b>Evidence status:</b> {data.provenance_note || 'Review the source links and research gaps before relying on time-sensitive claims.'}
         </span>
       </div>
 
       {/* Market Size & Positioning Banner */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <div className="card">
-          <div className="card-title" style={{ color: '#0ea5e9' }}>
+          <div className="card-title" style={{ color: '#7a916a' }}>
             <TrendingUp size={16} /> Addressable Market Size (TAM / SAM / SOM)
           </div>
-          <p style={{ fontSize: 13.5, color: '#1e293b', marginTop: 10, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13.5, color: 'var(--text-main)', marginTop: 10, lineHeight: 1.5 }}>
             {data.target_market_size}
           </p>
         </div>
 
         <div className="card">
-          <div className="card-title" style={{ color: '#6366f1' }}>
+          <div className="card-title" style={{ color: '#6d855f' }}>
             <Shield size={16} /> Strategic Competitive Positioning
           </div>
-          <p style={{ fontSize: 13.5, color: '#1e293b', marginTop: 10, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13.5, color: 'var(--text-main)', marginTop: 10, lineHeight: 1.5 }}>
             {data.competitive_positioning}
           </p>
         </div>
@@ -114,14 +131,19 @@ export const MarketResearchModule: React.FC<Props> = ({
       {/* Competitor Profiles Cards */}
       <div className="card">
         <div className="card-title" style={{ marginBottom: 14 }}>
-          Competitor Profiles & Market Share Estimates
+          Competitors Identified from Research
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+        {(data.competitor_profiles || []).length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+            No competitors are listed because this result did not contain verified competitor evidence. Check the source links and research gaps, then regenerate when grounded search is available.
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {(data.competitor_profiles || []).map((c, idx) => (
-            <div key={idx} style={{ background: '#f8fafc', padding: 16, borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div key={idx} style={{ background: '#f7f6ef', padding: 16, borderRadius: 10, border: '1px solid #dfe2d6', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{c.name}</h4>
-                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#ede9fe', color: '#6366f1' }}>
+                <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>{c.name}</h4>
+                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#e8ede2', color: '#6d855f' }}>
                   {c.market_share_estimate}
                 </span>
               </div>
@@ -134,12 +156,20 @@ export const MarketResearchModule: React.FC<Props> = ({
                 <b>Weaknesses:</b> {c.weaknesses ? c.weaknesses.join(', ') : '—'}
               </div>
 
-              <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 'auto', paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 'auto', paddingTop: 6, borderTop: '1px solid #dfe2d6' }}>
                 <b>Pricing Model:</b> {c.pricing_model}
               </div>
+              {(c.sources || []).length > 0 && (
+                <div style={{ fontSize: 11.5, color: 'var(--text-main)' }}>
+                  <b>Sources:</b> {(c.sources || []).map((source, sourceIdx) => (
+                    <span key={sourceIdx}>{sourceIdx > 0 ? ', ' : ' '}{source}</span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Opportunities & Threats Grid */}
@@ -148,7 +178,7 @@ export const MarketResearchModule: React.FC<Props> = ({
           <div className="card-title" style={{ color: '#10b981' }}>
             Market Opportunities & Tailwinds
           </div>
-          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: '#334155', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {(data.opportunities || []).map((o, idx) => <li key={idx}>{o}</li>)}
           </ul>
         </div>
@@ -157,10 +187,35 @@ export const MarketResearchModule: React.FC<Props> = ({
           <div className="card-title" style={{ color: '#ef4444' }}>
             Competitive Threats & Headwinds
           </div>
-          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: '#334155', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {(data.threats || []).map((t, idx) => <li key={idx}>{t}</li>)}
           </ul>
         </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        <section className="card" aria-labelledby="market-sources-title">
+          <div className="card-title" id="market-sources-title">Sources used</div>
+          {(data.source_references || []).length === 0 ? (
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 0 }}>
+              No verifiable web citations were returned for this analysis.
+            </p>
+          ) : (
+            <ul style={{ paddingLeft: 18, fontSize: 12.5, margin: '10px 0 0' }}>
+              {(data.source_references || []).map((source, idx) => (
+                <li key={`${source.url}-${idx}`} style={{ marginBottom: 6 }}>
+                  <a href={source.url} target="_blank" rel="noreferrer">{source.title || source.url}</a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section className="card" aria-labelledby="market-gaps-title">
+          <div className="card-title" id="market-gaps-title">Research gaps to resolve</div>
+          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', margin: '10px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(data.research_gaps || []).map((gap, idx) => <li key={idx}>{gap}</li>)}
+          </ul>
+        </section>
       </div>
     </div>
   );

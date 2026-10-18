@@ -730,7 +730,7 @@ class TestIdeaValidator:
 class TestMarketResearch:
 
     def test_MARKET_001_to_003_up_to_three_competitors(self):
-        """MARKET-001 to 003: Up to 3 relevant competitors returned."""
+        """MARKET-001 to 003: Offline mode never invents competitor evidence."""
         service = GeminiAIService()
         res = service.generate_market_research({
             "name": "CircuitCraft AI",
@@ -738,9 +738,10 @@ class TestMarketResearch:
             "description": "Cloud-native collaborative EDA tool",
             "stage": "Idea"
         })
-        assert 1 <= len(res.competitor_profiles) <= 3
-        comp_names = [c.name.lower() for c in res.competitor_profiles]
-        assert any("altium" in c or "kicad" in c or "cadence" in c or "easyeda" in c or "competitor" in c for c in comp_names)
+        assert res.competitor_profiles == []
+        assert res.source_references == []
+        assert "presented as verified" in res.provenance_note.lower()
+        assert any("competitor" in gap.lower() for gap in res.research_gaps)
 
     def test_MARKET_008_late_entry_differentiation(self):
         """MARKET-008: Advice for entering market after incumbents."""
@@ -765,6 +766,186 @@ class TestUnifiedRoadmap:
         assert r1.status_code == 200
         assert r2.status_code == 200
 
+    def test_ROAD_027_legacy_record_is_readable_then_migrated_on_write(self, seeded_env):
+        """Legacy roadmap URLs share one canonical record and retain old versions."""
+        client, csrf = login_identity("test_empty_user")
+        created_project = client.post("/api/projects", json={
+            "name": "Legacy Roadmap Test",
+            "stage": "Idea",
+            "description": "A sufficiently detailed project used to validate legacy roadmap compatibility.",
+            "industry": "Software",
+            "target_customers": "Independent software teams",
+            "budget": "$10,000",
+        }, headers={"X-CSRF-Token": csrf})
+        assert created_project.status_code == 201, created_project.text
+        pid = created_project.json()["id"]
+        db = SessionLocal()
+        try:
+            legacy_module = ModuleContent(project_id=pid, module_type="detailed_roadmap")
+            db.add(legacy_module)
+            db.flush()
+            legacy_version = ModuleVersion(
+                module_content_id=legacy_module.id,
+                version_number=1,
+                version_name="Legacy Roadmap V1",
+                data={"phases": [], "tasks": [], "feasibility_evaluation": {"is_realistic": True}},
+                is_active=True,
+            )
+            db.add(legacy_version)
+            db.flush()
+            legacy_module.active_version_id = legacy_version.id
+            db.commit()
+            legacy_module_id = legacy_module.id
+            legacy_version_id = legacy_version.id
+        finally:
+            db.close()
+
+        unified = client.get(f"/api/projects/{pid}/modules/execution_roadmap").json()
+        legacy_alias = client.get(f"/api/projects/{pid}/modules/detailed_roadmap").json()
+        assert unified["module_type"] == "execution_roadmap"
+        assert legacy_alias["module_type"] == "execution_roadmap"
+        assert unified["active_version_id"] == legacy_version_id
+        assert legacy_alias["active_version_id"] == legacy_version_id
+
+        # Reads do not mutate a legacy record; the first write reuses and
+        # renames it, preserving V1 while saving the new unified version.
+        db = SessionLocal()
+        try:
+            assert db.query(ModuleContent).filter_by(id=legacy_module_id).one().module_type == "detailed_roadmap"
+        finally:
+            db.close()
+
+        start = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
+        end = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
+        generated = {
+            "phases": [],
+            "tasks": [{
+                "task_code": "TSK-NEW",
+                "phase": "Validation",
+                "title": "Validate the core workflow",
+                "start_date": start,
+                "end_date": end,
+                "status": "Pending",
+                "dependencies": [],
+                "assigned_to": "Hanny",
+                "assigned_role": "PCB Engineer / Reviewer",
+                "department": "Engineering",
+                "steps": ["Prepare a sample design", "Review the fabrication handoff"],
+                "is_overloaded": False,
+            }],
+            "feasibility_evaluation": {
+                "is_realistic": True,
+                "feasibility_issues": [],
+                "recommended_alternatives": [],
+                "capacity_summary": "Within the supplied planning horizon.",
+            },
+        }
+        with patch("app.api.modules.ai_service.generate_roadmap", return_value=generated):
+            response = client.post(
+                f"/api/projects/{pid}/modules/detailed_roadmap/generate",
+                headers={"X-CSRF-Token": csrf},
+            )
+        assert response.status_code == 200, response.text
+        assert response.json()["module_type"] == "execution_roadmap"
+        task_response = client.get(f"/api/projects/{pid}/tasks")
+        assert task_response.status_code == 200
+        saved_task = next(task for task in task_response.json() if task["task_code"] == "TSK-NEW")
+        assert saved_task["assigned_to"] == "Hanny"
+        assert saved_task["assigned_role"] == "PCB Engineer / Reviewer"
+        assert saved_task["department"] == "Engineering"
+        assert saved_task["steps"] == ["Prepare a sample design", "Review the fabrication handoff"]
+        assert saved_task["is_overloaded"] is False
+
+        db = SessionLocal()
+        try:
+            modules = db.query(ModuleContent).filter_by(project_id=pid).all()
+            roadmap_rows = [m for m in modules if m.module_type in {"execution_roadmap", "detailed_roadmap"}]
+            assert len(roadmap_rows) == 1
+            assert roadmap_rows[0].id == legacy_module_id
+            assert roadmap_rows[0].module_type == "execution_roadmap"
+            assert len(db.query(ModuleVersion).filter_by(module_content_id=legacy_module_id).all()) == 2
+        finally:
+            db.close()
+
+        project = client.get(f"/api/projects/{pid}").json()
+        assert project["generated_modules"].count("execution_roadmap") == 1
+        assert "detailed_roadmap" not in project["generated_modules"]
+
+        # If both records exist in a pre-upgrade project, the read path merges
+        # their version histories into the single canonical module.
+        db = SessionLocal()
+        try:
+            old_module = ModuleContent(project_id=pid, module_type="detailed_roadmap")
+            db.add(old_module)
+            db.flush()
+            old_version = ModuleVersion(
+                module_content_id=old_module.id,
+                version_number=1,
+                version_name="Older Detailed Plan",
+                data={"phases": [], "tasks": [], "feasibility_evaluation": {"is_realistic": True}},
+                is_active=True,
+            )
+            db.add(old_version)
+            db.flush()
+            old_module.active_version_id = old_version.id
+            old_module_id = old_module.id
+            db.commit()
+        finally:
+            db.close()
+
+        merged = client.get(f"/api/projects/{pid}/modules/execution_roadmap").json()
+        assert len(merged["versions"]) == 3
+        db = SessionLocal()
+        try:
+            assert db.query(ModuleContent).filter_by(id=old_module_id).first() is None
+            canonical = db.query(ModuleContent).filter_by(project_id=pid, module_type="execution_roadmap").one()
+            assert len(db.query(ModuleVersion).filter_by(module_content_id=canonical.id).all()) == 3
+        finally:
+            db.close()
+
+        # Older projects can have both roadmap records. Copying the project
+        # keeps both histories under one canonical module without losing data.
+        db = SessionLocal()
+        try:
+            old_module = ModuleContent(project_id=pid, module_type="detailed_roadmap")
+            db.add(old_module)
+            db.flush()
+            old_version = ModuleVersion(
+                module_content_id=old_module.id,
+                version_number=1,
+                version_name="Older Detailed Plan",
+                data={"phases": [], "tasks": [], "feasibility_evaluation": {"is_realistic": True}},
+                is_active=True,
+            )
+            db.add(old_version)
+            db.flush()
+            old_module.active_version_id = old_version.id
+            db.commit()
+        finally:
+            db.close()
+
+        copied = client.put(
+            f"/api/projects/{pid}",
+            json={"name": "Unified roadmap copy", "create_copy": True},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert copied.status_code == 200, copied.text
+        copied_id = copied.json()["id"]
+        db = SessionLocal()
+        try:
+            copied_roadmaps = db.query(ModuleContent).filter(
+                ModuleContent.project_id == copied_id,
+                ModuleContent.module_type.in_(["execution_roadmap", "detailed_roadmap"]),
+            ).all()
+            assert len(copied_roadmaps) == 1
+            assert copied_roadmaps[0].module_type == "execution_roadmap"
+            copied_versions = db.query(ModuleVersion).filter_by(module_content_id=copied_roadmaps[0].id).all()
+            assert len(copied_versions) == 4
+            assert sorted(version.version_number for version in copied_versions) == [1, 2, 3, 4]
+            assert sum(version.is_active for version in copied_versions) == 1
+        finally:
+            db.close()
+
     def test_ROAD_012_unrealistic_solo_deadline(self):
         """ROAD-012: Solo developer with large project and 3-month deadline flagged as infeasible."""
         service = GeminiAIService()
@@ -784,6 +965,49 @@ class TestUnifiedRoadmap:
         eval_data = res.get("feasibility_evaluation", {})
         assert eval_data.get("is_realistic") is False
         assert len(eval_data.get("recommended_alternatives", [])) > 0
+
+    def test_ROAD_team_assignment_fields_persist_through_task_api(self, seeded_env):
+        """Manual task assignment, role, department, steps and overload state persist."""
+        client, csrf = login_identity("test_standard_owner")
+        pid = get_valid_project_id(client)
+        start = datetime.now(timezone.utc).date().isoformat()
+        task_response = client.post(
+            f"/api/projects/{pid}/tasks",
+            json={
+                "task_code": "TEAM-TEST-01",
+                "phase": "Validation",
+                "title": "Review prototype with customers",
+                "start_date": start,
+                "end_date": start,
+                "assigned_to": "Asha",
+                "assigned_role": "Researcher / Product Owner",
+                "department": "Product",
+                "steps": ["Recruit participants", "Review feedback"],
+                "is_overloaded": False,
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert task_response.status_code == 201, task_response.text
+        task_id = task_response.json()["id"]
+
+        updated = client.patch(
+            f"/api/projects/{pid}/tasks/{task_id}",
+            json={
+                "assigned_to": "Asha",
+                "assigned_role": "Research Lead",
+                "department": "Research",
+                "steps": ["Recruit participants", "Run interviews", "Synthesize findings"],
+                "is_overloaded": True,
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert updated.status_code == 200, updated.text
+        refreshed = next(task for task in client.get(f"/api/projects/{pid}/tasks").json() if task["id"] == task_id)
+        assert refreshed["assigned_to"] == "Asha"
+        assert refreshed["assigned_role"] == "Research Lead"
+        assert refreshed["department"] == "Research"
+        assert refreshed["steps"] == ["Recruit participants", "Run interviews", "Synthesize findings"]
+        assert refreshed["is_overloaded"] is True
 
     def test_ROAD_013_reduced_mvp_scope(self):
         """ROAD-013: Accepting reduced MVP scope produces feasible plan."""

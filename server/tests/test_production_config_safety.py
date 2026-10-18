@@ -216,9 +216,13 @@ def test_ci_database_schema_and_alembic_head():
         for table in required_tables:
             assert table in tables, f"Expected table '{table}' in test database schema"
 
+        task_columns = {column["name"] for column in inspector.get_columns("roadmap_tasks")}
+        for column in {"assigned_to", "assigned_role", "department", "steps", "is_overloaded"}:
+            assert column in task_columns, f"Expected persisted roadmap task field '{column}'"
+
         # Check alembic_version has head revision
         from sqlalchemy import text
         res = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert res == "c1fa92de3310", f"Expected Alembic head revision 'c1fa92de3310', got '{res}'"
+        assert res == "d4f6a2c91b7e", f"Expected Alembic head revision 'd4f6a2c91b7e', got '{res}'"
     finally:
         db.close()

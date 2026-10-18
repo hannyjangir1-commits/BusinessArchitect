@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Minus, Square, X, Send, Loader2 } from 'lucide-react';
+import { MessageCircle, Minus, Square, X, Send, Loader2 } from 'lucide-react';
 
 interface Props {
   moduleTitle: string;
@@ -22,12 +22,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
       { label: '📈 Update strategic goals', text: 'Update the strategic goals with quarterly measurable metrics and expansion targets' },
       { label: '🏢 Industry positioning', text: 'Sharpen the competitive industry positioning and primary market differentiation' }
     ],
-    bmc: [
-      { label: '💡 Refine value proposition', text: 'Refine and strengthen the core value proposition with quantitative customer benefits' },
-      { label: '📢 Add customer channels', text: 'Add direct enterprise sales and organic partner referral acquisition channels' },
-      { label: '💰 Update revenue streams', text: 'Introduce tiered subscription pricing, usage billing, and enterprise service packages' },
-      { label: '🤝 Improve key partnerships', text: 'Identify strategic ecosystem alliances, technology integrations, and channel distributors' }
-    ],
+    bmc: [],
     tech_stack: [
       { label: '🛡️ Add authentication layer', text: 'Add an enterprise OAuth2, RBAC, and multi-factor authentication security architecture' },
       { label: '🗄️ Evaluate database choice', text: 'Evaluate PostgreSQL and Redis caching suitability for scalable read/write operations' },
@@ -40,15 +35,9 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
       { label: '🔗 Extend development phase', text: 'Extend development phase by 2 weeks and reconcile dependent downstream tasks' },
       { label: '🧪 Add testing tasks', text: 'Add automated end-to-end regression tests, penetration testing, and load validation' }
     ],
-    detailed_roadmap: [
-      { label: '📋 Break task into subtasks', text: 'Decompose core architecture tasks into granular sprint-level engineering deliverables' },
-      { label: '✅ Add acceptance criteria', text: 'Add clear measurable definition-of-done acceptance criteria to major deliverables' },
-      { label: '🔗 Adjust dependency chain', text: 'Adjust task dependency links to enable parallel sprint execution without blocking' },
-      { label: '⏱️ Update task effort', text: 'Recalculate effort estimates and staffing requirements across all roadmap tasks' }
-    ]
   };
 
-  const chips = modulePromptMap[moduleType] || modulePromptMap.execution_roadmap;
+  const chips = modulePromptMap[moduleType] ?? modulePromptMap.execution_roadmap;
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -75,12 +64,12 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             gap: 8,
             fontSize: 12.5,
             padding: '8px 14px',
-            background: '#ffffff',
+            background: 'var(--bg-card)',
             boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
           }}
           title="Reopen Contextual Blueprint Assistant"
         >
-          <Sparkles size={15} color="#eab308" />
+          <MessageCircle size={15} />
           <span>Reopen Blueprint Assistant ({moduleTitle})</span>
         </button>
       </div>
@@ -92,14 +81,14 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
       {/* Header */}
       <div className="ai-assistant-header">
         <div className="ai-assistant-title">
-          <Sparkles size={16} color="#eab308" />
+          <MessageCircle size={16} />
           <span>Blueprint Assistant</span>
-          <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>({moduleTitle})</span>
+          <span style={{ fontSize: 11, color: '#6d855f', fontWeight: 600 }}>({moduleTitle})</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
           <button
             onClick={() => setIsMinimized(!isMinimized)}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}
             title={isMinimized ? 'Expand assistant' : 'Minimize assistant'}
             aria-label="Minimize assistant"
           >
@@ -110,7 +99,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
               setIsClosed(true);
               onClose?.();
             }}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}
             title="Close assistant panel"
             aria-label="Close assistant panel"
           >
@@ -129,21 +118,23 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             </div>
 
             {/* Module-Specific Suggestion Chips */}
-            <div className="ai-chips-list">
-              {chips.map((c, idx) => (
-                <button
-                  key={idx}
-                  className="ai-chip-btn"
-                  onClick={() => handleChipClick(c.text)}
-                  disabled={isLoading}
-                >
-                  <span>{c.label}</span>
-                </button>
-              ))}
-            </div>
+            {chips.length > 0 && (
+              <div className="ai-chips-list">
+                {chips.map((c, idx) => (
+                  <button
+                    key={idx}
+                    className="ai-chip-btn"
+                    onClick={() => handleChipClick(c.text)}
+                    disabled={isLoading}
+                  >
+                    <span>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {isLoading && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, color: 'var(--primary)', fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'rgba(109, 133, 95, 0.1)', borderRadius: 8, color: 'var(--primary)', fontSize: 12 }}>
                 <Loader2 size={16} className="animate-spin" />
                 <span>Updating your blueprint recommendations...</span>
               </div>
