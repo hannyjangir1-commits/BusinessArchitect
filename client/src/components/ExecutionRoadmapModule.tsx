@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { Project, ModuleDetail, RoadmapTask, RoadmapSummary, RoadmapPlanningInputs } from '../types';
+import { RoadmapMindMap } from './RoadmapMindMap';
 import { GanttChart } from './GanttChart';
 import { MilestoneCards } from './MilestoneCards';
 import { AllTasksTable } from './AllTasksTable';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
 import { DependenciesPanel } from './DependenciesPanel';
-import { Calendar, GitPullRequest, Milestone, ListTodo, SlidersHorizontal } from 'lucide-react';
+import {
+  Calendar, GitPullRequest, Milestone, ListTodo, SlidersHorizontal,
+  Workflow, AlertTriangle, RefreshCw, X, ShieldAlert, Sparkles
+} from 'lucide-react';
 import { RoadmapPlanningForm } from './RoadmapPlanningForm';
 
 interface Props {
@@ -48,9 +52,14 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   generationProgress = null,
   isGenerateDisabled = false
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'gantt' | 'tasks' | 'milestones' | 'dependencies'>('gantt');
+  // Mind Map is the primary generated view (ROAD-002)
+  const [activeSubTab, setActiveSubTab] = useState<'mindmap' | 'tasks' | 'gantt' | 'milestones' | 'dependencies'>('mindmap');
   const [planningOpenForVersion, setPlanningOpenForVersion] = useState<string | null | false>(false);
+  const [staleDismissed, setStaleDismissed] = useState<boolean>(false);
+
   const isPlanningOpen = !moduleDetail?.active_version_id || planningOpenForVersion === moduleDetail.active_version_id;
+  const feasibility = moduleDetail?.data?.feasibility_evaluation;
+  const isStale = !!moduleDetail?.is_stale && !staleDismissed;
 
   const planningForm = (
     <RoadmapPlanningForm
@@ -66,21 +75,54 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   );
   const openPlanning = async () => { setPlanningOpenForVersion(moduleDetail?.active_version_id || null); };
 
+  // Handle scope reduction quick-accept (ROAD-013)
+  const handleReduceScope = async () => {
+    const prevInputs = moduleDetail?.data?.planning_inputs || {
+      start_date: new Date().toISOString().slice(0, 10),
+      horizon_weeks: 12,
+      checklist: []
+    };
+    await onGenerate({
+      ...prevInputs,
+      reduce_mvp_scope: true,
+      constraints: (prevInputs.constraints ? prevInputs.constraints + ' | ' : '') + 'Scope reduced to core MVP'
+    });
+  };
+
+  // Handle accept update from stale tech stack (SYNC-006)
+  const handleAcceptStaleUpdate = async () => {
+    const prevInputs = moduleDetail?.data?.planning_inputs || {
+      start_date: new Date().toISOString().slice(0, 10),
+      horizon_weeks: 12,
+      checklist: []
+    };
+    await onGenerate(prevInputs);
+    setStaleDismissed(true);
+  };
+
   if (tasks.length === 0 && !moduleDetail?.data) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-main)' }}>Build a roadmap for {project.name}</h2>
-          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--text-muted)' }}>Answer a few stage-specific questions so the timeline starts from your current work.</p>
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--text-muted)' }}>
+            Answer a few stage-specific questions and specify capacity so the plan reflects your real team and current progress.
+          </p>
         </div>
         {planningForm}
       </div>
     );
   }
 
+  const phases = moduleDetail?.data?.phases || [
+    { name: 'Phase 1: Foundation & Architecture', color: '#3b82f6' },
+    { name: 'Phase 2: Core Implementation', color: '#10b981' },
+    { name: 'Phase 3: Launch & Feedback', color: '#8b5cf6' }
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Module View Header matching screenshot */}
+      {/* Module View Header */}
       <div className="module-header-card">
         <div className="module-title-area">
           <div className="module-icon-large">
@@ -88,22 +130,22 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           </div>
           <div className="module-titles">
             <h2>
-              Execution Roadmap
+              Roadmap & Execution Plan
               <span className="version-pill-dropdown">
-                {moduleDetail?.active_version_name || `V${moduleDetail?.active_version_number || 2}`}
+                {moduleDetail?.active_version_name || `V${moduleDetail?.active_version_number || 1}`}
               </span>
             </h2>
-            <p>Project execution plan with timeline, milestones and tasks</p>
+            <p>Unified delivery plan: Interactive mind map, task assignments, and timeline</p>
           </div>
         </div>
 
         <button className="btn-secondary" onClick={() => isPlanningOpen ? setPlanningOpenForVersion(false) : setPlanningOpenForVersion(moduleDetail?.active_version_id || null)} disabled={isGenerating}>
-          <SlidersHorizontal size={14} /> {isPlanningOpen ? 'Close planning questions' : 'Replan roadmap'}
+          <SlidersHorizontal size={14} /> {isPlanningOpen ? 'Close planning parameters' : 'Replan roadmap'}
         </button>
 
         <VersionToolbar
           moduleType="execution_roadmap"
-          moduleTitle="Execution Roadmap"
+          moduleTitle="Roadmap & Execution Plan"
           activeVersionName={moduleDetail?.active_version_name}
           activeVersionNumber={moduleDetail?.active_version_number}
           versions={moduleDetail?.versions || []}
@@ -114,62 +156,137 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
         />
       </div>
 
+      {/* Freshness / Staleness Notification Banner (SYNC-004 to SYNC-006) */}
+      {isStale && (
+        <div style={{ background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Sparkles size={18} color="#7c3aed" />
+            <div style={{ fontSize: 13, color: '#5b21b6' }}>
+              <b>New Architecture Available:</b> {moduleDetail?.stale_reason || "Tech Stack was recently updated. Would you like to refresh your roadmap?"}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleAcceptStaleUpdate}
+              className="btn-primary"
+              style={{ fontSize: 12, padding: '5px 12px', background: '#7c3aed', borderColor: '#7c3aed' }}
+              disabled={isGenerating}
+            >
+              <RefreshCw size={12} className={isGenerating ? "animate-spin" : ""} /> Update Roadmap
+            </button>
+            <button
+              onClick={() => setStaleDismissed(true)}
+              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 4 }}
+              title="Dismiss notification"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Feasibility Alert Banner for Solo Dev / Unrealistic Deadlines (ROAD-012, ROAD-013) */}
+      {feasibility && !feasibility.is_realistic && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ShieldAlert size={20} color="#dc2626" />
+            <div>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#991b1b' }}>
+                Unrealistic Scope & Timeline Warning
+              </h4>
+              <p style={{ margin: '2px 0 0 0', fontSize: 12.5, color: '#b91c1c' }}>
+                {feasibility.feasibility_issues?.[0] || "Solo developer requested full enterprise scope within 12 weeks. High risk of schedule overrun and burnout."}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ background: '#ffffff', borderRadius: 6, padding: '10px 14px', border: '1px solid #fee2e2' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d', display: 'block', marginBottom: 6 }}>
+              Recommended Realistic Alternatives:
+            </span>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#991b1b', lineHeight: 1.5 }}>
+              {feasibility.recommended_alternatives?.map((alt: string, aIdx: number) => (
+                <li key={aIdx} style={{ marginBottom: 4 }}>{alt}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
+            <button
+              onClick={handleReduceScope}
+              className="btn-primary"
+              style={{ fontSize: 12, padding: '6px 14px', background: '#dc2626', borderColor: '#dc2626' }}
+              disabled={isGenerating}
+            >
+              Reduce to Core MVP Scope ➔
+            </button>
+            <button
+              onClick={openPlanning}
+              className="btn-secondary"
+              style={{ fontSize: 12, padding: '6px 14px' }}
+              disabled={isGenerating}
+            >
+              Extend Timeline / Add Capacity
+            </button>
+          </div>
+        </div>
+      )}
+
       {isPlanningOpen && planningForm}
 
-      {/* Subtabs bar matching screenshot */}
+      {/* Primary Subtabs Navigation (ROAD-002, ROAD-003) */}
       <div className="subtabs-bar">
         <button
-          className={`subtab-pill ${activeSubTab === 'gantt' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('gantt')}
+          className={`subtab-pill ${activeSubTab === 'mindmap' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('mindmap')}
+          aria-label="Mind Map Primary View"
         >
-          <Calendar size={14} /> Gantt Chart
+          <Workflow size={14} /> Mind Map (Primary)
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'tasks' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('tasks')}
+          aria-label="Detailed Execution Breakdown"
         >
-          <ListTodo size={14} /> Task List
+          <ListTodo size={14} /> Detailed Breakdown ({tasks.length})
+        </button>
+        <button
+          className={`subtab-pill ${activeSubTab === 'gantt' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('gantt')}
+          aria-label="Gantt Timeline View"
+        >
+          <Calendar size={14} /> Gantt Timeline
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'milestones' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('milestones')}
+          aria-label="Milestone Cards"
         >
           <Milestone size={14} /> Milestones
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'dependencies' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('dependencies')}
+          aria-label="Dependencies View"
         >
           <GitPullRequest size={14} /> Dependencies
         </button>
       </div>
 
-      {/* Main Grid: Left Column + Right Blueprint Assistant */}
+      {/* Main Workspace Layout */}
       <div className="workspace-grid">
         <div className="workspace-main-column">
-          {activeSubTab === 'gantt' && (
-            <>
-              {/* Gantt Chart Component */}
-              <GanttChart tasks={tasks} />
-
-              {/* 30-Day, 60-Day, 90-Day Milestone Cards */}
-              <MilestoneCards summary={summary} />
-
-              {/* All Tasks Table */}
-              <AllTasksTable
-                tasks={tasks}
-                onAddTask={onAddTask}
-                onUpdateTask={onUpdateTask}
-                onDeleteTask={onDeleteTask}
-                onRegenerate={openPlanning}
-                isLoading={isLoading}
-                isGenerating={isGenerating}
-                isGenerateDisabled={isGenerateDisabled}
-                generationProgress={generationProgress}
-              />
-            </>
+          {/* Primary View: Interactive Mind Map (ROAD-002) */}
+          {activeSubTab === 'mindmap' && (
+            <RoadmapMindMap
+              projectName={project.name}
+              stage={project.stage}
+              phases={phases}
+              tasks={tasks}
+            />
           )}
 
+          {/* Detailed Execution Breakdown (ROAD-003) */}
           {activeSubTab === 'tasks' && (
             <AllTasksTable
               tasks={tasks}
@@ -184,6 +301,15 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             />
           )}
 
+          {/* Gantt Timeline */}
+          {activeSubTab === 'gantt' && (
+            <>
+              <GanttChart tasks={tasks} />
+              <MilestoneCards summary={summary} />
+            </>
+          )}
+
+          {/* Milestones */}
           {activeSubTab === 'milestones' && (
             <>
               <MilestoneCards summary={summary} />
@@ -192,18 +318,18 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
                   <Milestone size={18} color="#6366f1" /> Key Milestone Deliverables
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-                  {tasks.filter(t => t.deliverables).map(t => (
-                    <div key={t.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
+                  {tasks.filter(t => t.deliverables).map((t, idx) => (
+                    <div key={t.id || idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1' }}>{t.task_code}</span>
-                        <span className={`badge-priority ${t.priority.toLowerCase()}`}>{t.priority}</span>
+                        <span className={`badge-priority ${(t.priority || 'medium').toLowerCase()}`}>{t.priority}</span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>{t.title}</div>
                       <div style={{ fontSize: 12, color: '#059669', background: '#ecfdf5', padding: '6px 10px', borderRadius: 6 }}>
                         <b>Deliverable:</b> {t.deliverables}
                       </div>
                       <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 8 }}>
-                        Target: {t.end_date} • Phase: {t.phase}
+                        Target: {t.end_date} • Phase: {t.phase} {t.assigned_to ? `• Assigned: ${t.assigned_to}` : ''}
                       </div>
                     </div>
                   ))}
@@ -212,14 +338,15 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             </>
           )}
 
+          {/* Dependencies Panel */}
           {activeSubTab === 'dependencies' && (
             <DependenciesPanel tasks={tasks} />
           )}
         </div>
 
-        {/* Contextual Blueprint Assistant Panel on the right matching screenshot */}
+        {/* Blueprint Copilot Contextual Assistant */}
         <ContextualAssistant
-          moduleTitle="Execution Roadmap"
+          moduleTitle="Roadmap & Execution Plan"
           moduleType="execution_roadmap"
           onModify={onModify}
           isLoading={isLoading}

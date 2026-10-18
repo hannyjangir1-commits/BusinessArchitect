@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { TechStackData, TechRecommendation } from '../types';
-import { Download, Layers, Server, Database, Cloud, ShieldCheck } from 'lucide-react';
+import { Download, Layers, Server, Database, Cloud, ShieldCheck, X, CheckCircle2, AlertTriangle, ArrowRight, DollarSign } from 'lucide-react';
 
 interface Props {
   techData: TechStackData;
@@ -26,11 +26,32 @@ export const ArchitectureInfographic: React.FC<Props> = ({
   onDownloadSvg
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [selectedTech, setSelectedTech] = useState<TechRecommendation | null>(null);
 
   const recommendations = techData?.recommendations || [];
 
-  // Classify recommendations into standard architectural tiers
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedTech(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Classify recommendations into standard & non-technical operational architectural tiers
   const tiers: TierGroup[] = [
+    {
+      id: 'business_ops',
+      name: 'Business Operations, POS & Payments Tier',
+      icon: Layers,
+      color: '#059669',
+      bg: '#ecfdf5',
+      borderColor: '#a7f3d0',
+      items: recommendations.filter(r =>
+        /pos|payment|retail|commerce|store|operation|order|billing/i.test(r?.category || '')
+      )
+    },
     {
       id: 'client',
       name: 'Client & Presentation Tier',
@@ -39,7 +60,8 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       bg: '#f0f9ff',
       borderColor: '#bae6fd',
       items: recommendations.filter(r =>
-        /front|client|ui|mobile|web|presentation/i.test(r?.category || '')
+        /front|client|ui|mobile|web|presentation/i.test(r?.category || '') &&
+        !/pos|payment|retail|commerce/i.test(r?.category || '')
       )
     },
     {
@@ -50,7 +72,8 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       bg: '#eef2ff',
       borderColor: '#c7d2fe',
       items: recommendations.filter(r =>
-        /back|api|server|service|microservice/i.test(r?.category || '')
+        /back|api|server|service|microservice/i.test(r?.category || '') &&
+        !/pos|payment|retail|commerce/i.test(r?.category || '')
       )
     },
     {
@@ -84,22 +107,21 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       borderColor: '#cbd5e1',
       items: recommendations.filter(r =>
         /sec|auth|monitor|telemetry|audit|service/i.test(r?.category || '') &&
-        !/front|client|back|api|data|cloud|devops/i.test(r?.category || '')
+        !/front|client|back|api|data|cloud|devops|pos|payment|commerce/i.test(r?.category || '')
       )
     }
   ];
 
-  // Distribute uncategorized items into the closest matching tier
+  // Distribute uncategorized items into the application tier
   const matchedTechs = new Set(tiers.flatMap(t => t.items.map(i => i?.technology || '')));
   const unassigned = recommendations.filter(r => r && !matchedTechs.has(r.technology || ''));
   if (unassigned.length > 0) {
-    tiers[1].items.push(...unassigned);
+    tiers[2].items.push(...unassigned);
   }
 
   // Filter to active tiers with items
   const activeTiers = tiers.filter(t => t.items.length > 0);
 
-  // Handle direct SVG download
   const handleDownloadDirectSvg = () => {
     if (onDownloadSvg) {
       onDownloadSvg();
@@ -119,11 +141,10 @@ export const ArchitectureInfographic: React.FC<Props> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Dimensions for dynamic SVG generation
   const svgWidth = 1000;
   const headerHeight = 70;
   const tierSpacing = 30;
-  const nodeHeight = 76;
+  const nodeHeight = 84;
   const tierHeaderH = 34;
 
   let currentY = headerHeight;
@@ -156,7 +177,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
   const totalSvgHeight = Math.max(600, currentY + 20);
 
   return (
-    <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+    <div className="card" style={{ padding: 20, marginBottom: 20, position: 'relative' }}>
       {/* Visual Diagram Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
@@ -164,14 +185,14 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             System Architecture Blueprint Infographic
           </h3>
           <p style={{ fontSize: 12.5, color: '#64748b', margin: '3px 0 0 0' }}>
-            Multi-tier service topology, component suitability, and operational flow
+            Interactive multi-tier service topology. Click any node to explore role, rationale, risks, and implementation guidance.
           </p>
         </div>
 
         <button
           onClick={handleDownloadDirectSvg}
           className="btn-secondary"
-          style={{ fontSize: 12, padding: '6px 12px', gap: 6 }}
+          style={{ fontSize: 12, padding: '6px 12px', gap: 6, display: 'flex', alignItems: 'center' }}
           title="Download vector SVG architecture diagram"
         >
           <Download size={14} color="#6366f1" />
@@ -195,6 +216,8 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           viewBox={`0 0 ${svgWidth} ${totalSvgHeight}`}
           style={{ width: '100%', minWidth: 700, height: 'auto', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label={`Architecture Topology for ${projectName}`}
         >
           <defs>
             <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -203,6 +226,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             </linearGradient>
             <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0f172a" floodOpacity="0.06" />
+            </filter>
+            <filter id="activeNodeGlow" x="-10%" y="-10%" width="120%" height="125%">
+              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#6366f1" floodOpacity="0.25" />
             </filter>
             <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />
@@ -216,27 +242,22 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           <g transform="translate(30, 20)">
             <rect width={svgWidth - 60} height="46" rx="8" fill="#1e293b" />
             <text x="20" y="28" fill="#ffffff" fontSize="15" fontWeight="700" fontFamily="system-ui, -apple-system, sans-serif">
-              {projectName} — Architecture Topography
-            </text>
-            <text x={svgWidth - 85} y="28" textAnchor="end" fill="#94a3b8" fontSize="12" fontWeight="600" fontFamily="system-ui, -apple-system, sans-serif">
-              Pattern: {techData.architecture_pattern || 'Modular Monolith'} | {versionName}
+              {projectName} — Architecture Topography ({techData.architecture_pattern || 'Standard Cloud'})
             </text>
           </g>
 
-          {/* Render Flow Arrows Between Adjacent Tiers */}
-          {tierLayouts.slice(0, -1).map((tLayout, idx) => {
-            const nextLayout = tierLayouts[idx + 1];
-            const arrowStartY = tLayout.tierY + tLayout.tierTotalH;
-            const arrowEndY = nextLayout.tierY;
-            const midX = svgWidth / 2;
-
+          {/* Inter-tier Connection Arrows */}
+          {tierLayouts.slice(0, -1).map((current, idx) => {
+            const next = tierLayouts[idx + 1];
+            const startY = current.tierY + current.tierTotalH;
+            const endY = next.tierY;
             return (
               <g key={`arrow-${idx}`}>
                 <line
-                  x1={midX}
-                  y1={arrowStartY}
-                  x2={midX}
-                  y2={arrowEndY}
+                  x1={svgWidth / 2}
+                  y1={startY}
+                  x2={svgWidth / 2}
+                  y2={endY}
                   stroke="#94a3b8"
                   strokeWidth="2"
                   strokeDasharray="4 4"
@@ -275,68 +296,207 @@ export const ArchitectureInfographic: React.FC<Props> = ({
               </text>
 
               {/* Technology Node Cards */}
-              {items.map(({ item, x, y, w, h }, itemIdx) => (
-                <g key={item.technology || item.name || itemIdx} transform={`translate(${x}, ${y - tierY})`} filter="url(#cardShadow)">
-                  <rect
-                    width={w}
-                    height={h}
-                    rx="6"
-                    fill="#ffffff"
-                    stroke="#e2e8f0"
-                    strokeWidth="1"
-                  />
-                  {/* Left accent strip */}
-                  <rect
-                    width="4"
-                    height={h}
-                    rx="2"
-                    fill={tier.color}
-                  />
-
-                  {/* Technology Name */}
-                  <text
-                    x="12"
-                    y="22"
-                    fill="#0f172a"
-                    fontSize="13"
-                    fontWeight="700"
-                    fontFamily="system-ui, -apple-system, sans-serif"
+              {items.map(({ item, x, y, w, h }, itemIdx) => {
+                const isSelected = selectedTech?.technology === item.technology;
+                return (
+                  <g
+                    key={item.technology || item.name || itemIdx}
+                    transform={`translate(${x}, ${y - tierY})`}
+                    filter={isSelected ? 'url(#activeNodeGlow)' : 'url(#cardShadow)'}
+                    style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Explore ${item.technology || item.name}`}
+                    onClick={() => setSelectedTech(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedTech(item);
+                      }
+                    }}
                   >
-                    {(item.technology || item.name || 'Component').length > 24
-                      ? `${(item.technology || item.name || 'Component').slice(0, 22)}...`
-                      : (item.technology || item.name || 'Component')}
-                  </text>
+                    <rect
+                      width={w}
+                      height={h}
+                      rx="6"
+                      fill="#ffffff"
+                      stroke={isSelected ? tier.color : '#e2e8f0'}
+                      strokeWidth={isSelected ? '2' : '1'}
+                    />
+                    {/* Left accent strip */}
+                    <rect
+                      width="4"
+                      height={h}
+                      rx="2"
+                      fill={tier.color}
+                    />
 
-                  {/* Category Pill Tag */}
-                  <text
-                    x="12"
-                    y="39"
-                    fill="#64748b"
-                    fontSize="10.5"
-                    fontWeight="600"
-                    fontFamily="system-ui, -apple-system, sans-serif"
-                  >
-                    {item.category || 'General'}
-                  </text>
+                    {/* Technology Name */}
+                    <text
+                      x="12"
+                      y="22"
+                      fill="#0f172a"
+                      fontSize="13"
+                      fontWeight="700"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {(item.technology || item.name || 'Component').length > 24
+                        ? `${(item.technology || item.name || 'Component').slice(0, 22)}...`
+                        : (item.technology || item.name || 'Component')}
+                    </text>
 
-                  {/* Purpose Snippet */}
-                  <text
-                    x="12"
-                    y="57"
-                    fill="#334155"
-                    fontSize="10.5"
-                    fontFamily="system-ui, -apple-system, sans-serif"
-                  >
-                    {(item.purpose || '').length > 38
-                      ? `${(item.purpose || '').slice(0, 36)}...`
-                      : (item.purpose || '')}
-                  </text>
-                </g>
-              ))}
+                    {/* Category Pill Tag */}
+                    <text
+                      x="12"
+                      y="39"
+                      fill="#64748b"
+                      fontSize="10.5"
+                      fontWeight="600"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {item.category || 'General'}
+                    </text>
+
+                    {/* Purpose Snippet */}
+                    <text
+                      x="12"
+                      y="56"
+                      fill="#334155"
+                      fontSize="10"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {(item.purpose || '').length > 36
+                        ? `${(item.purpose || '').slice(0, 34)}...`
+                        : (item.purpose || '')}
+                    </text>
+
+                    {/* Interactive Click Tip */}
+                    <text
+                      x="12"
+                      y="74"
+                      fill={tier.color}
+                      fontSize="8.5"
+                      fontWeight="700"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      Inspect Details ➔
+                    </text>
+                  </g>
+                );
+              })}
             </g>
           ))}
         </svg>
       </div>
+
+      {/* Explorable Technology Node Detail Drawer (TECH-011) */}
+      {selectedTech && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 'min(460px, 95%)',
+            background: '#ffffff',
+            boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.15)',
+            borderTopRightRadius: 8,
+            borderBottomRightRadius: 8,
+            borderLeft: '1px solid #e2e8f0',
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto'
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tech-drawer-title"
+        >
+          {/* Header */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc' }}>
+            <div>
+              <span className="badge" style={{ fontSize: 11, background: '#ede9fe', color: '#6366f1', marginBottom: 4, display: 'inline-block' }}>
+                {selectedTech.category}
+              </span>
+              <h4 id="tech-drawer-title" style={{ margin: '4px 0 0 0', fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                {selectedTech.technology || selectedTech.name}
+              </h4>
+            </div>
+            <button
+              onClick={() => setSelectedTech(null)}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4, borderRadius: 4 }}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Purpose & Role Description */}
+            <div>
+              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 6px 0' }}>
+                Architectural Role & Purpose
+              </h5>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: '#1e293b' }}>
+                {selectedTech.role_description || selectedTech.purpose}
+              </p>
+            </div>
+
+            {/* Suitability & Rationale */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 12 }}>
+              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#166534', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle2 size={15} color="#16a34a" /> Selection Rationale & Suitability
+              </h5>
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#14532d' }}>
+                {selectedTech.suitability}
+              </p>
+            </div>
+
+            {/* Implementation Guidance */}
+            {selectedTech.implementation_guidance && (
+              <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: 12 }}>
+                <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#3730a3', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ArrowRight size={15} color="#6366f1" /> Implementation Guidance
+                </h5>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#312e81' }}>
+                  {selectedTech.implementation_guidance}
+                </p>
+              </div>
+            )}
+
+            {/* Cost Tier */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+              <DollarSign size={16} color="#059669" />
+              <div>
+                <span style={{ fontSize: 11, color: '#64748b', display: 'block' }}>Estimated Cost Tier</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                  {selectedTech.estimated_cost_tier || 'Low / Free Tier'}
+                </span>
+              </div>
+            </div>
+
+            {/* Trade-offs & Risks */}
+            {selectedTech.trade_offs && (
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 12 }}>
+                <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#92400e', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={15} color="#d97706" /> Known Trade-offs & Limitations
+                </h5>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#78350f' }}>
+                  {selectedTech.trade_offs}
+                </p>
+              </div>
+            )}
+
+            {/* Migration Risk */}
+            {selectedTech.migration_risk && (
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                <span style={{ fontWeight: 600 }}>Migration Note: </span>
+                {selectedTech.migration_risk}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

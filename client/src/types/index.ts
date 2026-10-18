@@ -52,6 +52,10 @@ export interface ModuleDetail<T = any> {
   active_version_number?: number;
   data?: T;
   versions: VersionItem[];
+  is_stale?: boolean;
+  stale_reason?: string;
+  stale_source_module?: string;
+  context_metadata?: Record<string, any>;
 }
 
 export interface BMCData {
@@ -65,6 +69,8 @@ export interface BMCData {
   key_activities: string[];
   key_partnerships: string[];
   cost_structure: string[];
+  actionable_guidance?: Record<string, string>;
+  assumptions?: string[];
 }
 
 export interface TechItem {
@@ -75,12 +81,17 @@ export interface TechItem {
   suitability: string;
   trade_offs?: string;
   migration_risk?: string;
+  role_description?: string;
+  implementation_guidance?: string;
+  estimated_cost_tier?: string;
 }
 
 export interface TechStackData {
   summary: string;
   architecture_pattern: string;
   recommendations: TechItem[];
+  existing_stack_evaluation?: Record<string, any>;
+  assumptions?: string[];
 }
 
 export type TechRecommendation = TechItem;
@@ -108,6 +119,9 @@ export interface IdeaValidatorData {
   risks: ValidationRisk[];
   validation_experiments: ValidationExperiment[];
   suggested_next_actions: string[];
+  budget_feasibility?: string;
+  scope_reduction_alternatives?: string[];
+  score_factors?: Record<string, number>;
 }
 
 export interface CompetitorProfile {
@@ -116,6 +130,9 @@ export interface CompetitorProfile {
   weaknesses: string[];
   pricing_model: string;
   market_share_estimate: string;
+  sources?: string[];
+  as_of_date?: string;
+  is_direct_competitor?: boolean;
 }
 
 export interface MarketResearchData {
@@ -128,6 +145,31 @@ export interface MarketResearchData {
   opportunities: string[];
   threats: string[];
   research_gaps: string[];
+  late_entry_differentiation?: string;
+  budget_fit_analysis?: string;
+}
+
+export interface RoadmapPhase {
+  name: string;
+  color?: string;
+  start_date?: string;
+  end_date?: string;
+  description?: string;
+}
+
+export interface RoadmapFeasibilityEvaluation {
+  is_realistic: boolean;
+  feasibility_issues: string[];
+  recommended_alternatives: string[];
+  capacity_summary?: string;
+}
+
+export interface ExecutionRoadmapData {
+  phases?: RoadmapPhase[];
+  tasks: RoadmapTask[];
+  feasibility_evaluation?: RoadmapFeasibilityEvaluation;
+  assumptions?: string[];
+  planning_inputs?: RoadmapPlanningInputs;
 }
 
 export interface RoadmapTask {
@@ -145,8 +187,13 @@ export interface RoadmapTask {
   dependencies: string[];
   deliverables?: string;
   effort?: string;
-  created_at: string;
-  updated_at: string;
+  assigned_to?: string;
+  assigned_role?: string;
+  department?: string;
+  steps?: string[];
+  is_overloaded?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RoadmapSummary {
@@ -171,16 +218,28 @@ export interface RoadmapChecklistItem {
   status: RoadmapChecklistStatus;
 }
 
+export interface TeamMemberInput {
+  name: string;
+  department?: string;
+  roles: string[];
+  skills: string[];
+  hours_per_week?: number;
+}
+
 export interface RoadmapPlanningInputs {
   start_date: string;
   horizon_weeks: number;
   checklist: RoadmapChecklistItem[];
-  completed_work: string;
-  in_progress_work: string;
-  team_capacity: string;
-  constraints: string;
-  target_outcome: string;
-  custom_items: string[];
+  completed_work?: string;
+  in_progress_work?: string;
+  team_capacity?: string;
+  constraints?: string;
+  target_outcome?: string;
+  custom_items?: string[];
+  is_solo_developer?: boolean;
+  departments?: string[];
+  team_members?: TeamMemberInput[];
+  reduce_mvp_scope?: boolean;
 }
 
 export interface CopilotMessage {

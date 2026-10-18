@@ -2,6 +2,21 @@ from typing import List, Optional, Dict, Any, Literal
 from datetime import date, datetime
 from pydantic import BaseModel, Field, ConfigDict
 
+# --- Generation Brief Schemas (Two-Stage Pipeline) ---
+class GenerationBrief(BaseModel):
+    venture_summary: str = "Venture strategic synthesis"
+    applicable_focus: List[str] = Field(default_factory=list)
+    is_technical_project: bool = True
+    technical_depth: str = "standard_digital"  # deep_technical, standard_digital, non_technical_business
+    stage_considerations: str = "Stage-aligned development milestones"
+    budget_constraints: Optional[str] = None
+    timeline_constraints: Optional[str] = None
+    team_capacity_considerations: Optional[str] = None
+    key_assumptions: List[str] = Field(default_factory=list)
+    information_gaps: List[str] = Field(default_factory=list)
+    feasibility_flags: List[str] = Field(default_factory=list)
+    custom_instructions: Optional[str] = None
+
 # --- BMC Schemas ---
 class BMCData(BaseModel):
     tagline: Optional[str] = "AI-Driven Enterprise Solution"
@@ -14,20 +29,31 @@ class BMCData(BaseModel):
     key_activities: List[str] = Field(..., min_length=1)
     key_partnerships: List[str] = Field(..., min_length=1)
     cost_structure: List[str] = Field(..., min_length=1)
+    actionable_guidance: Optional[Dict[str, str]] = Field(default_factory=dict)
+    assumptions: Optional[List[str]] = Field(default_factory=list)
 
 # --- Tech Stack Schemas ---
 class TechItem(BaseModel):
     technology: str
-    category: str  # Frontend, Backend, Database, Cloud/Hosting, Storage, Security, DevOps, Services
+    category: str  # Frontend, Backend, Database, Cloud/Hosting, Storage, Security, DevOps, Services, Business Operations, POS & Payments, etc.
     purpose: str
     suitability: str
     trade_offs: Optional[str] = None
     migration_risk: Optional[str] = None
+    role_description: Optional[str] = None
+    implementation_guidance: Optional[str] = None
+    estimated_cost_tier: Optional[str] = "Low / Free Tier"  # Low, Moderate, High
+
+    @property
+    def name(self) -> str:
+        return self.technology
 
 class TechStackData(BaseModel):
     summary: str
-    architecture_pattern: str  # e.g., Microservices, Event-Driven, Modular Monolith
+    architecture_pattern: str  # e.g., Microservices, Event-Driven, Modular Monolith, Commercial Off-The-Shelf (COTS)
     recommendations: List[TechItem]
+    existing_stack_evaluation: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    assumptions: Optional[List[str]] = Field(default_factory=list)
 
 # --- Idea Validator Schemas ---
 class ValidationRisk(BaseModel):
@@ -51,6 +77,17 @@ class IdeaValidatorData(BaseModel):
     risks: List[ValidationRisk]
     validation_experiments: List[ValidationExperiment]
     suggested_next_actions: List[str]
+    budget_feasibility: Optional[str] = None
+    scope_reduction_alternatives: Optional[List[str]] = Field(default_factory=list)
+    score_factors: Optional[Dict[str, int]] = Field(default_factory=dict)
+
+    @property
+    def score(self) -> int:
+        return self.overall_viability_score
+
+    @property
+    def summary(self) -> str:
+        return f"{self.problem_clarity} {self.feasibility}"
 
 # --- Market Research Schemas ---
 class CompetitorProfile(BaseModel):
@@ -59,6 +96,9 @@ class CompetitorProfile(BaseModel):
     weaknesses: List[str]
     pricing_model: str
     market_share_estimate: str
+    sources: Optional[List[str]] = Field(default_factory=list)
+    as_of_date: Optional[str] = None
+    is_direct_competitor: Optional[bool] = True
 
 class MarketResearchData(BaseModel):
     provenance_note: str = "AI-grounded analytical market assessment based on current business context."
@@ -70,6 +110,8 @@ class MarketResearchData(BaseModel):
     opportunities: List[str]
     threats: List[str]
     research_gaps: List[str]
+    late_entry_differentiation: Optional[str] = None
+    budget_fit_analysis: Optional[str] = None
 
 # --- Roadmap Schemas ---
 class RoadmapPhase(BaseModel):
@@ -92,10 +134,23 @@ class RoadmapTaskItem(BaseModel):
     dependencies: Optional[List[str]] = []
     deliverables: Optional[str] = None
     effort: Optional[str] = None
+    assigned_to: Optional[str] = "Unassigned"
+    assigned_role: Optional[str] = None
+    department: Optional[str] = None
+    steps: Optional[List[str]] = Field(default_factory=list)
+    is_overloaded: Optional[bool] = False
+
+class RoadmapFeasibilityEvaluation(BaseModel):
+    is_realistic: bool = True
+    feasibility_issues: List[str] = Field(default_factory=list)
+    recommended_alternatives: List[str] = Field(default_factory=list)
+    capacity_summary: Optional[str] = None
 
 class ExecutionRoadmapData(BaseModel):
     phases: Optional[List[RoadmapPhase]] = []
     tasks: List[RoadmapTaskItem] = Field(default_factory=list, max_length=30)
+    feasibility_evaluation: Optional[RoadmapFeasibilityEvaluation] = None
+    assumptions: Optional[List[str]] = Field(default_factory=list)
 
 DetailedRoadmapData = ExecutionRoadmapData
 
@@ -104,6 +159,12 @@ class RoadmapChecklistItem(BaseModel):
     item: str = Field(..., min_length=1, max_length=180)
     status: Literal["Not started", "In progress", "Completed", "Not applicable"]
 
+class TeamMemberInput(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    department: Optional[str] = None
+    roles: List[str] = Field(default_factory=list)
+    skills: List[str] = Field(default_factory=list)
+    hours_per_week: Optional[int] = 40
 
 class RoadmapPlanningRequest(BaseModel):
     start_date: date = Field(default_factory=date.today)
@@ -115,6 +176,11 @@ class RoadmapPlanningRequest(BaseModel):
     constraints: str = Field(default="", max_length=2000)
     target_outcome: str = Field(default="", max_length=1000)
     custom_items: List[str] = Field(default_factory=list, max_length=20)
+    is_solo_developer: bool = False
+    organization_size: Optional[str] = None
+    departments: List[str] = Field(default_factory=list)
+    team_members: List[TeamMemberInput] = Field(default_factory=list)
+    reduce_mvp_scope: bool = False
 
 # --- Versioning Schemas ---
 class VersionItemResponse(BaseModel):
@@ -134,9 +200,14 @@ class ModuleDetailResponse(BaseModel):
     active_version_number: Optional[int] = None
     data: Optional[Dict[str, Any]] = None
     versions: List[VersionItemResponse] = []
+    is_stale: bool = False
+    stale_reason: Optional[str] = None
+    stale_source_module: Optional[str] = None
+    context_metadata: Optional[Dict[str, Any]] = None
 
 class VersionRenameRequest(BaseModel):
     version_name: str = Field(..., min_length=1, max_length=128)
+
 
 class VersionConflictResolveRequest(BaseModel):
     replace_version_id: str  # The existing version to remove/replace to keep <= 5 versions

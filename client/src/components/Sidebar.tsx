@@ -32,8 +32,7 @@ export const Sidebar: React.FC<Props> = ({
     { id: 'tech_stack', label: 'Technology Stack', icon: Cpu },
     { id: 'idea_validator', label: 'Idea Validator', icon: CheckCircle2 },
     { id: 'market_research', label: 'Market Research', icon: TrendingUp },
-    { id: 'execution_roadmap', label: 'Execution Roadmap', icon: Calendar },
-    { id: 'detailed_roadmap', label: 'Detailed Roadmap', icon: ListTodo },
+    { id: 'execution_roadmap', label: 'Roadmap & Execution Plan', icon: Calendar },
     { id: 'blueprint_copilot', label: 'Planning Assistant', icon: Bot },
   ];
 
@@ -103,7 +102,7 @@ export const Sidebar: React.FC<Props> = ({
       <nav className="sidebar-nav">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeModule === item.id;
+          const isActive = activeModule === item.id || (item.id === 'execution_roadmap' && activeModule === 'detailed_roadmap');
           // Only overview is default true, all other blueprints are strictly driven by persisted active version
           const badge = moduleVersionBadges[item.id] || { version: 'V1', isGenerated: item.id === 'overview' };
 

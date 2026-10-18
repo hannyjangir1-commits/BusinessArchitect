@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Calendar, Loader2, Sparkles, X } from 'lucide-react';
-import { BusinessStage, RoadmapChecklistItem, RoadmapChecklistStatus, RoadmapPlanningInputs } from '../types';
+import { BusinessStage, RoadmapChecklistItem, RoadmapChecklistStatus, RoadmapPlanningInputs, TeamMemberInput } from '../types';
 
 interface Props {
   stage: BusinessStage;
@@ -66,6 +66,12 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
     item,
     status: initialValues?.checklist?.find((answer) => answer.item === item)?.status || 'Not started'
   })));
+  const [submitting, setSubmitting] = useState(false);
+
+  const updateChecklist = (item: string, status: RoadmapChecklistStatus) => {
+    setChecklist((prev) => prev.map((entry) => (entry.item === item ? { ...entry, status } : entry)));
+  };
+
   const [startDate, setStartDate] = useState(() =>
     initialValues?.start_date && initialValues.start_date >= today ? initialValues.start_date : today
   );
@@ -76,10 +82,31 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
   const [constraints, setConstraints] = useState(initialValues?.constraints || '');
   const [targetOutcome, setTargetOutcome] = useState(initialValues?.target_outcome || '');
   const [customItemsText, setCustomItemsText] = useState((initialValues?.custom_items || []).join('\n'));
-  const [submitting, setSubmitting] = useState(false);
+  const [isSoloDeveloper, setIsSoloDeveloper] = useState(initialValues?.is_solo_developer || false);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberInput[]>(initialValues?.team_members || []);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState('');
+  const [newMemberDept, setNewMemberDept] = useState('');
 
-  const updateChecklist = (item: string, status: RoadmapChecklistStatus) => {
-    setChecklist((current) => current.map((answer) => answer.item === item ? { ...answer, status } : answer));
+  const handleAddMember = () => {
+    if (!newMemberName.trim()) return;
+    setTeamMembers(prev => [
+      ...prev,
+      {
+        name: newMemberName.trim(),
+        roles: newMemberRole.split(',').map(r => r.trim()).filter(Boolean),
+        skills: [newMemberRole.trim()],
+        department: newMemberDept.trim() || 'Engineering',
+        hours_per_week: 40
+      }
+    ]);
+    setNewMemberName('');
+    setNewMemberRole('');
+    setNewMemberDept('');
+  };
+
+  const handleRemoveMember = (idx: number) => {
+    setTeamMembers(prev => prev.filter((_, i) => i !== idx));
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -95,7 +122,9 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
         team_capacity: teamCapacity.trim(),
         constraints: constraints.trim(),
         target_outcome: targetOutcome.trim(),
-        custom_items: customItemsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 20)
+        custom_items: customItemsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 20),
+        is_solo_developer: isSoloDeveloper,
+        team_members: isSoloDeveloper ? [{ name: 'Solo Developer', roles: ['Fullstack Engineer'], skills: ['Fullstack'], department: 'Engineering', hours_per_week: 40 }] : teamMembers
       });
     } finally {
       setSubmitting(false);
@@ -151,10 +180,88 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
           <input id="roadmap-horizon" className="form-input" type="number" min={1} max={104} value={horizonWeeks} disabled={busy} onChange={(event) => setHorizonWeeks(Math.max(1, Math.min(104, Number(event.target.value) || 1)))} />
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="roadmap-capacity">Team capacity</label>
+          <label className="form-label" htmlFor="roadmap-capacity">Team capacity summary</label>
           <input id="roadmap-capacity" className="form-input" type="text" maxLength={500} placeholder="e.g. 2 developers, part-time designer" value={teamCapacity} disabled={busy} onChange={(event) => setTeamCapacity(event.target.value)} />
         </div>
       </div>
+
+      {/* Solo Developer Mode Toggle (ROAD-012) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+        <input
+          type="checkbox"
+          id="roadmap-solo-dev"
+          checked={isSoloDeveloper}
+          onChange={(e) => setIsSoloDeveloper(e.target.checked)}
+          disabled={busy}
+          style={{ width: 16, height: 16, cursor: 'pointer' }}
+        />
+        <label htmlFor="roadmap-solo-dev" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', margin: 0 }}>
+          Solo Developer Mode (Single founder/engineer delivering entire scope)
+        </label>
+      </div>
+
+      {/* Team Members & Roles Configuration (ROAD-015 to ROAD-019) */}
+      {!isSoloDeveloper && (
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 14 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', margin: '0 0 8px 0' }}>
+            Team Members, Skills & Roles (Optional)
+          </h4>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
+            Tasks will be assigned strictly to these real team members based on their designated roles and skills.
+          </p>
+
+          {teamMembers.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              {teamMembers.map((m, idx) => (
+                <div key={idx} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{m.name}</span>
+                  <span style={{ color: '#6366f1' }}>({m.roles.join(', ') || 'General'})</span>
+                  <span style={{ color: '#64748b' }}>[{m.department || 'General'}]</span>
+                  <button type="button" onClick={() => handleRemoveMember(idx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }}>
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Member Name (e.g. Alex Chen)"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              disabled={busy}
+              style={{ flex: 1, minWidth: 150, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}
+            />
+            <input
+              type="text"
+              placeholder="Roles/Skills (e.g. Lead Architect, Backend)"
+              value={newMemberRole}
+              onChange={(e) => setNewMemberRole(e.target.value)}
+              disabled={busy}
+              style={{ flex: 1.2, minWidth: 180, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}
+            />
+            <input
+              type="text"
+              placeholder="Department (e.g. Engineering)"
+              value={newMemberDept}
+              onChange={(e) => setNewMemberDept(e.target.value)}
+              disabled={busy}
+              style={{ flex: 1, minWidth: 120, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border-color)' }}
+            />
+            <button
+              type="button"
+              onClick={handleAddMember}
+              disabled={busy || !newMemberName.trim()}
+              className="btn-secondary"
+              style={{ fontSize: 12, padding: '6px 12px' }}
+            >
+              + Add Member
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
         <div className="form-group">

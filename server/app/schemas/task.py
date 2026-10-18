@@ -15,6 +15,10 @@ class TaskCreateRequest(BaseModel):
     dependencies: List[str] = Field(default_factory=list)
     deliverables: Optional[str] = None
     effort: Optional[str] = None
+    assigned_to: Optional[str] = "Unassigned"
+    assigned_role: Optional[str] = None
+    department: Optional[str] = None
+    steps: Optional[List[str]] = Field(default_factory=list)
 
 class TaskUpdateRequest(BaseModel):
     task_code: Optional[str] = None
@@ -29,6 +33,10 @@ class TaskUpdateRequest(BaseModel):
     dependencies: Optional[List[str]] = None
     deliverables: Optional[str] = None
     effort: Optional[str] = None
+    assigned_to: Optional[str] = None
+    assigned_role: Optional[str] = None
+    department: Optional[str] = None
+    steps: Optional[List[str]] = None
 
 class TaskResponse(BaseModel):
     id: str
@@ -45,10 +53,16 @@ class TaskResponse(BaseModel):
     dependencies: List[str] = []
     deliverables: Optional[str] = None
     effort: Optional[str] = None
+    assigned_to: Optional[str] = "Unassigned"
+    assigned_role: Optional[str] = None
+    department: Optional[str] = None
+    steps: Optional[List[str]] = Field(default_factory=list)
+    is_overloaded: Optional[bool] = False
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class RoadmapSummaryResponse(BaseModel):
     milestone_30_progress: int

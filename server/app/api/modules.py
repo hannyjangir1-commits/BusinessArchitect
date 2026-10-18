@@ -1,6 +1,6 @@
 import time
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
@@ -71,6 +71,11 @@ def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dic
             cur.dependencies = t.get("dependencies", cur.dependencies)
             cur.deliverables = t.get("deliverables", cur.deliverables)
             cur.effort = t.get("effort", cur.effort)
+            cur.assigned_to = t.get("assigned_to", cur.assigned_to or "Unassigned")
+            cur.assigned_role = t.get("assigned_role", cur.assigned_role)
+            cur.department = t.get("department", cur.department)
+            cur.steps = t.get("steps", cur.steps or [])
+            cur.is_overloaded = t.get("is_overloaded", cur.is_overloaded or False)
             cur.order_index = idx
         else:
             raw_st = t.get("status", "Pending")
@@ -89,6 +94,11 @@ def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dic
                 dependencies=t.get("dependencies", []),
                 deliverables=t.get("deliverables", ""),
                 effort=t.get("effort", "1 week"),
+                assigned_to=t.get("assigned_to", "Unassigned"),
+                assigned_role=t.get("assigned_role"),
+                department=t.get("department"),
+                steps=t.get("steps", []),
+                is_overloaded=t.get("is_overloaded", False),
                 order_index=idx,
                 is_ai_generated=True
             )
@@ -211,9 +221,54 @@ def _normalize_roadmap_schedule(data: Dict[str, Any], planning: RoadmapPlanningR
             "description": first.get("description") or f"Work grouped under {name}.",
         })
 
+    _detect_and_break_dependency_cycles(tasks)
     result["tasks"] = tasks
     result["phases"] = phases
     return result
+
+def _detect_and_break_dependency_cycles(tasks: List[Dict[str, Any]]) -> None:
+    """Detect circular dependencies (e.g. A -> B and B -> A) and remove offending back-edges."""
+    adj: Dict[str, List[str]] = {}
+    for t in tasks:
+        code = t.get("task_code")
+        if code:
+            deps = t.get("dependencies") or []
+            adj[code] = [d for d in deps if isinstance(d, str)]
+
+    visited: Dict[str, int] = {}
+
+    def dfs(node: str, path: List[str]):
+        visited[node] = 1
+        path.append(node)
+        for neighbor in list(adj.get(node, [])):
+            if visited.get(neighbor) == 1:
+                # Cycle detected: remove back-edge
+                if neighbor in adj[node]:
+                    adj[node].remove(neighbor)
+                for t in tasks:
+                    if t.get("task_code") == node:
+                        t_deps = t.get("dependencies", [])
+                        if neighbor in t_deps:
+                            t_deps.remove(neighbor)
+            elif visited.get(neighbor, 0) == 0:
+                dfs(neighbor, path)
+        path.pop()
+        visited[node] = 2
+
+    for code in list(adj.keys()):
+        if visited.get(code, 0) == 0:
+            dfs(code, [])
+    return tasks
+
+def _gather_cross_module_context(db: Session, project_id: str) -> Dict[str, Any]:
+    context = {}
+    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project_id).all()
+    for m in modules:
+        if m.active_version_id:
+            ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
+            if ver and ver.data:
+                context[m.module_type] = ver.data
+    return context
 
 @router.get("/{module_type}", response_model=ModuleDetailResponse)
 def get_module(
@@ -246,13 +301,46 @@ def get_module(
         module.active_version_id = active_ver.id
         db.commit()
 
+    is_stale = False
+    stale_reason = None
+    stale_source_module = None
+
+    if active_ver:
+        if module_type in ("execution_roadmap", "detailed_roadmap"):
+            ts_mod = db.query(ModuleContent).filter(
+                ModuleContent.project_id == project.id,
+                ModuleContent.module_type == "tech_stack"
+            ).first()
+            if ts_mod and ts_mod.active_version_id:
+                ts_ver = db.query(ModuleVersion).filter(ModuleVersion.id == ts_mod.active_version_id).first()
+                if ts_ver and ts_ver.created_at > active_ver.created_at:
+                    is_stale = True
+                    stale_reason = f"Tech Stack was updated on {ts_ver.created_at.strftime('%Y-%m-%d %H:%M')}. Would you like to refresh your Roadmap to align with the latest architecture?"
+                    stale_source_module = "tech_stack"
+
+        elif module_type in ("idea_validator", "market_research"):
+            bmc_mod = db.query(ModuleContent).filter(
+                ModuleContent.project_id == project.id,
+                ModuleContent.module_type == "bmc"
+            ).first()
+            if bmc_mod and bmc_mod.active_version_id:
+                bmc_ver = db.query(ModuleVersion).filter(ModuleVersion.id == bmc_mod.active_version_id).first()
+                if bmc_ver and bmc_ver.created_at > active_ver.created_at:
+                    is_stale = True
+                    stale_reason = f"Business Model Canvas was updated on {bmc_ver.created_at.strftime('%Y-%m-%d %H:%M')}. Refresh {module_type.replace('_', ' ').title()} to incorporate revised customer segments and value propositions?"
+                    stale_source_module = "bmc"
+
     return ModuleDetailResponse(
         module_type=module_type,
         active_version_id=active_ver.id if active_ver else None,
         active_version_name=active_ver.version_name if active_ver else None,
         active_version_number=active_ver.version_number if active_ver else None,
         data=active_ver.data if active_ver else None,
-        versions=[VersionItemResponse.model_validate(v) for v in versions]
+        versions=[VersionItemResponse.model_validate(v) for v in versions],
+        is_stale=is_stale,
+        stale_reason=stale_reason,
+        stale_source_module=stale_source_module,
+        context_metadata=active_ver.data.get("context_metadata") if (active_ver and isinstance(active_ver.data, dict)) else None
     )
 
 @router.post("/{module_type}/generate", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -278,29 +366,55 @@ def generate_module(
 
     proj_info = _get_project_dict(project)
     module = VersionService.get_or_create_module(db, project.id, module_type)
+    cross_ctx = _gather_cross_module_context(db, project.id)
     t0 = time.time()
 
     try:
-        if module_type == "bmc":
-            generated = ai_service.generate_bmc(proj_info)
-            data_dict = generated.model_dump()
-        elif module_type == "tech_stack":
-            generated = ai_service.generate_tech_stack(proj_info)
-            data_dict = generated.model_dump()
-        elif module_type == "idea_validator":
-            generated = ai_service.generate_idea_validator(proj_info)
-            data_dict = generated.model_dump()
-        elif module_type == "market_research":
-            generated = ai_service.generate_market_research(proj_info)
-            data_dict = generated.model_dump()
-        elif module_type in ("execution_roadmap", "detailed_roadmap"):
+        planning_dict = None
+        if module_type in ("execution_roadmap", "detailed_roadmap"):
             planning = planning_inputs or RoadmapPlanningRequest()
             planning_dict = planning.model_dump(mode="json")
-            roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict)
+
+        # Stage 1: Build server-side generation brief
+        brief = ai_service.build_generation_brief(
+            proj_info,
+            module_type,
+            cross_module_context=cross_ctx,
+            planning_inputs=planning_dict
+        )
+
+        # Stage 2: Tailored module synthesis
+        if module_type == "bmc":
+            generated = ai_service.generate_bmc(proj_info, brief)
+            data_dict = generated.model_dump()
+        elif module_type == "tech_stack":
+            generated = ai_service.generate_tech_stack(proj_info, brief, cross_module_context=cross_ctx)
+            data_dict = generated.model_dump()
+        elif module_type == "idea_validator":
+            generated = ai_service.generate_idea_validator(proj_info, brief, cross_module_context=cross_ctx)
+            data_dict = generated.model_dump()
+        elif module_type == "market_research":
+            generated = ai_service.generate_market_research(proj_info, brief, cross_module_context=cross_ctx)
+            data_dict = generated.model_dump()
+        elif module_type in ("execution_roadmap", "detailed_roadmap"):
+            roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict, brief, cross_module_context=cross_ctx)
             data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
             data_dict["planning_inputs"] = planning_dict
+            if "feasibility_evaluation" in roadmap_raw and "feasibility_evaluation" not in data_dict:
+                data_dict["feasibility_evaluation"] = roadmap_raw["feasibility_evaluation"]
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
+
+        # Provenance: Attach context metadata
+        data_dict["context_metadata"] = {
+            "stage": proj_info.get("stage"),
+            "industry": proj_info.get("industry"),
+            "budget": proj_info.get("budget"),
+            "technical_depth": brief.technical_depth,
+            "brief_summary": brief.venture_summary,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "cross_modules_used": [k for k in cross_ctx.keys() if k != module_type]
+        }
 
         # Validate module payload against schema before persistence (F-09)
         _validate_module_data(module_type, data_dict)
@@ -348,7 +462,9 @@ def generate_module(
             active_version_name=new_ver.version_name,
             active_version_number=new_ver.version_number,
             data=new_ver.data,
-            versions=[VersionItemResponse.model_validate(v) for v in versions]
+            versions=[VersionItemResponse.model_validate(v) for v in versions],
+            is_stale=False,
+            context_metadata=data_dict["context_metadata"]
         )
 
     except HTTPException:
@@ -376,6 +492,15 @@ def generate_module(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Generation failed: {str(e)}"
         )
+
+@router.post("/{module_type}/accept-update", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
+def accept_module_update(
+    module_type: str,
+    project: Project = Depends(get_user_project),
+    db: Session = Depends(get_db)
+):
+    """Explicitly refresh a stale module using latest cross-module context without mutating other modules."""
+    return generate_module(module_type=module_type, planning_inputs=None, project=project, db=db)
 
 @router.post("/{module_type}/modify", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def modify_module_with_ai(
