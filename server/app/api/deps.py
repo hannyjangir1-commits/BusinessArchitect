@@ -8,17 +8,22 @@ from app.core.config import settings
 from app.core.security import verify_csrf_token
 from app.models.all_models import User, Session as DBSession, Project
 
+def get_request_session_token(request: Request) -> str | None:
+    """Use the same credential for authentication, CSRF, and session revocation."""
+    cookie_token = request.cookies.get(settings.COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
+    scheme, _, credentials = request.headers.get("Authorization", "").partition(" ")
+    if scheme.lower() == "bearer" and credentials.strip():
+        return credentials.strip()
+    return None
+
 def get_current_user(
     request: Request,
     db: Session = Depends(get_db)
 ) -> User:
     """Extract and validate the authenticated user from the HTTP-only session cookie or Bearer header."""
-    token = request.cookies.get(settings.COOKIE_NAME)
-    if not token:
-        # Fallback to Authorization: Bearer token for programmatic API access
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ", 1)[1]
+    token = get_request_session_token(request)
 
     if not token:
         raise HTTPException(
@@ -189,8 +194,9 @@ def verify_csrf(
     session_token = request.cookies.get(settings.COOKIE_NAME)
 
     # If request is authenticated via Authorization Bearer header, browser CSRF is not applicable
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
+    # Cookie authentication takes precedence in get_current_user. A dummy Bearer
+    # header must never exempt a request that is actually authenticated by cookie.
+    if not session_token and get_request_session_token(request):
         return
 
     if not session_token or not csrf_header:

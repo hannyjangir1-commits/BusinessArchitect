@@ -10,7 +10,7 @@ from app.schemas.auth import (
     UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse,
     UserProfileUpdateRequest, UserChangePasswordRequest
 )
-from app.api.deps import get_current_user, verify_csrf
+from app.api.deps import get_current_user, get_request_session_token, verify_csrf
 from app.core.telemetry import record_analytics_event, record_security_event
 from app.services.system_setting_service import get_setting_bool, get_setting_int
 
@@ -151,9 +151,9 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
     csrf_token = _set_auth_cookies(response, session_token, expiry_days=expiry_days)
     return SessionResponse(user=UserResponse.model_validate(user), csrf_token=csrf_token)
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(verify_csrf)])
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
-    token = request.cookies.get(settings.COOKIE_NAME)
+    token = get_request_session_token(request)
     if token:
         db.query(DBSession).filter(DBSession.session_token == token).delete()
         db.commit()
@@ -179,7 +179,7 @@ def get_me(request: Request, response: Response, current_user: User = Depends(ge
         )
     return SessionResponse(user=UserResponse.model_validate(current_user), csrf_token=csrf_token)
 
-@router.post("/refresh", response_model=SessionResponse)
+@router.post("/refresh", response_model=SessionResponse, dependencies=[Depends(verify_csrf)])
 def refresh_session(
     request: Request,
     response: Response,
@@ -187,7 +187,7 @@ def refresh_session(
     db: Session = Depends(get_db)
 ):
     """Refreshes the active session token and CSRF cookie."""
-    token = request.cookies.get(settings.COOKIE_NAME)
+    token = get_request_session_token(request)
     expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     new_token = generate_session_token()
     expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
@@ -232,6 +232,11 @@ def update_profile(
             raise HTTPException(status_code=400, detail="Email is already in use by another account")
         current_user.email = req.email
 
+    if "display_name" in req.model_fields_set:
+        current_user.display_name = req.display_name
+    if req.preferences is not None:
+        current_user.preferences = req.preferences.model_dump()
+
     current_user.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(current_user)
@@ -268,7 +273,7 @@ def change_password(
     current_user.updated_at = datetime.now(timezone.utc)
 
     # Invalidate all other active sessions for security except current token
-    current_token = request.cookies.get(settings.COOKIE_NAME)
+    current_token = get_request_session_token(request)
     if current_token:
         db.query(DBSession).filter(
             DBSession.user_id == current_user.id,

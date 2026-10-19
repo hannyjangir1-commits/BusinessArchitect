@@ -4,11 +4,19 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.models.all_models import ModuleContent, ModuleVersion
+from app.services.transaction_service import lock_record
 
 MAX_VERSIONS_LIMIT = 5
 _version_lock = threading.Lock()
 
 class VersionService:
+    @staticmethod
+    def _lock_module(db: Session, module: ModuleContent) -> ModuleContent:
+        locked = lock_record(db, ModuleContent, module.id)
+        if locked is None:
+            raise HTTPException(status_code=409, detail="This module was deleted while the operation was running. Reload the project and try again.")
+        return locked
+
     @staticmethod
     def get_or_create_module(db: Session, project_id: str, module_type: str) -> ModuleContent:
         module = db.query(ModuleContent).filter(
@@ -57,7 +65,7 @@ class VersionService:
         with _version_lock:
             try:
                 # Acquire database row-level lock on the parent ModuleContent to serialize concurrent multi-process writes
-                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                VersionService._lock_module(db, module)
                 versions = VersionService.get_versions(db, module.id)
                 if len(versions) >= MAX_VERSIONS_LIMIT:
                     raise HTTPException(
@@ -136,7 +144,7 @@ class VersionService:
         with _version_lock:
             try:
                 # Row lock on module row to serialize concurrent writes
-                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                VersionService._lock_module(db, module)
                 target = db.query(ModuleVersion).filter(
                     ModuleVersion.id == replace_version_id,
                     ModuleVersion.module_content_id == module.id
@@ -149,6 +157,7 @@ class VersionService:
 
                 # Deactivate all existing versions
                 versions = VersionService.get_versions(db, module.id)
+                next_num = max((v.version_number for v in versions), default=0) + 1
                 for v in versions:
                     v.is_active = False
 
@@ -158,7 +167,6 @@ class VersionService:
 
                 # Create brand-new version record
                 remaining = VersionService.get_versions(db, module.id)
-                next_num = (max([v.version_number for v in remaining]) + 1) if remaining else 1
                 default_prefix = {
                     "bmc": "BMC",
                     "tech_stack": "Tech Stack",
@@ -195,7 +203,7 @@ class VersionService:
     def rename_version(db: Session, module: ModuleContent, version_id: str, new_name: str) -> ModuleVersion:
         with _version_lock:
             try:
-                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                VersionService._lock_module(db, module)
                 v = db.query(ModuleVersion).filter(
                     ModuleVersion.id == version_id,
                     ModuleVersion.module_content_id == module.id
@@ -211,10 +219,10 @@ class VersionService:
                 raise
 
     @staticmethod
-    def delete_version(db: Session, module: ModuleContent, version_id: str) -> bool:
+    def delete_version(db: Session, module: ModuleContent, version_id: str, commit: bool = True) -> bool:
         with _version_lock:
             try:
-                db.query(ModuleContent).filter(ModuleContent.id == module.id).with_for_update().first()
+                VersionService._lock_module(db, module)
                 v = db.query(ModuleVersion).filter(
                     ModuleVersion.id == version_id,
                     ModuleVersion.module_content_id == module.id
@@ -239,7 +247,10 @@ class VersionService:
                     fallback.is_active = True
                     module.active_version_id = fallback.id
 
-                db.commit()
+                if commit:
+                    db.commit()
+                else:
+                    db.flush()
                 return True
             except Exception:
                 db.rollback()
@@ -250,6 +261,7 @@ class VersionService:
         """Restores an older version by setting it as active without creating a duplicate version."""
         with _version_lock:
             try:
+                VersionService._lock_module(db, module)
                 target = db.query(ModuleVersion).filter(
                     ModuleVersion.id == version_id,
                     ModuleVersion.module_content_id == module.id

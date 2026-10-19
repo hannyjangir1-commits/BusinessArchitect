@@ -1,7 +1,11 @@
 import re
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
+
+class UserPreferences(BaseModel):
+    font: Literal["system", "mono"] = "system"
+    model_config = ConfigDict(extra="forbid")
 
 class UserRegisterRequest(BaseModel):
     username: str
@@ -37,6 +41,8 @@ class UserResponse(BaseModel):
     id: str
     username: str
     email: str
+    display_name: Optional[str] = None
+    preferences: UserPreferences = Field(default_factory=UserPreferences)
     role: str = "user"
     is_suspended: bool = False
     created_at: datetime
@@ -48,9 +54,15 @@ class SessionResponse(BaseModel):
     csrf_token: str
 
 class UserProfileUpdateRequest(BaseModel):
-    display_name: Optional[str] = None
+    display_name: Optional[str] = Field(default=None, max_length=100)
+    preferences: Optional[UserPreferences] = None
     username: Optional[str] = None
     email: Optional[EmailStr] = None
+
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() or None if v is not None else None
 
     @field_validator("username")
     @classmethod

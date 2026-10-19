@@ -1,0 +1,13 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.16.0
+2 info using node@v24.18.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:D:\TE - SEM(5)\businessplanner\antigravitybusiness\BusinessArchitect\client\.npmrc
+5 silly config load:file:C:\Users\hanny\.npmrc
+6 silly config load:file:C:\Users\hanny\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm run dev --host 127.0.0.1 --port 5173
+8 verbose argv "run" "dev" "--" "--host" "127.0.0.1" "--port" "5173"
+9 verbose logfile logs-max:10 dir:D:\TE - SEM(5)\businessplanner\antigravitybusiness\BusinessArchitect\state\npm-cache\_logs\2026-10-19T21_38_29_330Z-
+10 verbose logfile D:\TE - SEM(5)\businessplanner\antigravitybusiness\BusinessArchitect\state\npm-cache\_logs\2026-10-19T21_38_29_330Z-debug-0.log
+11 silly logfile done cleaning log files
+12 http fetch GET 200 https://registry.npmjs.org/npm 463ms

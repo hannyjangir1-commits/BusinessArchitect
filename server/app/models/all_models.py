@@ -15,6 +15,8 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=lambda: gen_id("usr_"))
     username = Column(String(64), unique=True, nullable=False, index=True)
     email = Column(String(128), unique=True, nullable=False, index=True)
+    display_name = Column(String(100), nullable=True)
+    preferences = Column(JSON, default=dict, server_default=text("'{}'"), nullable=False)
     hashed_password = Column(String(256), nullable=False)
     role = Column(String(32), default="user", nullable=False)  # "user", "super_admin", "operations_admin", "support_admin", "security_admin", "auditor"
     is_suspended = Column(Boolean, default=False, nullable=False)

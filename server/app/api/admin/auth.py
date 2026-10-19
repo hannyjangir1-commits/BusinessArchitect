@@ -10,7 +10,7 @@ from app.core.security import (
     hash_password, verify_password, generate_session_token, generate_csrf_token
 )
 from app.models.all_models import User, Session as DBSession
-from app.api.deps import get_current_user, require_admin, verify_csrf, ADMIN_ROLES
+from app.api.deps import get_current_user, get_request_session_token, require_admin, verify_csrf, ADMIN_ROLES, _get_permissions_for_role
 from app.core.telemetry import record_security_event, record_audit_log
 
 router = APIRouter(prefix="/auth", tags=["Admin Authentication"])
@@ -63,25 +63,6 @@ class AdminSessionResponse(BaseModel):
     user: AdminUserResponse
     csrf_token: str
     permissions: List[str]
-
-def _get_permissions_for_role(role: str) -> List[str]:
-    all_perms = [
-        "view_dashboard", "manage_users", "manage_projects", "view_ai_ops",
-        "retry_ai_ops", "view_analytics", "view_system_health", "view_database",
-        "run_integrity_scan", "execute_repair", "view_security", "revoke_sessions",
-        "view_audit_logs", "manage_configuration", "manage_maintenance", "export_reports"
-    ]
-    if role == "super_admin":
-        return all_perms
-    elif role == "operations_admin":
-        return [p for p in all_perms if p not in ("manage_users", "manage_configuration")]
-    elif role == "security_admin":
-        return ["view_dashboard", "view_security", "revoke_sessions", "view_audit_logs", "export_reports"]
-    elif role == "support_admin":
-        return ["view_dashboard", "manage_users", "manage_projects", "view_ai_ops", "view_system_health"]
-    elif role == "auditor":
-        return ["view_dashboard", "view_ai_ops", "view_analytics", "view_system_health", "view_audit_logs", "export_reports"]
-    return []
 
 @router.post("/login", response_model=AdminSessionResponse)
 def admin_login(
@@ -214,14 +195,14 @@ def admin_login(
     )
     return AdminSessionResponse(user=user_resp, csrf_token=csrf_token, permissions=perms)
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(verify_csrf)])
 def admin_logout(
     request: Request,
     response: Response,
     current_admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    token = request.cookies.get(settings.COOKIE_NAME)
+    token = get_request_session_token(request)
     if token:
         db.query(DBSession).filter(DBSession.session_token == token).delete()
         db.commit()
@@ -297,7 +278,7 @@ def admin_change_password(
     current_admin.updated_at = datetime.now(timezone.utc)
 
     # Invalidate all other sessions except current session
-    current_token = request.cookies.get(settings.COOKIE_NAME)
+    current_token = get_request_session_token(request)
     if current_token:
         db.query(DBSession).filter(
             DBSession.user_id == current_admin.id,
@@ -335,7 +316,7 @@ def list_my_sessions(
     db: Session = Depends(get_db)
 ):
     """List active sessions for the currently authenticated administrator."""
-    current_token = request.cookies.get(settings.COOKIE_NAME)
+    current_token = get_request_session_token(request)
     now = datetime.now(timezone.utc)
 
     sessions = (
@@ -377,7 +358,7 @@ def revoke_my_session(
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found or does not belong to you")
 
-    current_token = request.cookies.get(settings.COOKIE_NAME)
+    current_token = get_request_session_token(request)
     is_current = sess.session_token == current_token
 
     db.delete(sess)
@@ -403,7 +384,7 @@ def revoke_my_other_sessions(
     db: Session = Depends(get_db)
 ):
     """Revoke all active sessions for current admin except the current active session."""
-    current_token = request.cookies.get(settings.COOKIE_NAME)
+    current_token = get_request_session_token(request)
     if not current_token:
         raise HTTPException(status_code=400, detail="No active session token found")
 
