@@ -91,7 +91,7 @@ describe('ContextualAssistant', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('displays tech-specific prompt chips for Tech Stack', () => {
+  it('does not show project-agnostic technology suggestions', () => {
     const onModify = vi.fn();
 
     render(
@@ -105,8 +105,8 @@ describe('ContextualAssistant', () => {
 
     expect(screen.getByText('Blueprint Assistant')).toBeDefined();
     expect(screen.getByText('(Technology Stack)')).toBeDefined();
-    expect(screen.getByText(/Add authentication layer/i)).toBeDefined();
-    expect(screen.getByText(/Evaluate database choice/i)).toBeDefined();
+    expect(screen.queryByText(/Add authentication layer/i)).toBeNull();
+    expect(screen.queryByText(/Evaluate database choice/i)).toBeNull();
   });
 });
 

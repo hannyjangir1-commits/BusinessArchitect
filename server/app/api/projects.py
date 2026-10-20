@@ -13,6 +13,7 @@ from app.api.deps import get_current_user, get_user_project, verify_csrf
 from app.core.telemetry import record_analytics_event
 from app.core.business_stage import normalize_business_stage
 from app.core.module_types import normalize_module_type
+from app.services.transaction_service import lock_record
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -73,7 +74,7 @@ def _check_and_lock_user_project_limit(db: Session, user_id: str):
     Raises 400 Bad Request if project limit (10) has been reached.
     """
     # Lock the user record to prevent race conditions during concurrent project creations
-    db.query(User).filter(User.id == user_id).with_for_update().first()
+    lock_record(db, User, user_id)
     project_count = db.query(func.count(Project.id)).filter(Project.user_id == user_id).scalar() or 0
     if project_count >= MAX_PROJECTS_PER_USER:
         raise HTTPException(

@@ -62,7 +62,7 @@ export const AdminConfigPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Sliders size={26} color="#6d855f" />
+            <Sliders size={26} color="var(--primary-text)" />
             Configuration Center
           </h1>
           <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
@@ -79,7 +79,7 @@ export const AdminConfigPage: React.FC = () => {
             padding: '8px 16px',
             backgroundColor: 'var(--bg-subtle)',
             color: 'var(--text-main)',
-            border: '1px solid #687164',
+            border: '1px solid var(--text-main)',
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
@@ -101,9 +101,9 @@ export const AdminConfigPage: React.FC = () => {
             gap: '10px',
             fontSize: '13px',
             fontWeight: 500,
-            backgroundColor: statusMsg.type === 'success' ? '#e8ede2' : '#f9eae6',
-            border: `1px solid ${statusMsg.type === 'success' ? '#cfd7c6' : '#e8c6bf'}`,
-            color: statusMsg.type === 'success' ? '#52624a' : '#9a5146'
+            backgroundColor: statusMsg.type === 'success' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+            border: `1px solid ${statusMsg.type === 'success' ? 'var(--border-color)' : 'var(--border-color)'}`,
+            color: statusMsg.type === 'success' ? 'var(--text-main)' : 'var(--danger-text)'
           }}
         >
           {statusMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -121,7 +121,7 @@ export const AdminConfigPage: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <Lock size={20} color="#f59e0b" />
+          <Lock size={20} color="var(--primary-text)" />
           <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
             Deployment Environment & Secrets Verification
           </h2>
@@ -136,7 +136,7 @@ export const AdminConfigPage: React.FC = () => {
               key={item.name}
               style={{
                 backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid #687164',
+                border: '1px solid var(--text-main)',
                 borderRadius: '10px',
                 padding: '16px',
                 display: 'flex',
@@ -166,8 +166,8 @@ export const AdminConfigPage: React.FC = () => {
                       gap: '4px',
                       padding: '4px 10px',
                       borderRadius: '999px',
-                      backgroundColor: '#065f46',
-                      color: '#a7f3d0',
+                      backgroundColor: 'var(--bg-subtle)',
+                      color: 'var(--border-color)',
                       fontSize: '11px',
                       fontWeight: 600
                     }}
@@ -182,8 +182,8 @@ export const AdminConfigPage: React.FC = () => {
                       gap: '4px',
                       padding: '4px 10px',
                       borderRadius: '999px',
-                      backgroundColor: '#7f1d1d',
-                      color: '#fecaca',
+                      backgroundColor: 'var(--danger-text)',
+                      color: 'var(--bg-subtle)',
                       fontSize: '11px',
                       fontWeight: 600
                     }}
@@ -213,7 +213,7 @@ export const AdminConfigPage: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Cpu size={20} color="#6d855f" />
+                <Cpu size={20} color="var(--primary-text)" />
                 Validated Runtime Parameters
               </h2>
               <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '13px' }}>
@@ -228,7 +228,7 @@ export const AdminConfigPage: React.FC = () => {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '9px 20px',
-                backgroundColor: '#6d855f',
+                backgroundColor: 'var(--bg-subtle)',
                 color: 'var(--text-main)',
                 border: 'none',
                 borderRadius: '8px',
@@ -244,7 +244,7 @@ export const AdminConfigPage: React.FC = () => {
 
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+              <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
               Loading settings...
             </div>
           ) : (
@@ -256,7 +256,7 @@ export const AdminConfigPage: React.FC = () => {
                     padding: '16px',
                     backgroundColor: 'var(--bg-subtle)',
                     borderRadius: '10px',
-                    border: '1px solid #687164',
+                    border: '1px solid var(--text-main)',
                     display: 'grid',
                     gridTemplateColumns: 'minmax(240px, 1fr) 200px',
                     gap: '16px',
@@ -276,7 +276,7 @@ export const AdminConfigPage: React.FC = () => {
                           borderRadius: '4px',
                           backgroundColor: 'var(--bg-subtle)',
                           color: 'var(--text-muted)',
-                          border: '1px solid #687164'
+                          border: '1px solid var(--text-main)'
                         }}
                       >
                         {s.category}
@@ -296,7 +296,7 @@ export const AdminConfigPage: React.FC = () => {
                           width: '100%',
                           padding: '8px 12px',
                           backgroundColor: 'var(--bg-subtle)',
-                          border: '1px solid #687164',
+                          border: '1px solid var(--text-main)',
                           borderRadius: '6px',
                           color: 'var(--text-main)',
                           fontSize: '13px',
@@ -315,7 +315,7 @@ export const AdminConfigPage: React.FC = () => {
                           width: '100%',
                           padding: '8px 12px',
                           backgroundColor: 'var(--bg-subtle)',
-                          border: '1px solid #687164',
+                          border: '1px solid var(--text-main)',
                           borderRadius: '6px',
                           color: 'var(--text-main)',
                           fontSize: '13px',

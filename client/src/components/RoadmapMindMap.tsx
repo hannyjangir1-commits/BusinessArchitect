@@ -42,47 +42,47 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
     switch (status?.toLowerCase()) {
       case 'finished':
       case 'completed':
-        return { bg: '#ecfdf5', text: '#059669', border: '#a7f3d0' };
+        return { bg: 'var(--bg-subtle)', text: 'var(--primary-text)', border: 'var(--border-color)' };
       case 'in progress':
       case 'ongoing':
-        return { bg: '#f0f1e9', text: '#6d855f', border: '#d6dccf' };
+        return { bg: 'var(--bg-subtle)', text: 'var(--primary-text)', border: 'var(--border-color)' };
       default:
-        return { bg: '#f7f6ef', text: '#687164', border: '#dfe2d6' };
+        return { bg: 'var(--bg-card)', text: 'var(--primary-text)', border: 'var(--bg-subtle)' };
     }
   };
 
   const getPriorityBadge = (priority?: string) => {
     switch (priority?.toLowerCase()) {
       case 'critical':
-        return { bg: '#fef2f2', text: '#ef4444' };
+        return { bg: 'var(--bg-subtle)', text: 'var(--danger-text)' };
       case 'high':
-        return { bg: '#fff7ed', text: '#f97316' };
+        return { bg: 'var(--bg-subtle)', text: 'var(--primary-text)' };
       default:
-        return { bg: '#f0f1e9', text: '#687164' };
+        return { bg: 'var(--bg-card)', text: 'var(--primary-text)' };
     }
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', background: '#ffffff', borderRadius: 12, border: '1px solid #dfe2d6', padding: 20 }}>
+    <div style={{ position: 'relative', width: '100%', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--bg-subtle)', padding: 20 }}>
       {/* Mind Map Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Sparkles size={18} color="#6d855f" /> Interactive Delivery Mind Map
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={18} color="var(--primary-text)" /> Interactive Delivery Roadmap
           </h3>
-          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-            Primary stage-adapted delivery tree. Click any phase or task node to inspect execution steps, assignments, and dependencies.
+          <p style={{ fontSize: 12.5, color: 'var(--primary-text)', margin: '4px 0 0 0' }}>
+            Stage-adapted delivery tree inspired by roadmap.sh. Click any phase or milestone node to inspect execution details and dependencies.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 11.5, color: 'var(--text-muted)' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 11.5, color: 'var(--primary-text)' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669' }} /> Completed
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bg-subtle)' }} /> Completed
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6d855f' }} /> In Progress
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bg-subtle)' }} /> In Progress
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c8478' }} /> Pending
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bg-subtle)' }} /> Pending
           </span>
         </div>
       </div>
@@ -93,11 +93,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
-              background: 'linear-gradient(135deg, #5d7550 0%, #a68757 100%)',
+              background: 'var(--bg-subtle)',
               color: 'var(--text-main)',
-              borderRadius: 10,
+              borderRadius: 8,
               padding: '14px 22px',
-              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.25)',
+              boxShadow: '0 1px 3px rgb(69 60 55 / 0.1)',
               minWidth: 220,
               cursor: 'pointer'
             }}
@@ -113,11 +113,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
         </div>
 
         {/* Phase Branches & Associated Task Nodes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingLeft: 24, borderLeft: '2px dashed #d9ddcf' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingLeft: 24, borderLeft: '2px dashed var(--border-color)' }}>
           {phases.map((phase, pIdx) => {
             const phaseTasks = groupedTasks[phase.name] || [];
             const completedCount = phaseTasks.filter(t => t.status === 'Finished').length;
-            const phaseColor = phase.color || '#7a916a';
+            const phaseColor = phase.color || 'var(--text-muted)';
 
             return (
               <div key={pIdx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -132,13 +132,13 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    background: '#f7f6ef',
+                    background: 'var(--bg-subtle)',
                     border: `1.5px solid ${phaseColor}`,
                     borderRadius: 8,
                     padding: '10px 16px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    boxShadow: '0 1px 3px rgb(69 60 55 / 0.04)'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -149,7 +149,7 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, background: '#e8ede2', color: '#6d855f', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
+                    <span style={{ fontSize: 11, background: 'var(--bg-subtle)', color: 'var(--primary-text)', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
                       {completedCount}/{phaseTasks.length} Done
                     </span>
                     <span style={{ fontSize: 11, color: phaseColor, fontWeight: 600 }}>Inspect ➔</span>
@@ -172,21 +172,21 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
                         onClick={() => { setSelectedTask(task); setSelectedPhase(null); }}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedTask(task); } }}
                         style={{
-                          background: '#ffffff',
-                          border: `1.5px solid ${isSelected ? '#6d855f' : stColor.border}`,
+                          background: 'var(--bg-card)',
+                          border: `1.5px solid ${isSelected ? 'var(--primary-text)' : stColor.border}`,
                           borderRadius: 8,
                           padding: 12,
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: 6,
-                          boxShadow: isSelected ? '0 4px 12px rgba(109, 133, 95, 0.15)' : '0 1px 3px rgba(0,0,0,0.03)',
+                          boxShadow: isSelected ? '0 4px 12px rgb(69 60 55 / 0.15)' : '0 1px 3px rgb(69 60 55 / 0.03)',
                           transition: 'all 0.15s ease'
                         }}
                       >
                         {/* Top: Code + Priority + Status */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#6d855f' }}>{task.task_code}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary-text)' }}>{task.task_code}</span>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <span style={{ fontSize: 10, background: prColor.bg, color: prColor.text, padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>
                               {task.priority || 'Medium'}
@@ -205,8 +205,8 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
                         {/* Assignee & Department */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <User size={13} color={task.is_overloaded ? '#ef4444' : '#6d855f'} />
-                            <span style={{ fontWeight: 600, color: task.is_overloaded ? '#dc2626' : '#687164' }}>
+                            <User size={13} color={task.is_overloaded ? 'var(--danger-text)' : 'var(--primary-text)'} />
+                            <span style={{ fontWeight: 600, color: task.is_overloaded ? 'var(--danger-text)' : 'var(--text-main)' }}>
                               {task.assigned_to || 'Unassigned'}
                             </span>
                             {task.assigned_role && (
@@ -214,17 +214,17 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
                             )}
                           </div>
                           {task.is_overloaded && (
-                            <span title="Contributor is overloaded with simultaneous critical deliverables" style={{ display: 'flex', alignItems: 'center', gap: 2, color: '#ef4444', fontSize: 10, fontWeight: 700 }}>
+                            <span title="Contributor is overloaded with simultaneous critical deliverables" style={{ display: 'flex', alignItems: 'center', gap: 2, color: 'var(--danger-text)', fontSize: 10, fontWeight: 700 }}>
                               <AlertTriangle size={12} /> Overloaded
                             </span>
                           )}
                         </div>
 
                         {/* Dates & Dependencies */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f1e9', paddingTop: 6, fontSize: 10.5, color: 'var(--text-muted)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--bg-subtle)', paddingTop: 6, fontSize: 10.5, color: 'var(--text-muted)' }}>
                           <span>{task.start_date} ➔ {task.end_date}</span>
                           {task.dependencies && task.dependencies.length > 0 && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#6d855f', fontWeight: 600 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--primary-text)', fontWeight: 600 }}>
                               <GitPullRequest size={11} /> {task.dependencies.join(', ')}
                             </span>
                           )}
@@ -248,11 +248,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
             right: 0,
             bottom: 0,
             width: 'min(480px, 95%)',
-            background: '#ffffff',
-            boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.15)',
+            background: 'var(--bg-card)',
+            boxShadow: '-8px 0 24px rgb(69 60 55 / 0.15)',
             borderTopRightRadius: 12,
             borderBottomRightRadius: 12,
-            borderLeft: '1px solid #dfe2d6',
+            borderLeft: '1px solid var(--border-color)',
             zIndex: 40,
             display: 'flex',
             flexDirection: 'column',
@@ -263,16 +263,16 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
           aria-labelledby="task-detail-title"
         >
           {/* Drawer Header */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f1e9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f7f6ef' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'var(--bg-subtle)' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#6d855f', background: '#e8ede2', padding: '2px 8px', borderRadius: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', background: 'var(--bg-subtle)', padding: '2px 8px', borderRadius: 4 }}>
                   {selectedTask.task_code}
                 </span>
                 <span className={`badge-priority ${(selectedTask.priority || 'medium').toLowerCase()}`}>
                   {selectedTask.priority}
                 </span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '2px 6px', borderRadius: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary-text)', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>
                   {selectedTask.status}
                 </span>
               </div>
@@ -291,7 +291,7 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
 
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Phase & Timeline */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: '#f7f6ef', padding: 12, borderRadius: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'var(--bg-subtle)', padding: 12, borderRadius: 8 }}>
               <div>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>Phase</span>
                 <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-main)' }}>{selectedTask.phase}</span>
@@ -316,12 +316,12 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
             {selectedTask.steps && selectedTask.steps.length > 0 && (
               <div>
                 <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ListChecks size={14} color="#6d855f" /> Execution Steps ({selectedTask.steps.length})
+                  <ListChecks size={14} color="var(--primary-text)" /> Execution Steps ({selectedTask.steps.length})
                 </h5>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {selectedTask.steps.map((step, sIdx) => (
-                    <div key={sIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: 'var(--text-main)', background: '#f7f6ef', padding: '8px 10px', borderRadius: 6 }}>
-                      <span style={{ fontWeight: 700, color: '#6d855f' }}>{sIdx + 1}.</span>
+                    <div key={sIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: 'var(--text-main)', background: 'var(--bg-subtle)', padding: '8px 10px', borderRadius: 6 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--primary-text)' }}>{sIdx + 1}.</span>
                       <span>{step}</span>
                     </div>
                   ))}
@@ -330,19 +330,19 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
             )}
 
             {/* Assignments & Capacity (ROAD-015 to ROAD-019) */}
-            <div style={{ background: selectedTask.is_overloaded ? '#fef2f2' : '#f0fdf4', border: `1px solid ${selectedTask.is_overloaded ? '#fecaca' : '#bbf7d0'}`, borderRadius: 8, padding: 12 }}>
-              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: selectedTask.is_overloaded ? '#991b1b' : '#166534', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <User size={15} color={selectedTask.is_overloaded ? '#dc2626' : '#16a34a'} />
+            <div style={{ background: selectedTask.is_overloaded ? 'var(--bg-subtle)' : 'var(--bg-subtle)', border: `1px solid ${selectedTask.is_overloaded ? 'var(--bg-subtle)' : 'var(--border-color)'}`, borderRadius: 8, padding: 12 }}>
+              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: selectedTask.is_overloaded ? 'var(--danger-text)' : 'var(--primary-text)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <User size={15} color={selectedTask.is_overloaded ? 'var(--danger-text)' : 'var(--primary-text)'} />
                 Assignment & Team Capacity
               </h5>
-              <div style={{ fontSize: 12.5, color: selectedTask.is_overloaded ? '#7f1d1d' : '#14532d', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12.5, color: selectedTask.is_overloaded ? 'var(--danger-text)' : 'var(--primary-text)', lineHeight: 1.5 }}>
                 <b>Assigned to:</b> {selectedTask.assigned_to || 'Unassigned'}
                 {selectedTask.assigned_role && <> • <b>Role:</b> {selectedTask.assigned_role}</>}
                 {selectedTask.department && <> • <b>Dept:</b> {selectedTask.department}</>}
                 {selectedTask.effort && <> • <b>Effort:</b> {selectedTask.effort}</>}
               </div>
               {selectedTask.is_overloaded && (
-                <div style={{ marginTop: 6, fontSize: 11.5, color: '#b91c1c', fontWeight: 600 }}>
+                <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--danger-text)', fontWeight: 600 }}>
                   ⚠️ Contributor capacity alert: Member has multiple critical tasks concurrently. Consider reassigning or extending timeline.
                 </div>
               )}
@@ -350,11 +350,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
 
             {/* Deliverables */}
             {selectedTask.deliverables && (
-              <div style={{ background: '#f0f1e9', border: '1px solid #d6dccf', borderRadius: 8, padding: 12 }}>
-                <h5 style={{ fontSize: 12, fontWeight: 700, color: '#626b5f', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle2 size={14} color="#6d855f" /> Deliverable Outcome
+              <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12 }}>
+                <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle2 size={14} color="var(--primary-text)" /> Deliverable Outcome
                 </h5>
-                <p style={{ margin: 0, fontSize: 12.5, color: '#626b5f', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-main)', lineHeight: 1.5 }}>
                   {selectedTask.deliverables}
                 </p>
               </div>
@@ -364,11 +364,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
             {selectedTask.dependencies && selectedTask.dependencies.length > 0 && (
               <div>
                 <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <GitPullRequest size={14} color="#6d855f" /> Prerequisites & Dependencies
+                  <GitPullRequest size={14} color="var(--primary-text)" /> Prerequisites & Dependencies
                 </h5>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {selectedTask.dependencies.map((dep, dIdx) => (
-                    <span key={dIdx} style={{ background: '#f0f1e9', color: 'var(--text-main)', fontSize: 11, padding: '4px 8px', borderRadius: 4, fontWeight: 600 }}>
+                    <span key={dIdx} style={{ background: 'var(--bg-subtle)', color: 'var(--text-main)', fontSize: 11, padding: '4px 8px', borderRadius: 4, fontWeight: 600 }}>
                       Requires {dep}
                     </span>
                   ))}
@@ -388,11 +388,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
             right: 0,
             bottom: 0,
             width: 'min(440px, 95%)',
-            background: '#ffffff',
-            boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.15)',
+            background: 'var(--bg-card)',
+            boxShadow: '-8px 0 24px rgb(69 60 55 / 0.15)',
             borderTopRightRadius: 12,
             borderBottomRightRadius: 12,
-            borderLeft: '1px solid #dfe2d6',
+            borderLeft: '1px solid var(--border-color)',
             zIndex: 40,
             display: 'flex',
             flexDirection: 'column',
@@ -402,9 +402,9 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
           aria-modal="true"
           aria-labelledby="phase-detail-title"
         >
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f1e9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f7f6ef' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'var(--bg-subtle)' }}>
             <div>
-              <span style={{ fontSize: 11, color: selectedPhase.color || '#7a916a', fontWeight: 700, textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 11, color: selectedPhase.color || 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
                 Delivery Milestone Phase
               </span>
               <h4 id="phase-detail-title" style={{ margin: '4px 0 0 0', fontSize: 16, fontWeight: 700, color: 'var(--text-main)' }}>
@@ -430,7 +430,7 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
               </p>
             </div>
 
-            <div style={{ background: '#f7f6ef', padding: 12, borderRadius: 8, fontSize: 12.5, color: 'var(--text-main)' }}>
+            <div style={{ background: 'var(--bg-subtle)', padding: 12, borderRadius: 8, fontSize: 12.5, color: 'var(--text-main)' }}>
               <div><b>Schedule:</b> {selectedPhase.start_date || 'Start'} to {selectedPhase.end_date || 'End'}</div>
               <div style={{ marginTop: 4 }}><b>Tasks:</b> {(groupedTasks[selectedPhase.name] || []).length} scheduled deliverables</div>
             </div>

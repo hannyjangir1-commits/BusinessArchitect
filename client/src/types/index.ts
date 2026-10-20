@@ -5,6 +5,8 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  display_name?: string | null;
+  preferences?: { font: 'system' | 'mono' };
   role?: string;
   is_suspended?: boolean;
   last_active_at?: string;
@@ -92,6 +94,26 @@ export interface TechStackData {
   recommendations: TechItem[];
   existing_stack_evaluation?: Record<string, any>;
   assumptions?: string[];
+  planning_inputs?: TechStackPlanningInputs;
+}
+
+export interface TechStackPlanningInputs {
+  solution_type: string;
+  preferred_languages: string[];
+  preferred_frameworks: string[];
+  current_stack: string;
+  target_platforms: string[];
+  deployment_preference: string;
+  database_preference: string;
+  expected_scale: string;
+  data_sensitivity: string;
+  compliance_requirements: string[];
+  required_integrations: string[];
+  budget_constraint: string;
+  team_experience: string;
+  must_use: string[];
+  avoid: string[];
+  constraints: string;
 }
 
 export type TechRecommendation = TechItem;

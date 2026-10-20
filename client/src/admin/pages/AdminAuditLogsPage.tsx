@@ -52,7 +52,7 @@ export const AdminAuditLogsPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ClipboardList size={26} color="#6d855f" />
+            <ClipboardList size={26} color="var(--primary-text)" />
             Administrative Audit Trail
           </h1>
           <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
@@ -69,7 +69,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             padding: '8px 16px',
             backgroundColor: 'var(--bg-subtle)',
             color: 'var(--text-main)',
-            border: '1px solid #687164',
+            border: '1px solid var(--text-main)',
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
@@ -106,7 +106,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                 width: '100%',
                 padding: '9px 12px 9px 36px',
                 backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid #687164',
+                border: '1px solid var(--text-main)',
                 borderRadius: '8px',
                 color: 'var(--text-main)',
                 fontSize: '13px',
@@ -118,7 +118,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             type="submit"
             style={{
               padding: '9px 18px',
-              backgroundColor: '#6d855f',
+              backgroundColor: 'var(--bg-subtle)',
               color: 'var(--text-main)',
               border: 'none',
               borderRadius: '8px',
@@ -139,7 +139,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             style={{
               padding: '9px 12px',
               backgroundColor: 'var(--bg-subtle)',
-              border: '1px solid #687164',
+              border: '1px solid var(--text-main)',
               borderRadius: '8px',
               color: 'var(--text-main)',
               fontSize: '13px'
@@ -162,7 +162,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             style={{
               padding: '9px 12px',
               backgroundColor: 'var(--bg-subtle)',
-              border: '1px solid #687164',
+              border: '1px solid var(--text-main)',
               borderRadius: '8px',
               color: 'var(--text-main)',
               fontSize: '13px'
@@ -196,7 +196,7 @@ export const AdminAuditLogsPage: React.FC = () => {
 
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
             Loading audit records...
           </div>
         ) : logs.length === 0 ? (
@@ -223,7 +223,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                     key={log.id}
                     style={{
                       borderBottom: '1px solid var(--border-color)',
-                      color: '#dfe2d6',
+                      color: 'var(--border-color)',
                       transition: 'background-color 0.15s'
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--border-color)55')}
@@ -242,10 +242,10 @@ export const AdminAuditLogsPage: React.FC = () => {
                           padding: '3px 8px',
                           borderRadius: '6px',
                           backgroundColor: 'var(--bg-subtle)',
-                          border: '1px solid #687164',
+                          border: '1px solid var(--text-main)',
                           fontSize: '12px',
                           fontFamily: 'monospace',
-                          color: '#d6dccf'
+                          color: 'var(--border-color)'
                         }}
                       >
                         {log.action}
@@ -261,15 +261,15 @@ export const AdminAuditLogsPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       {log.outcome === 'success' ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#10b981', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-text)', fontSize: '12px', fontWeight: 600 }}>
                           <CheckCircle2 size={14} /> Success
                         </span>
                       ) : log.outcome === 'failed' ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--danger-text)', fontSize: '12px', fontWeight: 600 }}>
                           <XCircle size={14} /> Failed
                         </span>
                       ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-text)', fontSize: '12px', fontWeight: 600 }}>
                           <AlertTriangle size={14} /> {log.outcome}
                         </span>
                       )}
@@ -286,7 +286,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                           gap: '4px',
                           padding: '6px 10px',
                           backgroundColor: 'var(--bg-subtle)',
-                          border: '1px solid #687164',
+                          border: '1px solid var(--text-main)',
                           borderRadius: '6px',
                           color: 'var(--text-muted)',
                           cursor: 'pointer',
@@ -318,8 +318,8 @@ export const AdminAuditLogsPage: React.FC = () => {
                 gap: '4px',
                 padding: '6px 12px',
                 backgroundColor: 'var(--bg-subtle)',
-                color: page <= 1 ? '#687164' : '#f7f6ef',
-                border: '1px solid #687164',
+                color: page <= 1 ? 'var(--text-main)' : 'var(--bg-subtle)',
+                border: '1px solid var(--text-main)',
                 borderRadius: '6px',
                 cursor: page <= 1 ? 'not-allowed' : 'pointer',
                 fontSize: '12px'
@@ -339,8 +339,8 @@ export const AdminAuditLogsPage: React.FC = () => {
                 gap: '4px',
                 padding: '6px 12px',
                 backgroundColor: 'var(--bg-subtle)',
-                color: page >= totalPages ? '#687164' : '#f7f6ef',
-                border: '1px solid #687164',
+                color: page >= totalPages ? 'var(--text-main)' : 'var(--bg-subtle)',
+                border: '1px solid var(--text-main)',
                 borderRadius: '6px',
                 cursor: page >= totalPages ? 'not-allowed' : 'pointer',
                 fontSize: '12px'
@@ -358,7 +358,7 @@ export const AdminAuditLogsPage: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backgroundColor: 'rgb(69 60 55 / 0.7)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -371,7 +371,7 @@ export const AdminAuditLogsPage: React.FC = () => {
           <div
             style={{
               backgroundColor: 'var(--bg-subtle)',
-              border: '1px solid #687164',
+              border: '1px solid var(--text-main)',
               borderRadius: '16px',
               padding: '28px',
               maxWidth: '650px',
@@ -384,7 +384,7 @@ export const AdminAuditLogsPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Shield size={20} color="#6d855f" />
+                  <Shield size={20} color="var(--primary-text)" />
                   Audit Event Payload
                 </h3>
                 <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -421,13 +421,13 @@ export const AdminAuditLogsPage: React.FC = () => {
               </div>
               <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Action</span>
-                <div style={{ color: '#82936d', fontWeight: 600, fontFamily: 'monospace', marginTop: '2px' }}>
+                <div style={{ color: 'var(--text-muted)', fontWeight: 600, fontFamily: 'monospace', marginTop: '2px' }}>
                   {selectedLog.action}
                 </div>
               </div>
               <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Outcome</span>
-                <div style={{ color: selectedLog.outcome === 'success' ? '#10b981' : '#ef4444', fontWeight: 600, marginTop: '2px' }}>
+                <div style={{ color: selectedLog.outcome === 'success' ? 'var(--primary-text)' : 'var(--danger-text)', fontWeight: 600, marginTop: '2px' }}>
                   {selectedLog.outcome}
                 </div>
               </div>
@@ -448,7 +448,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                   padding: '14px',
                   backgroundColor: 'var(--bg-subtle)',
                   borderRadius: '8px',
-                  color: '#718765',
+                  color: 'var(--text-muted)',
                   fontSize: '12px',
                   fontFamily: 'monospace',
                   overflowX: 'auto',

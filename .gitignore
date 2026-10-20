@@ -50,3 +50,10 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Local development caches and recoverable QA checkpoint archives
+state/npm-cache/
+state/node-compile-cache/
+server/state/
+state/rebuild-20261020/*.zip
+state/rebuild-20261020/private*/

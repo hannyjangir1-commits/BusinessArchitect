@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List
 from pathlib import Path
 from dotenv import load_dotenv
@@ -39,9 +40,22 @@ class Settings:
         # Database
         self.DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./dev_database.db")
 
-        # Gemini AI
-        self.GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+        # Gemini generation. GEMINI_API_KEYS is the preferred comma/newline-separated
+        # pool; GEMINI_API_KEY remains a backwards-compatible single-key alias.
+        raw_key_pool = os.getenv("GEMINI_API_KEYS", "")
+        legacy_key = os.getenv("GEMINI_API_KEY", "").strip()
+        parsed_keys = [key.strip() for key in re.split(r"[,;\s]+", raw_key_pool) if key.strip()]
+        if not parsed_keys and legacy_key:
+            parsed_keys = [legacy_key]
+        self.GEMINI_API_KEYS: List[str] = list(dict.fromkeys(parsed_keys))
+        self.GEMINI_API_KEY: str = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
         self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+        self.GEMINI_TOTAL_TIMEOUT_SECONDS: int = max(
+            10, min(int(os.getenv("GEMINI_TOTAL_TIMEOUT_SECONDS", "90")), 300)
+        )
+        self.GEMINI_KEY_COOLDOWN_SECONDS: int = max(
+            15, min(int(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", "120")), 3600)
+        )
 
 
     # CORS

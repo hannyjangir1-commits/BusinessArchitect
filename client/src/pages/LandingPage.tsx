@@ -65,7 +65,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
   };
 
   return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg-workspace)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+      <div className="landing-page" style={{ minHeight: '100vh', background: 'var(--bg-workspace)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navbar */}
       <header style={{
         height: 72,
@@ -76,7 +76,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
         justifyContent: 'space-between',
         position: 'sticky',
         top: 0,
-        backgroundColor: 'rgba(255, 254, 250, 0.96)',
+        backgroundColor: 'rgb(69 60 55 / 0.96)',
         backdropFilter: 'blur(8px)',
         zIndex: 50
       }}>
@@ -85,17 +85,17 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: 'linear-gradient(135deg, #6d855f, #a68757)',
+            background: 'var(--bg-subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(109, 133, 95, 0.3)'
+            boxShadow: '0 2px 8px rgb(69 60 55 / 0.15)'
           }}>
-            <Layers size={22} color="var(--text-main)" />
+            <Layers size={22} color="var(--bg-card)" />
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2, color: 'var(--text-main)' }}>Venture Atlas</div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#82936d', letterSpacing: 0.8 }}>ENTERPRISE BLUEPRINT</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.8 }}>ENTERPRISE BLUEPRINT</div>
           </div>
         </div>
 
@@ -142,7 +142,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6d855f'; e.currentTarget.style.color = 'var(--text-main)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary-text)'; e.currentTarget.style.color = 'var(--text-main)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--text-main)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
           >
             Sign In
@@ -165,12 +165,12 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           gap: 8,
           padding: '6px 16px',
           borderRadius: 9999,
-          background: 'rgba(109, 133, 95, 0.12)',
-          color: '#82936d',
+          background: 'rgb(69 60 55 / 0.12)',
+          color: 'var(--text-muted)',
           fontSize: 12,
           fontWeight: 700,
           marginBottom: 26,
-          border: '1px solid rgba(109, 133, 95, 0.25)',
+          border: '1px solid rgb(69 60 55 / 0.25)',
           letterSpacing: 0.3
         }}>
           <ShieldCheck size={14} /> Structured Venture Architecture & Planning Workspace
@@ -185,11 +185,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           color: 'var(--text-main)'
         }}>
           Turn your business idea into an{' '}
-          <span style={{
-            background: 'linear-gradient(90deg, #82936d 0%, #b99b68 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}>
+          <span style={{ color: 'var(--primary-text)' }}>
             actionable blueprint.
           </span>
         </h1>
@@ -208,7 +204,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           <button
             onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
             className="btn-primary"
-            style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgba(109, 133, 95, 0.4)' }}
+            style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgb(69 60 55 / 0.4)' }}
           >
             Create Your Blueprint <ArrowRight size={17} />
           </button>
@@ -225,7 +221,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6d855f'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary-text)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
           >
             Explore the Workspace
@@ -240,15 +236,15 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           border: '1px solid var(--border-color)',
           borderRadius: 16,
           padding: 24,
-          boxShadow: '0 12px 30px -18px rgba(70, 78, 63, 0.18)',
+          boxShadow: '0 12px 30px -18px rgb(69 60 55 / 0.18)',
           overflow: 'hidden'
         }}>
           {/* Mock Workspace Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 16, marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--danger-text)' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--bg-subtle)' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--bg-subtle)' }} />
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginLeft: 8 }}>
                 Venture Workspace — CloudScale Platform (Growth Stage)
               </span>
@@ -257,7 +253,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
               <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
                 9 Core Modules
               </span>
-              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: 'rgba(109, 133, 95, 0.2)', color: '#82936d', fontWeight: 600 }}>
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 9999, background: 'rgb(69 60 55 / 0.2)', color: 'var(--text-muted)', fontWeight: 600 }}>
                 Active Version: V2
               </span>
             </div>
@@ -268,7 +264,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             {/* Box 1: BMC */}
             <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Compass size={17} color="#6d855f" />
+                <Compass size={17} color="var(--primary-text)" />
                 <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Business Model Canvas</h4>
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
@@ -283,7 +279,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             {/* Box 2: Tech Stack */}
             <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Cpu size={17} color="#7a916a" />
+                <Cpu size={17} color="var(--text-muted)" />
                 <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Technology Architecture</h4>
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
@@ -298,7 +294,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             {/* Box 3: Gantt Timeline */}
             <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Calendar size={17} color="#10b981" />
+                <Calendar size={17} color="var(--primary-text)" />
                 <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Execution Roadmap</h4>
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
@@ -307,11 +303,11 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                   <span>Phase 1: Architecture Review</span>
-                  <span style={{ color: '#10b981', fontWeight: 600 }}>100%</span>
+                  <span style={{ color: 'var(--primary-text)', fontWeight: 600 }}>100%</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                   <span>Phase 2: Core Platform Services</span>
-                  <span style={{ color: '#7a916a', fontWeight: 600 }}>65%</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>65%</span>
                 </div>
               </div>
             </div>
@@ -333,7 +329,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {/* Card 1 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(109, 133, 95, 0.15)', color: '#82936d', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.15)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Compass size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>1. Business Model Canvas</h3>
@@ -344,7 +340,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 2 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(129, 149, 117, 0.18)', color: '#687f5d', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.18)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Cpu size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>2. Technology Architecture</h3>
@@ -355,7 +351,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 3 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.15)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <CheckCircle2 size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>3. Idea Validator</h3>
@@ -366,7 +362,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 4 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.15)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <TrendingUp size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>4. Market Research</h3>
@@ -377,7 +373,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 5 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.15)', color: 'var(--danger-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Calendar size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>5. Execution Roadmap</h3>
@@ -388,7 +384,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 6 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(183, 155, 117, 0.2)', color: '#a68757', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.2)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <ListTodo size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>6. Detailed Task Management</h3>
@@ -399,7 +395,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 7 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(183, 155, 117, 0.18)', color: '#718765', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.18)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Layers size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>7. Version History</h3>
@@ -410,7 +406,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 8 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(190, 140, 121, 0.2)', color: '#9a6654', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.2)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Bot size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>8. Planning Copilot</h3>
@@ -421,7 +417,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
           {/* Card 9 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(129, 149, 117, 0.2)', color: '#5d7550', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.2)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <FileSpreadsheet size={22} />
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text-main)' }}>9. Project Export</h3>
@@ -452,7 +448,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
             { step: '05', title: 'Track & Export', desc: 'Save immutable snapshots, manage versions, and export executive PDF reports.' }
           ].map((item) => (
             <div key={item.step} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#82936d', marginBottom: 8 }}>STEP {item.step}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 8 }}>STEP {item.step}</div>
               <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>{item.title}</h4>
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{item.desc}</p>
             </div>
@@ -474,7 +470,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
         color: 'var(--text-muted)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Layers size={18} color="#6d855f" />
+          <Layers size={18} color="var(--primary-text)" />
           <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Venture Atlas</span>
           <span>— Enterprise Blueprint Workspace</span>
         </div>
@@ -499,7 +495,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
                   width: 32,
                   height: 32,
                   borderRadius: 8,
-                  background: 'linear-gradient(135deg, #6d855f, #a68757)',
+                  background: 'var(--bg-subtle)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -571,9 +567,9 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
                     alignItems: 'center',
                     gap: 8,
                     padding: 12,
-                    background: '#fee2e2',
-                    border: '1px solid #fca5a5',
-                    color: '#b91c1c',
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--danger-text)',
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 500

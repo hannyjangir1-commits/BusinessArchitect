@@ -209,7 +209,7 @@ export const AdminAccountPage: React.FC = () => {
       {/* Header */}
       <div>
         <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <UserCircle2 size={26} color="#6d855f" />
+          <UserCircle2 size={26} color="var(--primary-text)" />
           Administrator Account & Access Control
         </h1>
         <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '13px' }}>
@@ -227,9 +227,9 @@ export const AdminAccountPage: React.FC = () => {
             justifyContent: 'space-between',
             fontSize: '13px',
             fontWeight: 500,
-            backgroundColor: notificationMsg.type === 'success' ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${notificationMsg.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-            color: notificationMsg.type === 'success' ? '#166534' : '#991b1b'
+            backgroundColor: notificationMsg.type === 'success' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+            border: `1px solid ${notificationMsg.type === 'success' ? 'var(--border-color)' : 'var(--bg-subtle)'}`,
+            color: notificationMsg.type === 'success' ? 'var(--primary-text)' : 'var(--danger-text)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -246,15 +246,15 @@ export const AdminAccountPage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #dfe2d6', gap: '24px' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', gap: '24px' }}>
         <button
           onClick={() => setActiveTab('profile')}
           style={{
             padding: '12px 4px',
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'profile' ? '2px solid #6d855f' : '2px solid transparent',
-            color: activeTab === 'profile' ? '#6d855f' : '#687164',
+            borderBottom: activeTab === 'profile' ? '2px solid var(--primary-text)' : '2px solid transparent',
+            color: activeTab === 'profile' ? 'var(--primary-text)' : 'var(--text-main)',
             fontWeight: activeTab === 'profile' ? 700 : 500,
             fontSize: '14px',
             cursor: 'pointer',
@@ -273,8 +273,8 @@ export const AdminAccountPage: React.FC = () => {
             padding: '12px 4px',
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'sessions' ? '2px solid #6d855f' : '2px solid transparent',
-            color: activeTab === 'sessions' ? '#6d855f' : '#687164',
+            borderBottom: activeTab === 'sessions' ? '2px solid var(--primary-text)' : '2px solid transparent',
+            color: activeTab === 'sessions' ? 'var(--primary-text)' : 'var(--text-main)',
             fontWeight: activeTab === 'sessions' ? 700 : 500,
             fontSize: '14px',
             cursor: 'pointer',
@@ -294,8 +294,8 @@ export const AdminAccountPage: React.FC = () => {
               padding: '12px 4px',
               background: 'none',
               border: 'none',
-              borderBottom: activeTab === 'admins' ? '2px solid #6d855f' : '2px solid transparent',
-              color: activeTab === 'admins' ? '#6d855f' : '#687164',
+              borderBottom: activeTab === 'admins' ? '2px solid var(--primary-text)' : '2px solid transparent',
+              color: activeTab === 'admins' ? 'var(--primary-text)' : 'var(--text-main)',
               fontWeight: activeTab === 'admins' ? 700 : 500,
               fontSize: '14px',
               cursor: 'pointer',
@@ -315,7 +315,7 @@ export const AdminAccountPage: React.FC = () => {
         <>
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Loader2 size={32} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+              <Loader2 size={32} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
               Loading administrator details...
             </div>
           ) : (
@@ -325,12 +325,12 @@ export const AdminAccountPage: React.FC = () => {
                 style={{
                   backgroundColor: 'var(--bg-card)',
                   borderRadius: '12px',
-                  border: '1px solid #dfe2d6',
+                  border: '1px solid var(--border-color)',
                   padding: '24px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '20px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                  boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -339,12 +339,12 @@ export const AdminAccountPage: React.FC = () => {
                       width: '48px',
                       height: '48px',
                       borderRadius: '12px',
-                      backgroundColor: '#e8ede2',
-                      border: '1px solid #d6dccf',
+                      backgroundColor: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-color)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#5d7550',
+                      color: 'var(--primary-text)',
                       fontWeight: 800,
                       fontSize: '20px'
                     }}
@@ -361,8 +361,8 @@ export const AdminAccountPage: React.FC = () => {
                         marginTop: '4px',
                         padding: '2px 8px',
                         borderRadius: '4px',
-                        backgroundColor: '#e8ede2',
-                        color: '#5d7550',
+                        backgroundColor: 'var(--bg-subtle)',
+                        color: 'var(--primary-text)',
                         fontSize: '11px',
                         fontWeight: 700,
                         textTransform: 'uppercase'
@@ -374,21 +374,21 @@ export const AdminAccountPage: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f1e9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--bg-subtle)' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Administrator ID</span>
                     <span style={{ fontFamily: 'monospace', color: 'var(--text-main)', fontWeight: 600 }}>{adminUser?.id || '—'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f1e9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--bg-subtle)' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Email</span>
                     <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{adminUser?.email || 'N/A'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f1e9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--bg-subtle)' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Account Created</span>
                     <span style={{ color: 'var(--text-main)' }}>
                       {adminUser?.created_at ? new Date(adminUser.created_at).toLocaleString() : 'System Seed'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f1e9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--bg-subtle)' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Last Active</span>
                     <span style={{ color: 'var(--text-main)' }}>
                       {adminUser?.last_active_at ? new Date(adminUser.last_active_at).toLocaleString() : 'Current Session'}
@@ -396,13 +396,13 @@ export const AdminAccountPage: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Account Status</span>
-                    <span style={{ color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: 'var(--primary-text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <CheckCircle2 size={14} /> Active
                     </span>
                   </div>
                 </div>
 
-                <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #f0f1e9' }}>
+                <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--bg-subtle)' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
                     Authorized Permissions ({permissions.length})
                   </span>
@@ -412,8 +412,8 @@ export const AdminAccountPage: React.FC = () => {
                         key={p}
                         style={{
                           padding: '3px 8px',
-                          backgroundColor: '#f0f1e9',
-                          border: '1px solid #dfe2d6',
+                          backgroundColor: 'var(--bg-subtle)',
+                          border: '1px solid var(--border-color)',
                           borderRadius: '4px',
                           fontSize: '11px',
                           fontFamily: 'monospace',
@@ -432,18 +432,18 @@ export const AdminAccountPage: React.FC = () => {
                 style={{
                   backgroundColor: 'var(--bg-card)',
                   borderRadius: '12px',
-                  border: '1px solid #dfe2d6',
+                  border: '1px solid var(--border-color)',
                   padding: '24px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   gap: '20px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                  boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)'
                 }}
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                    <KeyRound size={20} color="#6d855f" />
+                    <KeyRound size={20} color="var(--primary-text)" />
                     <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>
                       Security & Password Rotation
                     </h2>
@@ -452,9 +452,9 @@ export const AdminAccountPage: React.FC = () => {
                   <div
                     style={{
                       padding: '14px',
-                      backgroundColor: '#f7f6ef',
+                      backgroundColor: 'var(--bg-subtle)',
                       borderRadius: '8px',
-                      border: '1px solid #dfe2d6',
+                      border: '1px solid var(--border-color)',
                       marginBottom: '16px',
                       fontSize: '12px',
                       lineHeight: '1.5',
@@ -468,17 +468,17 @@ export const AdminAccountPage: React.FC = () => {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f1e9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--bg-subtle)' }}>
                       <span style={{ color: 'var(--text-muted)' }}>Session Cookie</span>
-                      <span style={{ color: '#16a34a', fontWeight: 600 }}>HTTP-only & SameSite</span>
+                      <span style={{ color: 'var(--primary-text)', fontWeight: 600 }}>HTTP-only & SameSite</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f1e9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--bg-subtle)' }}>
                       <span style={{ color: 'var(--text-muted)' }}>CSRF Protection</span>
-                      <span style={{ color: '#16a34a', fontWeight: 600 }}>Double-Submit Token Enforced</span>
+                      <span style={{ color: 'var(--primary-text)', fontWeight: 600 }}>Double-Submit Token Enforced</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
                       <span style={{ color: 'var(--text-muted)' }}>Password Hash Algorithm</span>
-                      <span style={{ fontFamily: 'monospace', color: '#5d7550', fontWeight: 600 }}>Argon2id (RFC 9106)</span>
+                      <span style={{ fontFamily: 'monospace', color: 'var(--primary-text)', fontWeight: 600 }}>Argon2id (RFC 9106)</span>
                     </div>
                   </div>
                 </div>
@@ -489,7 +489,7 @@ export const AdminAccountPage: React.FC = () => {
                     style={{
                       width: '100%',
                       padding: '10px 14px',
-                      backgroundColor: '#6d855f',
+                      backgroundColor: 'var(--bg-subtle)',
                       color: 'var(--text-main)',
                       border: 'none',
                       borderRadius: '6px',
@@ -514,7 +514,7 @@ export const AdminAccountPage: React.FC = () => {
 
       {/* TAB 2: Active Sessions */}
       {activeTab === 'sessions' && (
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid #dfe2d6', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '24px', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px' }}>
@@ -527,14 +527,14 @@ export const AdminAccountPage: React.FC = () => {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
                 onClick={fetchSessions}
-                style={{ padding: '6px 12px', background: '#f7f6ef', border: '1px solid #d9ddcf', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
+                style={{ padding: '6px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
               >
                 <RefreshCw size={13} className={sessionsLoading ? 'spin-animate' : ''} />
                 Refresh
               </button>
               <button
                 onClick={handleRevokeAllOtherSessions}
-                style={{ padding: '6px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
+                style={{ padding: '6px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', color: 'var(--danger-text)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600 }}
               >
                 <LogOut size={13} />
                 Terminate Other Sessions
@@ -544,7 +544,7 @@ export const AdminAccountPage: React.FC = () => {
 
           {sessionsLoading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Loader2 size={24} className="spin-animate" style={{ margin: '0 auto 8px', color: '#6d855f' }} />
+              <Loader2 size={24} className="spin-animate" style={{ margin: '0 auto 8px', color: 'var(--primary-text)' }} />
               Loading active sessions...
             </div>
           ) : sessions.length === 0 ? (
@@ -552,7 +552,7 @@ export const AdminAccountPage: React.FC = () => {
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
-                <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                   <th style={{ padding: '12px 16px' }}>Device / Browser</th>
                   <th style={{ padding: '12px 16px' }}>IP Address</th>
                   <th style={{ padding: '12px 16px' }}>Created</th>
@@ -563,10 +563,10 @@ export const AdminAccountPage: React.FC = () => {
               </thead>
               <tbody>
                 {sessions.map(s => (
-                  <tr key={s.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                  <tr key={s.id} style={{ borderBottom: '1px solid var(--bg-subtle)' }}>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Laptop size={16} style={{ color: '#6d855f', flexShrink: 0 }} />
+                        <Laptop size={16} style={{ color: 'var(--primary-text)', flexShrink: 0 }} />
                         <span style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '12px', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.user_agent}>
                           {s.user_agent || 'Unknown Client'}
                         </span>
@@ -583,11 +583,11 @@ export const AdminAccountPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {s.is_current ? (
-                        <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#15803d', fontSize: '11px', fontWeight: 700 }}>
+                        <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-subtle)', color: 'var(--primary-text)', fontSize: '11px', fontWeight: 700 }}>
                           Current Device
                         </span>
                       ) : (
-                        <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: '#f0f1e9', color: 'var(--text-main)', fontSize: '11px', fontWeight: 600 }}>
+                        <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-subtle)', color: 'var(--text-main)', fontSize: '11px', fontWeight: 600 }}>
                           Active
                         </span>
                       )}
@@ -600,9 +600,9 @@ export const AdminAccountPage: React.FC = () => {
                           style={{
                             padding: '4px 10px',
                             borderRadius: '4px',
-                            border: '1px solid #fecaca',
-                            backgroundColor: '#fff1f2',
-                            color: '#b91c1c',
+                            border: '1px solid var(--bg-subtle)',
+                            backgroundColor: 'var(--bg-subtle)',
+                            color: 'var(--danger-text)',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer'
@@ -622,7 +622,7 @@ export const AdminAccountPage: React.FC = () => {
 
       {/* TAB 3: Multiple Administrator Accounts (Super Admin only) */}
       {activeTab === 'admins' && isSuperAdmin && (
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid #dfe2d6', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '24px', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px' }}>
@@ -636,7 +636,7 @@ export const AdminAccountPage: React.FC = () => {
               onClick={() => setShowCreateAdminModal(true)}
               style={{
                 padding: '8px 16px',
-                backgroundColor: '#6d855f',
+                backgroundColor: 'var(--bg-subtle)',
                 color: 'var(--text-main)',
                 border: 'none',
                 borderRadius: '6px',
@@ -655,13 +655,13 @@ export const AdminAccountPage: React.FC = () => {
 
           {adminsLoading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Loader2 size={24} className="spin-animate" style={{ margin: '0 auto 8px', color: '#6d855f' }} />
+              <Loader2 size={24} className="spin-animate" style={{ margin: '0 auto 8px', color: 'var(--primary-text)' }} />
               Loading administrators...
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
-                <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                   <th style={{ padding: '12px 16px' }}>Administrator</th>
                   <th style={{ padding: '12px 16px' }}>Role</th>
                   <th style={{ padding: '12px 16px' }}>Status</th>
@@ -671,7 +671,7 @@ export const AdminAccountPage: React.FC = () => {
               </thead>
               <tbody>
                 {adminAccounts.map(adm => (
-                  <tr key={adm.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                  <tr key={adm.id} style={{ borderBottom: '1px solid var(--bg-subtle)' }}>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{adm.username}</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{adm.email}</div>
@@ -683,8 +683,8 @@ export const AdminAccountPage: React.FC = () => {
                           borderRadius: '4px',
                           fontSize: '11px',
                           fontWeight: 700,
-                          backgroundColor: adm.role === 'super_admin' ? '#e8ede2' : '#e8ede2',
-                          color: adm.role === 'super_admin' ? '#5d7550' : '#5d7550'
+                          backgroundColor: adm.role === 'super_admin' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                          color: adm.role === 'super_admin' ? 'var(--primary-text)' : 'var(--primary-text)'
                         }}
                       >
                         {adm.role.replace('_', ' ').toUpperCase()}
@@ -692,11 +692,11 @@ export const AdminAccountPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {adm.is_suspended ? (
-                        <span style={{ color: '#ef4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                        <span style={{ color: 'var(--danger-text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
                           <Ban size={13} /> Suspended
                         </span>
                       ) : (
-                        <span style={{ color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                        <span style={{ color: 'var(--primary-text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
                           <CheckCircle2 size={13} /> Active
                         </span>
                       )}
@@ -714,7 +714,7 @@ export const AdminAccountPage: React.FC = () => {
                           style={{
                             padding: '4px 8px',
                             borderRadius: '4px',
-                            border: '1px solid #d9ddcf',
+                            border: '1px solid var(--border-color)',
                             backgroundColor: 'var(--bg-card)',
                             color: 'var(--text-main)',
                             fontSize: '12px',
@@ -729,9 +729,9 @@ export const AdminAccountPage: React.FC = () => {
                           style={{
                             padding: '4px 8px',
                             borderRadius: '4px',
-                            border: '1px solid #fde68a',
-                            backgroundColor: adm.is_suspended ? '#ecfdf5' : '#fffbeb',
-                            color: adm.is_suspended ? '#059669' : '#d97706',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: adm.is_suspended ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                            color: adm.is_suspended ? 'var(--primary-text)' : 'var(--primary-text)',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer'
@@ -747,9 +747,9 @@ export const AdminAccountPage: React.FC = () => {
                           style={{
                             padding: '4px 8px',
                             borderRadius: '4px',
-                            border: '1px solid #fecaca',
-                            backgroundColor: '#fff1f2',
-                            color: '#b91c1c',
+                            border: '1px solid var(--bg-subtle)',
+                            backgroundColor: 'var(--bg-subtle)',
+                            color: 'var(--danger-text)',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer'
@@ -769,7 +769,7 @@ export const AdminAccountPage: React.FC = () => {
 
       {/* MODAL: Create Administrator */}
       {showCreateAdminModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgb(69 60 55 / 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', width: '440px', maxWidth: '90%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>Create Administrator</h3>
@@ -785,7 +785,7 @@ export const AdminAccountPage: React.FC = () => {
                   required
                   value={newAdminUsername}
                   onChange={e => setNewAdminUsername(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
                 />
               </div>
               <div>
@@ -795,7 +795,7 @@ export const AdminAccountPage: React.FC = () => {
                   required
                   value={newAdminEmail}
                   onChange={e => setNewAdminEmail(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
                 />
               </div>
               <div>
@@ -805,7 +805,7 @@ export const AdminAccountPage: React.FC = () => {
                   required
                   value={newAdminPassword}
                   onChange={e => setNewAdminPassword(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
                 />
               </div>
               <div>
@@ -813,7 +813,7 @@ export const AdminAccountPage: React.FC = () => {
                 <select
                   value={newAdminRole}
                   onChange={e => setNewAdminRole(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
                 >
                   <option value="super_admin">Super Admin</option>
                   <option value="operations_admin">Operations Admin</option>
@@ -826,14 +826,14 @@ export const AdminAccountPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateAdminModal(false)}
-                  style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer', fontSize: '13px' }}
+                  style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: '13px' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={createAdminLoading}
-                  style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#6d855f', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
+                  style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--bg-subtle)', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
                 >
                   {createAdminLoading ? 'Creating...' : 'Create Account'}
                 </button>
@@ -845,7 +845,7 @@ export const AdminAccountPage: React.FC = () => {
 
       {/* MODAL: Edit Admin Role */}
       {editAdminUser && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgb(69 60 55 / 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', width: '400px', maxWidth: '90%' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>
               Change Role: {editAdminUser.username}
@@ -855,7 +855,7 @@ export const AdminAccountPage: React.FC = () => {
               <select
                 value={editRole}
                 onChange={e => setEditRole(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
               >
                 <option value="super_admin">Super Admin</option>
                 <option value="operations_admin">Operations Admin</option>
@@ -867,14 +867,14 @@ export const AdminAccountPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setEditAdminUser(null)}
-                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer', fontSize: '13px' }}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: '13px' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdateAdminRole}
                 disabled={editRoleLoading}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#6d855f', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--bg-subtle)', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
               >
                 {editRoleLoading ? 'Saving...' : 'Save Role'}
               </button>
@@ -885,9 +885,9 @@ export const AdminAccountPage: React.FC = () => {
 
       {/* MODAL: Delete Admin Confirmation */}
       {deleteAdminUser && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgb(69 60 55 / 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90%' }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 800, color: '#dc2626' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 800, color: 'var(--danger-text)' }}>
               Confirm Administrator Deletion
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.5, margin: '0 0 14px' }}>
@@ -902,13 +902,13 @@ export const AdminAccountPage: React.FC = () => {
                 value={confirmAdminUsername}
                 onChange={e => setConfirmAdminUsername(e.target.value)}
                 placeholder={deleteAdminUser.username}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setDeleteAdminUser(null)}
-                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer', fontSize: '13px' }}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: '13px' }}
               >
                 Cancel
               </button>
@@ -919,7 +919,7 @@ export const AdminAccountPage: React.FC = () => {
                   padding: '8px 16px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: '#dc2626',
+                  background: 'var(--danger-text)',
                   color: 'var(--text-main)',
                   fontWeight: 600,
                   cursor: deleteAdminLoading || confirmAdminUsername.trim() !== deleteAdminUser.username ? 'not-allowed' : 'pointer',

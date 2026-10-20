@@ -55,7 +55,7 @@ export const AdminDataIntegrityPage: React.FC = () => {
         <button
           onClick={runScan}
           disabled={loading}
-          style={{ background: '#6d855f', color: 'var(--text-main)', border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}
+          style={{ background: 'var(--bg-subtle)', color: 'var(--text-main)', border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}
         >
           <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
           <span>Run Integrity Scan</span>
@@ -64,12 +64,12 @@ export const AdminDataIntegrityPage: React.FC = () => {
 
       {loading && !scanResult ? (
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+          <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
           <p style={{ margin: 0 }}>Scanning relational invariants...</p>
         </div>
       ) : findings.length === 0 ? (
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '48px 24px', textAlign: 'center', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '48px 24px', textAlign: 'center', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <ShieldCheck size={32} />
           </div>
           <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px' }}>
@@ -91,8 +91,8 @@ export const AdminDataIntegrityPage: React.FC = () => {
                 backgroundColor: 'var(--bg-card)',
                 borderRadius: '12px',
                 padding: '20px 24px',
-                border: '1px solid #dfe2d6',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -109,8 +109,8 @@ export const AdminDataIntegrityPage: React.FC = () => {
                       fontSize: '11px',
                       fontWeight: 700,
                       textTransform: 'uppercase',
-                      backgroundColor: f.severity === 'high' ? '#fee2e2' : f.severity === 'medium' ? '#fef3c7' : '#f0f1e9',
-                      color: f.severity === 'high' ? '#b91c1c' : f.severity === 'medium' ? '#b45309' : '#687164'
+                      backgroundColor: f.severity === 'high' ? 'var(--bg-subtle)' : f.severity === 'medium' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                      color: f.severity === 'high' ? 'var(--danger-text)' : f.severity === 'medium' ? 'var(--primary-text)' : 'var(--text-main)'
                     }}
                   >
                     {f.severity}
@@ -132,7 +132,7 @@ export const AdminDataIntegrityPage: React.FC = () => {
                     padding: '8px 16px',
                     borderRadius: '6px',
                     border: 'none',
-                    backgroundColor: '#6d855f',
+                    backgroundColor: 'var(--bg-subtle)',
                     color: 'var(--text-main)',
                     fontWeight: 600,
                     fontSize: '13px',

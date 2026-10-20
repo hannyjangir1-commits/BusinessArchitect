@@ -7,6 +7,8 @@ from app.services.pdf_service import PDFService
 from app.api.deps import get_user_project
 from app.core.telemetry import record_analytics_event
 from app.core.business_stage import normalize_business_stage
+from app.core.module_types import normalize_module_type
+from app.services.project_context_service import read_project_context, find_module, active_version, current_module_data
 
 router = APIRouter(prefix="/projects/{project_id}/export", tags=["Exports"])
 
@@ -34,14 +36,7 @@ def export_full_project_pdf(
         "existing_stack": project.existing_stack
     }
 
-    # Fetch active versions of all generated modules
-    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
-    modules_data = {}
-    for m in modules:
-        if m.active_version_id:
-            ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
-            if ver:
-                modules_data[m.module_type] = ver.data
+    modules_data, _ = read_project_context(db, project.id)
 
     # Fetch tasks
     tasks = db.query(RoadmapTask).filter(
@@ -88,20 +83,15 @@ def export_module_pdf(
         "industry": project.industry
     }
 
-    module = db.query(ModuleContent).filter(
-        ModuleContent.project_id == project.id,
-        ModuleContent.module_type == module_type
-    ).first()
-
-    if not module or not module.active_version_id:
+    module_type = normalize_module_type(module_type)
+    module = find_module(db, project.id, module_type)
+    ver = active_version(db, module)
+    if not module or not ver:
         raise HTTPException(status_code=404, detail="No active version found for this module to export")
-
-    ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
-    if not ver:
-        raise HTTPException(status_code=404, detail="Active version content not found")
+    module_data = current_module_data(db, module, ver)
 
     try:
-        pdf_bytes = PDFService.generate_single_module_pdf(proj_dict, module_type, ver.data)
+        pdf_bytes = PDFService.generate_single_module_pdf(proj_dict, module_type, module_data)
         filename = f"{_slugify(project.name)}_{module_type}.pdf"
         return Response(
             content=pdf_bytes,

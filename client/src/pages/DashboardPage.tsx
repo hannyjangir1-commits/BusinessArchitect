@@ -112,7 +112,7 @@ export const DashboardPage: React.FC<Props> = ({
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-workspace)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+    <div className="portfolio-page" style={{ minHeight: '100vh', background: 'var(--bg-workspace)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Header */}
       <header style={{
         height: 64,
@@ -129,18 +129,18 @@ export const DashboardPage: React.FC<Props> = ({
             width: 36,
             height: 36,
             borderRadius: 8,
-            background: 'linear-gradient(135deg, #6d855f, #a68757)',
+            background: 'var(--bg-subtle)',
             color: 'var(--text-main)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 3px 10px rgba(109, 133, 95, 0.25)'
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <Layers size={20} />
           </div>
           <div>
             <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)' }}>Venture Atlas</div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', letterSpacing: 0.6 }}>ENTERPRISE BLUEPRINT</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', letterSpacing: 0.6 }}>BUSINESS PLANNING</div>
           </div>
         </div>
 
@@ -156,8 +156,8 @@ export const DashboardPage: React.FC<Props> = ({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                backgroundColor: 'rgba(109, 133, 95, 0.12)',
-                border: '1px solid rgba(109, 133, 95, 0.25)',
+                backgroundColor: 'rgb(69 60 55 / 0.12)',
+                border: '1px solid rgb(69 60 55 / 0.25)',
                 borderRadius: 8,
                 color: 'var(--primary)',
                 fontSize: 12,
@@ -212,7 +212,7 @@ export const DashboardPage: React.FC<Props> = ({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)', letterSpacing: -0.3, margin: '0 0 4px 0' }}>
-              Venture Architecture Portfolio
+              Your venture portfolio
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
               Welcome back, <b>{user.username}</b>. Manage your enterprise business blueprints, technology stacks, and execution roadmaps.
@@ -237,7 +237,7 @@ export const DashboardPage: React.FC<Props> = ({
               onClick={onCreateNewProject}
               className="btn-primary"
               disabled={isLimitReached}
-              title={isLimitReached ? 'Maximum limit of 10 projects reached. Please delete an older project first.' : 'Architect New Project'}
+              title={isLimitReached ? 'Maximum limit of 10 projects reached. Please delete an older project first.' : 'New project'}
               style={{
                 padding: '10px 18px',
                 fontSize: 13.5,
@@ -245,7 +245,7 @@ export const DashboardPage: React.FC<Props> = ({
                 cursor: isLimitReached ? 'not-allowed' : 'pointer'
               }}
             >
-              <Plus size={16} /> Architect New Project
+              <Plus size={16} /> New project
             </button>
           </div>
         </div>
@@ -261,8 +261,8 @@ export const DashboardPage: React.FC<Props> = ({
                 fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: 12,
-                background: isLimitReached ? '#fee2e2' : 'rgba(109, 133, 95, 0.1)',
-                color: isLimitReached ? '#dc2626' : 'var(--primary)'
+                background: isLimitReached ? 'var(--bg-subtle)' : 'rgb(69 60 55 / 0.1)',
+                color: isLimitReached ? 'var(--danger-text)' : 'var(--primary)'
               }}>
                 {totalProjects} / {maxProjects} Limit
               </span>
@@ -274,13 +274,13 @@ export const DashboardPage: React.FC<Props> = ({
               <div style={{
                 width: `${Math.min(100, (totalProjects / maxProjects) * 100)}%`,
                 height: '100%',
-                background: isLimitReached ? '#dc2626' : 'linear-gradient(90deg, #6d855f, #a68757)',
+                background: isLimitReached ? 'var(--danger-text)' : 'var(--primary-text)',
                 borderRadius: 9999,
                 transition: 'width 0.3s ease'
               }} />
             </div>
             {isLimitReached && (
-              <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>10 / 10 projects used. Delete a project to free a slot.</span>
+              <span style={{ fontSize: 11, color: 'var(--danger-text)', fontWeight: 600 }}>10 / 10 projects used. Delete a project to free a slot.</span>
             )}
           </div>
 
@@ -288,7 +288,7 @@ export const DashboardPage: React.FC<Props> = ({
           <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Synthesized Modules</span>
-              <CheckCircle size={16} color="#10b981" />
+              <CheckCircle size={16} color="var(--primary-text)" />
             </div>
             <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
               {totalCompletedModules} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Generated Modules</span>
@@ -436,7 +436,7 @@ export const DashboardPage: React.FC<Props> = ({
               width: 58,
               height: 58,
               borderRadius: '50%',
-              background: 'rgba(109, 133, 95, 0.12)',
+              background: 'rgb(69 60 55 / 0.12)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -464,7 +464,7 @@ export const DashboardPage: React.FC<Props> = ({
             )}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
+          <div className="project-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
             {filteredProjects.map((p) => {
               const isSelected = selectedIds.includes(p.id);
               const generatedCount = p.generated_modules?.length || 0;
@@ -479,20 +479,7 @@ export const DashboardPage: React.FC<Props> = ({
                       onOpenProject(p.id);
                     }
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      if (isManageMode) {
-                        handleToggleSelectProject(p.id);
-                      } else {
-                        onOpenProject(p.id);
-                      }
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${isManageMode ? 'Select' : 'Open'} project ${p.name}`}
-                  className="card"
+                  className="card project-card"
                   style={{
                     cursor: 'pointer',
                     display: 'flex',
@@ -554,7 +541,7 @@ export const DashboardPage: React.FC<Props> = ({
                   {/* Module Completion Indicators on Card */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-muted)' }}>
                     <span>Modules Synthesized:</span>
-                    <span style={{ fontWeight: 700, color: generatedCount > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                    <span style={{ fontWeight: 700, color: generatedCount > 0 ? 'var(--primary-text)' : 'var(--text-muted)' }}>
                       {generatedCount} / 6 modules
                     </span>
                   </div>
@@ -589,12 +576,13 @@ export const DashboardPage: React.FC<Props> = ({
                             alignItems: 'center'
                           }}
                           title={`Delete ${p.name}`}
-                          onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger-text)')}
                           onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                         >
                           <Trash2 size={15} />
                         </button>
-                        <span style={{
+                        <button type="button" aria-label={`Open project ${p.name}`} onClick={(e) => { e.stopPropagation(); onOpenProject(p.id); }} style={{
+                          border: 0, background: 'transparent', cursor: 'pointer', padding: '6px 8px',
                           fontSize: 12.5,
                           fontWeight: 700,
                           color: 'var(--primary)',
@@ -602,8 +590,8 @@ export const DashboardPage: React.FC<Props> = ({
                           alignItems: 'center',
                           gap: 4
                         }}>
-                          Open <ArrowRight size={13} />
-                        </span>
+                          Open project <ArrowRight size={13} />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -630,8 +618,8 @@ export const DashboardPage: React.FC<Props> = ({
                   width: 34,
                   height: 34,
                   borderRadius: '50%',
-                  background: '#fee2e2',
-                  color: '#dc2626',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--danger-text)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -656,8 +644,8 @@ export const DashboardPage: React.FC<Props> = ({
               {bulkDeleteError && (
                 <div style={{
                   padding: 10,
-                  background: '#fee2e2',
-                  color: '#b91c1c',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--danger-text)',
                   borderRadius: 6,
                   fontSize: 12.5,
                   display: 'flex',
@@ -734,8 +722,8 @@ export const DashboardPage: React.FC<Props> = ({
                   width: 34,
                   height: 34,
                   borderRadius: '50%',
-                  background: '#fee2e2',
-                  color: '#dc2626',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--danger-text)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -760,8 +748,8 @@ export const DashboardPage: React.FC<Props> = ({
               {deleteError && (
                 <div style={{
                   padding: 10,
-                  background: '#fee2e2',
-                  color: '#b91c1c',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--danger-text)',
                   borderRadius: 6,
                   fontSize: 12.5,
                   display: 'flex',

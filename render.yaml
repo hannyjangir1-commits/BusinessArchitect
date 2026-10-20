@@ -22,8 +22,14 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
-      - key: GEMINI_API_KEY
+      - key: GEMINI_API_KEYS
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_TOTAL_TIMEOUT_SECONDS
+        value: "90"
+      - key: GEMINI_KEY_COOLDOWN_SECONDS
+        value: "120"
       - key: ALLOWED_ORIGINS
         sync: false
       - key: ADMIN_BOOTSTRAP_ENABLED

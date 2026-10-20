@@ -1,4 +1,4 @@
-import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs } from '../types';
+import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs, TechStackPlanningInputs } from '../types';
 
 let csrfTokenCache = '';
 
@@ -6,7 +6,7 @@ export function getCsrfToken(): string {
   if (typeof document !== 'undefined' && document.cookie) {
     const match = document.cookie.match(/(?:^|;\s*)aba_csrf=([^;]+)/);
     if (match) {
-      csrfTokenCache = decodeURIComponent(match[1]);
+      try { csrfTokenCache = decodeURIComponent(match[1]); } catch { csrfTokenCache = match[1]; }
       return csrfTokenCache;
     }
   }
@@ -60,7 +60,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout for long-running AI requests
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // Bounded timeout for the two-stage generation pipeline
 
   let response: Response;
   try {
@@ -72,7 +72,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     });
   } catch (fetchErr: any) {
     if (fetchErr.name === 'AbortError') {
-      throw new Error('Request timed out after 90 seconds. Please check your connection and retry.');
+      throw new Error('The request took longer than five minutes. Reload the module to check whether it was saved before retrying.');
     }
     throw fetchErr;
   } finally {
@@ -82,7 +82,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   if (response.status === 401) {
     // Session expired or unauthenticated
     clearCsrfToken();
-    if (!endpoint.includes('/auth/me')) {
+    if (!endpoint.includes('/auth/me') && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
       window.dispatchEvent(new CustomEvent('auth:expired'));
     }
   }
@@ -128,19 +128,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   if (!response.ok) {
-    let errorDetail: any = 'An unexpected error occurred';
-    try {
-      const errJson = await response.json();
-      errorDetail = errJson.detail || errJson.message || JSON.stringify(errJson);
-    } catch {
-      errorDetail = await response.text();
-    }
-    const err = new Error(typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail));
+    const raw = await response.text();
+    let detail: any = raw || `Request failed (${response.status}).`;
+    try { const parsed = JSON.parse(raw); detail = parsed.detail ?? parsed.message ?? parsed; } catch { /* Plain-text server error. */ }
+    const message = typeof detail === 'string' ? detail
+      : Array.isArray(detail) ? detail.map(item => `${(item.loc || []).slice(1).join('.')}: ${item.msg || 'Invalid value'}`).join('; ')
+      : detail.message || detail.error || 'The request could not be completed.';
+    const err = new Error(message);
     (err as any).status = response.status;
-    (err as any).data = errorDetail;
-    if (typeof errorDetail === 'string' && errorDetail.toLowerCase().includes('csrf')) {
-      (err as any).isCsrfError = true;
-    }
+    (err as any).data = detail;
+    (err as any).isCsrfError = message.toLowerCase().includes('csrf');
     throw err;
   }
 
@@ -153,6 +150,29 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     return response.json();
   }
   return response.text() as unknown as T;
+}
+
+async function downloadFile(url: string, filename: string) {
+  try {
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) {
+      const text = await response.text();
+      let message = `Export failed (${response.status}).`;
+      try { const data = JSON.parse(text); message = data.detail?.message || data.detail || data.message || message; } catch { /* Use status on non-JSON failure. */ }
+      throw new Error(typeof message === 'string' ? message : 'Export could not be completed.');
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  } catch (error: any) {
+    window.alert(error.message || 'Export could not be downloaded. Please try again.');
+  }
 }
 
 export const api = {
@@ -185,7 +205,7 @@ export const api = {
       if (res.csrf_token) setCsrfToken(res.csrf_token);
       return res;
     },
-    updateProfile: (data: { username?: string; email?: string }): Promise<any> =>
+    updateProfile: (data: { username?: string; email?: string; display_name?: string; preferences?: { font: 'system' | 'mono' } }): Promise<any> =>
       request('/api/auth/profile', {
         method: 'PUT',
         body: JSON.stringify(data)
@@ -227,7 +247,7 @@ export const api = {
     delete: (projectId: string, moduleType: string): Promise<{ message: string; module_type: string; deleted_records: number; deleted_tasks: number }> =>
       request(`/api/projects/${projectId}/modules/${moduleType}`, { method: 'DELETE' }),
 
-    generate: (projectId: string, moduleType: string, planningInputs?: RoadmapPlanningInputs): Promise<ModuleDetail> =>
+    generate: (projectId: string, moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}/generate`, {
         method: 'POST',
         body: planningInputs ? JSON.stringify(planningInputs) : undefined
@@ -317,25 +337,10 @@ export const api = {
   },
 
   exports: {
-    downloadFullProjectPdf: (projectId: string, projectName: string) => {
-      const url = `/api/projects/${projectId}/export/pdf`;
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${projectName.toLowerCase().replace(/\s+/g, '_')}_blueprint.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    },
-
-    downloadModulePdf: (projectId: string, moduleType: string, projectName: string) => {
-      const url = `/api/projects/${projectId}/export/modules/${moduleType}/pdf`;
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${projectName.toLowerCase().replace(/\s+/g, '_')}_${moduleType}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    downloadFullProjectPdf: (projectId: string, projectName: string) =>
+      downloadFile(`/api/projects/${projectId}/export/pdf`, `${projectName.replace(/[^a-z0-9_-]/gi, '_')}_blueprint.pdf`),
+    downloadModulePdf: (projectId: string, moduleType: string, projectName: string) =>
+      downloadFile(`/api/projects/${projectId}/export/modules/${moduleType}/pdf`, `${projectName.replace(/[^a-z0-9_-]/gi, '_')}_${moduleType}.pdf`)
   },
 
   admin: {
@@ -513,10 +518,10 @@ export const api = {
     },
     reports: {
       downloadCsv: (reportType: string) => {
-        window.open(`/api/admin/reports/export-csv?report_type=${reportType}`, '_blank');
+        void downloadFile(`/api/admin/reports/export-csv?report_type=${encodeURIComponent(reportType)}`, `${reportType}_report.csv`);
       },
       downloadPdf: () => {
-        window.open('/api/admin/reports/summary-pdf', '_blank');
+        void downloadFile('/api/admin/reports/summary-pdf', 'project_summary.pdf');
       }
     }
   }

@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { downloadSvg } from '../utils/svgExport';
 import { TechStackData, TechRecommendation } from '../types';
 import { Download, Layers, Server, Database, Cloud, ShieldCheck, X, CheckCircle2, AlertTriangle, ArrowRight, DollarSign } from 'lucide-react';
 
@@ -45,9 +46,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'business_ops',
       name: 'Business Operations, POS & Payments Tier',
       icon: Layers,
-      color: '#059669',
-      bg: '#ecfdf5',
-      borderColor: '#a7f3d0',
+      color: 'var(--primary-text)',
+      bg: 'var(--bg-subtle)',
+      borderColor: 'var(--border-color)',
       items: recommendations.filter(r =>
         /pos|payment|retail|commerce|store|operation|order|billing/i.test(r?.category || '')
       )
@@ -56,9 +57,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'client',
       name: 'Client & Presentation Tier',
       icon: Layers,
-      color: '#6f865f',
-      bg: '#f0f1e9',
-      borderColor: '#dfe2d6',
+      color: 'var(--primary-text)',
+      bg: 'var(--bg-subtle)',
+      borderColor: 'var(--border-color)',
       items: recommendations.filter(r =>
         /front|client|ui|mobile|web|presentation/i.test(r?.category || '') &&
         !/pos|payment|retail|commerce/i.test(r?.category || '')
@@ -68,9 +69,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'application',
       name: 'Application & API Services Tier',
       icon: Server,
-      color: '#6d855f',
-      bg: '#f0f1e9',
-      borderColor: '#d6dccf',
+      color: 'var(--primary-text)',
+      bg: 'var(--bg-subtle)',
+      borderColor: 'var(--border-color)',
       items: recommendations.filter(r =>
         /back|api|server|service|microservice/i.test(r?.category || '') &&
         !/pos|payment|retail|commerce/i.test(r?.category || '')
@@ -80,9 +81,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'data',
       name: 'Data & State Management Tier',
       icon: Database,
-      color: '#0d9488',
-      bg: '#f0fdfa',
-      borderColor: '#99f6e4',
+      color: 'var(--primary-text)',
+      bg: 'var(--bg-subtle)',
+      borderColor: 'var(--border-color)',
       items: recommendations.filter(r =>
         /data|storage|sql|cache|queue/i.test(r?.category || '')
       )
@@ -91,9 +92,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       id: 'cloud',
       name: 'Cloud, Infrastructure & DevOps Tier',
       icon: Cloud,
-      color: '#d97706',
-      bg: '#fffbeb',
-      borderColor: '#fde68a',
+      color: 'var(--primary-text)',
+      bg: 'var(--bg-subtle)',
+      borderColor: 'var(--border-color)',
       items: recommendations.filter(r =>
         /cloud|host|devops|infra|deploy|container/i.test(r?.category || '')
       )
@@ -103,7 +104,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       name: 'Security, Observability & Platform Services',
       icon: ShieldCheck,
       color: 'var(--text-main)',
-      bg: '#f7f6ef',
+      bg: 'var(--bg-subtle)',
       borderColor: 'var(--text-muted)',
       items: recommendations.filter(r =>
         /sec|auth|monitor|telemetry|audit|service/i.test(r?.category || '') &&
@@ -128,17 +129,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       return;
     }
     if (!svgRef.current) return;
-    const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svgRef.current);
-    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${projectName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_architecture_diagram.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadSvg(svgRef.current, `${projectName.replace(/[^a-z0-9_-]/gi, '_')}_architecture_diagram.svg`);
   };
 
   const svgWidth = 1000;
@@ -195,7 +186,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           style={{ fontSize: 12, padding: '6px 12px', gap: 6, display: 'flex', alignItems: 'center' }}
           title="Download vector SVG architecture diagram"
         >
-          <Download size={14} color="#6d855f" />
+          <Download size={14} color="var(--primary-text)" />
           <span>Download SVG Diagram</span>
         </button>
       </div>
@@ -205,14 +196,15 @@ export const ArchitectureInfographic: React.FC<Props> = ({
         style={{
           width: '100%',
           overflowX: 'auto',
-          background: '#ffffff',
+          background: 'var(--bg-card)',
           borderRadius: 8,
-          border: '1px solid #dfe2d6',
-          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)'
+          border: '1px solid var(--border-color)',
+          boxShadow: 'inset 0 1px 3px rgb(69 60 55 / 0.02)'
         }}
       >
         <svg
           ref={svgRef}
+          data-architecture-diagram="true"
           viewBox={`0 0 ${svgWidth} ${totalSvgHeight}`}
           style={{ width: '100%', minWidth: 700, height: 'auto', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg"
@@ -220,28 +212,24 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           aria-label={`Architecture Topology for ${projectName}`}
         >
           <defs>
-            <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#f7f6ef" />
-              <stop offset="100%" stopColor="var(--text-main)" />
-            </linearGradient>
             <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--text-main)" floodOpacity="0.06" />
             </filter>
             <filter id="activeNodeGlow" x="-10%" y="-10%" width="120%" height="125%">
-              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#6d855f" floodOpacity="0.25" />
+              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="var(--primary-text)" floodOpacity="0.25" />
             </filter>
             <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#7c8478" />
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--text-muted)" />
             </marker>
           </defs>
 
           {/* Canvas Background */}
-          <rect width={svgWidth} height={totalSvgHeight} fill="url(#bgGrad)" />
+          <rect width={svgWidth} height={totalSvgHeight} fill="var(--bg-card)" />
 
           {/* Header Banner */}
           <g transform="translate(30, 20)">
-            <rect width={svgWidth - 60} height="46" rx="8" fill="#e8ede2" />
-            <text x="20" y="28" fill="#626b5f" fontSize="15" fontWeight="700" fontFamily="system-ui, -apple-system, sans-serif">
+            <rect width={svgWidth - 60} height="46" rx="8" fill="var(--bg-subtle)" />
+            <text x="20" y="28" fill="var(--text-main)" fontSize="15" fontWeight="700" fontFamily="system-ui, -apple-system, sans-serif">
               {projectName} — {versionName} Architecture Topography ({techData.architecture_pattern || 'Standard Cloud'})
             </text>
           </g>
@@ -258,7 +246,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                   y1={startY}
                   x2={svgWidth / 2}
                   y2={endY}
-                  stroke="#7c8478"
+                  stroke="var(--text-muted)"
                   strokeWidth="2"
                   strokeDasharray="4 4"
                   markerEnd="url(#arrow)"
@@ -319,8 +307,8 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                       width={w}
                       height={h}
                       rx="6"
-                      fill="#ffffff"
-                      stroke={isSelected ? tier.color : '#dfe2d6'}
+                      fill="var(--bg-card)"
+                      stroke={isSelected ? tier.color : 'var(--border-color)'}
                       strokeWidth={isSelected ? '2' : '1'}
                     />
                     {/* Left accent strip */}
@@ -335,7 +323,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                     <text
                       x="12"
                       y="22"
-                      fill="#626b5f"
+                      fill="var(--text-main)"
                       fontSize="13"
                       fontWeight="700"
                       fontFamily="system-ui, -apple-system, sans-serif"
@@ -349,7 +337,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                     <text
                       x="12"
                       y="39"
-                      fill="#687164"
+                      fill="var(--text-main)"
                       fontSize="10.5"
                       fontWeight="600"
                       fontFamily="system-ui, -apple-system, sans-serif"
@@ -361,7 +349,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
                     <text
                       x="12"
                       y="56"
-                      fill="#626b5f"
+                      fill="var(--text-main)"
                       fontSize="10"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
@@ -398,11 +386,11 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             right: 0,
             bottom: 0,
             width: 'min(460px, 95%)',
-            background: '#ffffff',
-            boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.15)',
+            background: 'var(--bg-card)',
+            boxShadow: '-8px 0 24px rgb(69 60 55 / 0.15)',
             borderTopRightRadius: 8,
             borderBottomRightRadius: 8,
-            borderLeft: '1px solid #dfe2d6',
+            borderLeft: '1px solid var(--border-color)',
             zIndex: 40,
             display: 'flex',
             flexDirection: 'column',
@@ -413,9 +401,9 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           aria-labelledby="tech-drawer-title"
         >
           {/* Header */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f1e9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f7f6ef' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'var(--bg-subtle)' }}>
             <div>
-              <span className="badge" style={{ fontSize: 11, background: '#e8ede2', color: '#6d855f', marginBottom: 4, display: 'inline-block' }}>
+              <span className="badge" style={{ fontSize: 11, background: 'var(--bg-subtle)', color: 'var(--primary-text)', marginBottom: 4, display: 'inline-block' }}>
                 {selectedTech.category}
               </span>
               <h4 id="tech-drawer-title" style={{ margin: '4px 0 0 0', fontSize: 17, fontWeight: 700, color: 'var(--text-main)' }}>
@@ -443,20 +431,20 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             </div>
 
             {/* Suitability & Rationale */}
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 12 }}>
-              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#166534', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <CheckCircle2 size={15} color="#16a34a" /> Selection Rationale & Suitability
+            <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12 }}>
+              <h5 style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--primary-text)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle2 size={15} color="var(--primary-text)" /> Selection Rationale & Suitability
               </h5>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#14532d' }}>
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--primary-text)' }}>
                 {selectedTech.suitability}
               </p>
             </div>
 
             {/* Implementation Guidance */}
             {selectedTech.implementation_guidance && (
-              <div style={{ background: '#f0f1e9', border: '1px solid #d6dccf', borderRadius: 8, padding: 12 }}>
+              <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12 }}>
                 <h5 style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ArrowRight size={15} color="#6d855f" /> Implementation Guidance
+                  <ArrowRight size={15} color="var(--primary-text)" /> Implementation Guidance
                 </h5>
                 <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-muted)' }}>
                   {selectedTech.implementation_guidance}
@@ -465,8 +453,8 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             )}
 
             {/* Cost Tier */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f7f6ef', border: '1px solid #dfe2d6', borderRadius: 8 }}>
-              <DollarSign size={16} color="#059669" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8 }}>
+              <DollarSign size={16} color="var(--primary-text)" />
               <div>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>Estimated Cost Tier</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
@@ -477,11 +465,11 @@ export const ArchitectureInfographic: React.FC<Props> = ({
 
             {/* Trade-offs & Risks */}
             {selectedTech.trade_offs && (
-              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 12 }}>
-                <h5 style={{ fontSize: 12.5, fontWeight: 700, color: '#92400e', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <AlertTriangle size={15} color="#d97706" /> Known Trade-offs & Limitations
+              <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12 }}>
+                <h5 style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--primary-text)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={15} color="var(--primary-text)" /> Known Trade-offs & Limitations
                 </h5>
-                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#78350f' }}>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--primary-text)' }}>
                   {selectedTech.trade_offs}
                 </p>
               </div>

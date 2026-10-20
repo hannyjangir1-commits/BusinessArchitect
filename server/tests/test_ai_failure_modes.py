@@ -37,14 +37,14 @@ def test_total_gemini_failure_raises_clear_error_without_fabrication():
         with pytest.raises(RuntimeError) as exc_info:
             service.generate_bmc({"name": "Test Venture"})
         
-        assert "All Gemini generation attempts failed" in str(exc_info.value)
+        assert "temporarily overloaded or at capacity" in str(exc_info.value)
 
 
 class ProviderQuotaError(Exception):
     code = 429
 
 
-def test_quota_failure_stops_model_fallback_and_returns_actionable_error():
+def test_quota_failure_returns_actionable_error_when_only_one_key_is_configured():
     service = GeminiAIService()
     service.api_key = "test-key"
     with patch.object(service, "_get_client") as mock_client, patch.object(
@@ -68,6 +68,25 @@ def test_brief_quota_failure_is_not_hidden_by_deterministic_fallback():
             service.build_generation_brief({"name": "Test venture", "stage": "Idea"}, "bmc")
 
         generate.assert_called_once()
+
+
+def test_quota_failure_rotates_to_next_configured_key_once():
+    service = GeminiAIService()
+    service.api_keys = ["test-key-one", "test-key-two"]
+    service.api_key = "test-key-one"
+
+    first_client = MagicMock()
+    first_client.models.generate_content.side_effect = ProviderQuotaError("RESOURCE_EXHAUSTED: quota exceeded")
+    second_client = MagicMock()
+    second_client.models.generate_content.return_value.text = '{"result": "fallback succeeded"}'
+
+    with patch.object(service, "_get_client", side_effect=[first_client, second_client]) as clients:
+        result = service._execute_json_prompt("system", "user")
+
+    assert result == {"result": "fallback succeeded"}
+    assert clients.call_count == 2
+    assert first_client.models.generate_content.call_count == 1
+    assert second_client.models.generate_content.call_count == 1
 
 
 def test_grounded_quota_failure_does_not_try_another_model():

@@ -54,7 +54,7 @@ export const AdminSystemHealthPage: React.FC = () => {
         </div>
         <button
           onClick={fetchSystemData}
-          style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
         >
           <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
           <span>Refresh</span>
@@ -67,7 +67,7 @@ export const AdminSystemHealthPage: React.FC = () => {
           {(health.components || []).map((c: any, idx: number) => {
             const isOk = c.status === 'healthy';
             return (
-              <div key={idx} style={{ backgroundColor: 'var(--bg-card)', borderRadius: '10px', padding: '18px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div key={idx} style={{ backgroundColor: 'var(--bg-card)', borderRadius: '10px', padding: '18px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>{c.name}</span>
                   <span
@@ -76,8 +76,8 @@ export const AdminSystemHealthPage: React.FC = () => {
                       borderRadius: '9999px',
                       fontSize: '11px',
                       fontWeight: 700,
-                      backgroundColor: isOk ? '#dcfce7' : '#fee2e2',
-                      color: isOk ? '#15803d' : '#b91c1c'
+                      backgroundColor: isOk ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                      color: isOk ? 'var(--primary-text)' : 'var(--danger-text)'
                     }}
                   >
                     {c.status.toUpperCase()}
@@ -96,8 +96,8 @@ export const AdminSystemHealthPage: React.FC = () => {
       )}
 
       {/* Unified Log Explorer */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
           <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, maxWidth: '380px' }}>
             <div style={{ position: 'relative', width: '100%' }}>
               <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -106,10 +106,10 @@ export const AdminSystemHealthPage: React.FC = () => {
                 placeholder="Filter logs..."
                 value={logSearch}
                 onChange={e => setLogSearch(e.target.value)}
-                style={{ width: '100%', padding: '6px 10px 6px 32px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
+                style={{ width: '100%', padding: '6px 10px 6px 32px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', outline: 'none' }}
               />
             </div>
-            <button type="submit" style={{ padding: '6px 12px', background: '#6d855f', color: 'var(--text-main)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+            <button type="submit" style={{ padding: '6px 12px', background: 'var(--bg-subtle)', color: 'var(--text-main)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
               Filter
             </button>
           </form>
@@ -118,7 +118,7 @@ export const AdminSystemHealthPage: React.FC = () => {
             <select
               value={severityFilter}
               onChange={e => setSeverityFilter(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '12px' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '12px' }}
             >
               <option value="all">All Severities</option>
               <option value="info">Info</option>
@@ -131,7 +131,7 @@ export const AdminSystemHealthPage: React.FC = () => {
             <select
               value={subsystemFilter}
               onChange={e => setSubsystemFilter(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '12px' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '12px' }}
             >
               <option value="all">All Subsystems</option>
               <option value="security">Security</option>
@@ -145,7 +145,7 @@ export const AdminSystemHealthPage: React.FC = () => {
         <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Loader2 size={24} className="spin-animate" style={{ margin: '0 auto 8px', color: '#6d855f' }} />
+              <Loader2 size={24} className="spin-animate" style={{ margin: '0 auto 8px', color: 'var(--primary-text)' }} />
               <span style={{ fontSize: '13px' }}>Streaming logs...</span>
             </div>
           ) : logs.length === 0 ? (
@@ -158,7 +158,7 @@ export const AdminSystemHealthPage: React.FC = () => {
                 key={log.id}
                 style={{
                   padding: '12px 20px',
-                  borderBottom: '1px solid #f0f1e9',
+                  borderBottom: '1px solid var(--bg-subtle)',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '14px',
@@ -173,8 +173,8 @@ export const AdminSystemHealthPage: React.FC = () => {
                     fontSize: '10px',
                     fontWeight: 700,
                     textTransform: 'uppercase',
-                    backgroundColor: log.severity === 'high' || log.severity === 'critical' ? '#fee2e2' : log.severity === 'medium' ? '#fef3c7' : '#f0f1e9',
-                    color: log.severity === 'high' || log.severity === 'critical' ? '#b91c1c' : log.severity === 'medium' ? '#b45309' : '#687164',
+                    backgroundColor: log.severity === 'high' || log.severity === 'critical' ? 'var(--bg-subtle)' : log.severity === 'medium' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                    color: log.severity === 'high' || log.severity === 'critical' ? 'var(--danger-text)' : log.severity === 'medium' ? 'var(--primary-text)' : 'var(--text-main)',
                     flexShrink: 0
                   }}
                 >

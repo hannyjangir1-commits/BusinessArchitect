@@ -59,7 +59,7 @@ def get_system_configuration(
 
     # Deployment environment flags (never expose secret values!)
     environment_status = [
-        {"name": "GEMINI_API_KEY", "configured": bool(settings.GEMINI_API_KEY), "category": "AI Services"},
+        {"name": "GEMINI_API_KEYS", "configured": bool(settings.GEMINI_API_KEYS), "category": "AI Services"},
         {"name": "DATABASE_URL", "configured": bool(settings.DATABASE_URL), "category": "Storage"},
         {"name": "SESSION_SECRET", "configured": bool(settings.SESSION_SECRET), "category": "Security"},
         {"name": "APP_ENV", "configured": True, "value": settings.APP_ENV, "category": "Deployment"},

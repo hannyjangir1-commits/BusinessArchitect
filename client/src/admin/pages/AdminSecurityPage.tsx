@@ -70,7 +70,7 @@ export const AdminSecurityPage: React.FC = () => {
         </div>
         <button
           onClick={fetchSecurityData}
-          style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
         >
           <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
           <span>Refresh</span>
@@ -78,7 +78,7 @@ export const AdminSecurityPage: React.FC = () => {
       </div>
 
       {/* Active Sessions Card */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '28px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 2px' }}>
@@ -90,7 +90,7 @@ export const AdminSecurityPage: React.FC = () => {
           </div>
           <button
             onClick={handleRevokeAllSessions}
-            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--bg-subtle)', background: 'var(--bg-subtle)', color: 'var(--danger-text)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
           >
             Revoke All Other Sessions
           </button>
@@ -99,7 +99,7 @@ export const AdminSecurityPage: React.FC = () => {
         <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700 }}>
+              <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700 }}>
                 <th style={{ padding: '10px 14px' }}>User</th>
                 <th style={{ padding: '10px 14px' }}>Role</th>
                 <th style={{ padding: '10px 14px' }}>Created</th>
@@ -109,11 +109,11 @@ export const AdminSecurityPage: React.FC = () => {
             </thead>
             <tbody>
               {sessions.map(s => (
-                <tr key={s.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                <tr key={s.id} style={{ borderBottom: '1px solid var(--bg-subtle)' }}>
                   <td style={{ padding: '10px 14px' }}>
                     <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{s.username}</span>
                     {s.is_current && (
-                      <span style={{ marginLeft: '8px', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#e8ede2', color: '#5d7550', fontSize: '10px', fontWeight: 700 }}>
+                      <span style={{ marginLeft: '8px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'var(--bg-subtle)', color: 'var(--primary-text)', fontSize: '10px', fontWeight: 700 }}>
                         CURRENT
                       </span>
                     )}
@@ -127,7 +127,7 @@ export const AdminSecurityPage: React.FC = () => {
                     {!s.is_current && (
                       <button
                         onClick={() => handleRevokeSession(s.id)}
-                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #fecaca', background: '#ffffff', color: '#dc2626', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--bg-subtle)', background: 'var(--bg-card)', color: 'var(--danger-text)', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
                       >
                         Revoke
                       </button>
@@ -141,8 +141,8 @@ export const AdminSecurityPage: React.FC = () => {
       </div>
 
       {/* Security Events Stream */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
             Security Events & Incident Trail ({totalEvents})
           </h3>
@@ -152,7 +152,7 @@ export const AdminSecurityPage: React.FC = () => {
               setSeverityFilter(e.target.value);
               setPage(1);
             }}
-            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '12px' }}
+            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '12px' }}
           >
             <option value="all">All Severities</option>
             <option value="info">Info</option>
@@ -170,7 +170,7 @@ export const AdminSecurityPage: React.FC = () => {
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+              <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 18px' }}>Severity</th>
                 <th style={{ padding: '12px 18px' }}>Event Type</th>
                 <th style={{ padding: '12px 18px' }}>Request Path</th>
@@ -180,7 +180,7 @@ export const AdminSecurityPage: React.FC = () => {
             </thead>
             <tbody>
               {events.map(ev => (
-                <tr key={ev.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                <tr key={ev.id} style={{ borderBottom: '1px solid var(--bg-subtle)' }}>
                   <td style={{ padding: '12px 18px' }}>
                     <span
                       style={{
@@ -189,8 +189,8 @@ export const AdminSecurityPage: React.FC = () => {
                         fontSize: '11px',
                         fontWeight: 700,
                         textTransform: 'uppercase',
-                        backgroundColor: ev.severity === 'high' || ev.severity === 'critical' ? '#fee2e2' : ev.severity === 'medium' ? '#fef3c7' : '#f0f1e9',
-                        color: ev.severity === 'high' || ev.severity === 'critical' ? '#b91c1c' : ev.severity === 'medium' ? '#b45309' : '#687164'
+                        backgroundColor: ev.severity === 'high' || ev.severity === 'critical' ? 'var(--bg-subtle)' : ev.severity === 'medium' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                        color: ev.severity === 'high' || ev.severity === 'critical' ? 'var(--danger-text)' : ev.severity === 'medium' ? 'var(--primary-text)' : 'var(--text-main)'
                       }}
                     >
                       {ev.severity}

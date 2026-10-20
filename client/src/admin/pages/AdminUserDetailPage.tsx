@@ -39,7 +39,7 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
   if (loading) {
     return (
       <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+        <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
         <p style={{ margin: 0 }}>Loading user diagnostics...</p>
       </div>
     );
@@ -47,9 +47,9 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
 
   if (error || !data) {
     return (
-      <div style={{ padding: '30px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', color: '#991b1b' }}>
+      <div style={{ padding: '30px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: '12px', color: 'var(--danger-text)' }}>
         <p>{error || 'User not found'}</p>
-        <button onClick={onBack} style={{ padding: '6px 12px', background: '#dc2626', color: 'var(--text-main)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+        <button onClick={onBack} style={{ padding: '6px 12px', background: 'var(--danger-text)', color: 'var(--text-main)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
           Back to Directory
         </button>
       </div>
@@ -69,7 +69,7 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
           gap: '8px',
           background: 'none',
           border: 'none',
-          color: '#6d855f',
+          color: 'var(--primary-text)',
           fontSize: '13px',
           fontWeight: 600,
           cursor: 'pointer',
@@ -80,7 +80,7 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
       </button>
 
       {/* User Header Profile Card */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div
@@ -88,8 +88,8 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
                 width: '56px',
                 height: '56px',
                 borderRadius: '50%',
-                backgroundColor: '#e8ede2',
-                color: '#5d7550',
+                backgroundColor: 'var(--bg-subtle)',
+                color: 'var(--primary-text)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -108,31 +108,31 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
                     borderRadius: '4px',
                     fontSize: '11px',
                     fontWeight: 700,
-                    backgroundColor: user.role === 'super_admin' ? '#e8ede2' : '#e8ede2',
-                    color: user.role === 'super_admin' ? '#5d7550' : '#5d7550'
+                    backgroundColor: user.role === 'super_admin' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                    color: user.role === 'super_admin' ? 'var(--primary-text)' : 'var(--primary-text)'
                   }}
                 >
                   {user.role.toUpperCase()}
                 </span>
                 {user.is_suspended ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '12px', fontWeight: 600 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--danger-text)', fontSize: '12px', fontWeight: 600 }}>
                     <Ban size={14} /> Suspended
                   </span>
                 ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontSize: '12px', fontWeight: 600 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-text)', fontSize: '12px', fontWeight: 600 }}>
                     <CheckCircle size={14} /> Active
                   </span>
                 )}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {user.email} • ID: <code style={{ backgroundColor: '#f0f1e9', padding: '1px 4px', borderRadius: '4px' }}>{user.id}</code>
+                {user.email} • ID: <code style={{ backgroundColor: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: '4px' }}>{user.id}</code>
               </div>
             </div>
           </div>
         </div>
 
         {/* Metadata Details Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #f0f1e9' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--bg-subtle)' }}>
           <div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Registered Date</div>
             <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginTop: '2px' }}>{new Date(user.created_at).toLocaleString()}</div>
@@ -155,9 +155,9 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
       </div>
 
       {/* Projects Owned Card */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', marginBottom: '24px' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <FolderKanban size={18} style={{ color: '#6d855f' }} />
+          <FolderKanban size={18} style={{ color: 'var(--primary-text)' }} />
           Projects Owned ({projects.length})
         </h3>
 
@@ -170,24 +170,24 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
                 key={p.id}
                 onClick={() => onSelectProject(p.id)}
                 style={{
-                  border: '1px solid #dfe2d6',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '8px',
                   padding: '16px',
                   cursor: 'pointer',
                   transition: 'border-color 0.15s, box-shadow 0.15s'
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = '#6d855f';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(109, 133, 95, 0.08)';
+                  e.currentTarget.style.borderColor = 'var(--primary-text)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgb(69 60 55 / 0.08)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = '#dfe2d6';
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               >
                 <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>{p.name}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  <span style={{ backgroundColor: '#f0f1e9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{p.stage}</span>
+                  <span style={{ backgroundColor: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{p.stage}</span>
                   <span>•</span>
                   <span>Active: {p.active_module}</span>
                 </div>
@@ -200,9 +200,9 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
       {/* Security & Audit Events Side-by-Side */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
         {/* Recent Security Incidents */}
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
           <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShieldAlert size={16} style={{ color: '#f59e0b' }} />
+            <ShieldAlert size={16} style={{ color: 'var(--primary-text)' }} />
             Security Events
           </h4>
           {security_events.length === 0 ? (
@@ -210,7 +210,7 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {security_events.map((s: any) => (
-                <div key={s.id} style={{ padding: '8px 12px', backgroundColor: '#f7f6ef', borderRadius: '6px', fontSize: '12px', borderLeft: `3px solid ${s.severity === 'high' ? '#ef4444' : '#6d855f'}` }}>
+                <div key={s.id} style={{ padding: '8px 12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '6px', fontSize: '12px', borderLeft: `3px solid ${s.severity === 'high' ? 'var(--danger-text)' : 'var(--primary-text)'}` }}>
                   <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{s.event_type}</div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{new Date(s.created_at).toLocaleString()} • IP: {s.ip_address || 'unknown'}</div>
                 </div>
@@ -220,9 +220,9 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
         </div>
 
         {/* Administrative Audit Actions */}
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
           <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ClipboardList size={16} style={{ color: '#6d855f' }} />
+            <ClipboardList size={16} style={{ color: 'var(--primary-text)' }} />
             Admin Action History
           </h4>
           {audit_logs.length === 0 ? (
@@ -230,7 +230,7 @@ export const AdminUserDetailPage: React.FC<AdminUserDetailPageProps> = ({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {audit_logs.map((a: any) => (
-                <div key={a.id} style={{ padding: '8px 12px', backgroundColor: '#f7f6ef', borderRadius: '6px', fontSize: '12px' }}>
+                <div key={a.id} style={{ padding: '8px 12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '6px', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{a.action} ({a.outcome})</div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{a.reason || 'No reason provided'}</div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>{new Date(a.created_at).toLocaleString()}</div>

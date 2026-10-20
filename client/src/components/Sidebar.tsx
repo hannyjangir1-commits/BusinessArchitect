@@ -144,7 +144,7 @@ export const Sidebar: React.FC<Props> = ({
           title="Export Project (PDF)"
         >
           <div className="export-project-btn-left">
-            <div style={{ marginTop: 2, color: '#82936d' }}>
+            <div style={{ marginTop: 2, color: 'var(--text-muted)' }}>
               <Layers size={18} />
             </div>
             {!isCollapsed && (
@@ -154,7 +154,7 @@ export const Sidebar: React.FC<Props> = ({
               </div>
             )}
           </div>
-          {!isCollapsed && <ArrowRight size={15} color="#82936d" />}
+          {!isCollapsed && <ArrowRight size={15} color="var(--text-muted)" />}
         </button>
 
         <button

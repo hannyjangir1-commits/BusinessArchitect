@@ -264,7 +264,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                   textAlign: 'left'
                 }}
               >
-                <UserCheck size={14} color="#6d855f" /> Profile & Settings
+                <UserCheck size={14} color="var(--primary-text)" /> Profile & Settings
               </button>
 
               {user.role && user.role !== 'user' && (
@@ -282,7 +282,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                     gap: 8,
                     border: 'none',
                     background: 'transparent',
-                    color: '#6d855f',
+                    color: 'var(--primary-text)',
                     fontSize: 12.5,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -306,7 +306,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                   gap: 8,
                   border: 'none',
                   background: 'transparent',
-                  color: '#ef4444',
+                  color: 'var(--danger-text)',
                   fontSize: 12.5,
                   fontWeight: 600,
                   cursor: 'pointer',

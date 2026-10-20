@@ -77,7 +77,7 @@ export const VersionToolbar: React.FC<Props> = ({
           className="btn-secondary"
           onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
         >
-          <Download size={14} color="#6d855f" />
+          <Download size={14} color="var(--primary-text)" />
           <span>Export This Module</span>
           <ChevronDown size={14} />
         </button>
@@ -246,7 +246,9 @@ export const VersionToolbar: React.FC<Props> = ({
             </div>
             <div className="modal-body">
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-                Each section maintains up to 5 saved versions. Restore an older snapshot here. Use the module header's Delete button to delete the active version.
+                Each section maintains up to 5 saved versions. Restore an older snapshot here. {versions.length > 1
+                  ? "The module header's Delete button removes only the current version."
+                  : "The module header's Delete button removes this module and its saved data."}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
                 {versions.map((v) => (
@@ -258,7 +260,7 @@ export const VersionToolbar: React.FC<Props> = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span className="version-history-entry-name">{v.version_name}</span>
                         {v.is_active && (
-                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--primary)', color: 'var(--text-main)', padding: '1px 6px', borderRadius: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--primary)', color: 'var(--paper)', padding: '1px 6px', borderRadius: 4 }}>
                             Active
                           </span>
                         )}

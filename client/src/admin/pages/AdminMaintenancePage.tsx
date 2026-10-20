@@ -68,7 +68,7 @@ export const AdminMaintenancePage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Wrench size={26} color="#6d855f" />
+            <Wrench size={26} color="var(--primary-text)" />
             Maintenance Center
           </h1>
           <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
@@ -85,7 +85,7 @@ export const AdminMaintenancePage: React.FC = () => {
             padding: '8px 16px',
             backgroundColor: 'var(--bg-subtle)',
             color: 'var(--text-main)',
-            border: '1px solid #687164',
+            border: '1px solid var(--text-main)',
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
@@ -107,9 +107,9 @@ export const AdminMaintenancePage: React.FC = () => {
             gap: '10px',
             fontSize: '13px',
             fontWeight: 500,
-            backgroundColor: msg.type === 'success' ? '#e8ede2' : '#f9eae6',
-            border: `1px solid ${msg.type === 'success' ? '#cfd7c6' : '#e8c6bf'}`,
-            color: msg.type === 'success' ? '#52624a' : '#9a5146'
+            backgroundColor: msg.type === 'success' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+            border: `1px solid ${msg.type === 'success' ? 'var(--border-color)' : 'var(--border-color)'}`,
+            color: msg.type === 'success' ? 'var(--text-main)' : 'var(--danger-text)'
           }}
         >
           {msg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -119,7 +119,7 @@ export const AdminMaintenancePage: React.FC = () => {
 
       {loading ? (
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+          <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
           Loading maintenance status...
         </div>
       ) : (
@@ -139,7 +139,7 @@ export const AdminMaintenancePage: React.FC = () => {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Power size={20} color={status?.maintenance_mode_active ? '#ef4444' : '#10b981'} />
+                  <Power size={20} color={status?.maintenance_mode_active ? 'var(--danger-text)' : 'var(--primary-text)'} />
                   <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
                     Platform Maintenance Mode
                   </h2>
@@ -151,9 +151,9 @@ export const AdminMaintenancePage: React.FC = () => {
                     gap: '4px',
                     padding: '4px 12px',
                     borderRadius: '999px',
-                    backgroundColor: status?.maintenance_mode_active ? '#f9eae6' : '#e8ede2',
-                    border: `1px solid ${status?.maintenance_mode_active ? '#e8c6bf' : '#cfd7c6'}`,
-                    color: status?.maintenance_mode_active ? '#9a5146' : '#52624a',
+                    backgroundColor: status?.maintenance_mode_active ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                    border: `1px solid ${status?.maintenance_mode_active ? 'var(--border-color)' : 'var(--border-color)'}`,
+                    color: status?.maintenance_mode_active ? 'var(--danger-text)' : 'var(--text-main)',
                     fontSize: '11px',
                     fontWeight: 700,
                     textTransform: 'uppercase'
@@ -179,7 +179,7 @@ export const AdminMaintenancePage: React.FC = () => {
                     width: '100%',
                     padding: '9px 12px',
                     backgroundColor: 'var(--bg-subtle)',
-                    border: '1px solid #687164',
+                    border: '1px solid var(--text-main)',
                     borderRadius: '8px',
                     color: 'var(--text-main)',
                     fontSize: '13px',
@@ -204,7 +204,7 @@ export const AdminMaintenancePage: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    backgroundColor: '#059669',
+                    backgroundColor: 'var(--bg-subtle)',
                     color: 'var(--text-main)',
                     border: 'none',
                     borderRadius: '8px',
@@ -227,7 +227,7 @@ export const AdminMaintenancePage: React.FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    backgroundColor: '#dc2626',
+                    backgroundColor: 'var(--danger-text)',
                     color: 'var(--text-main)',
                     border: 'none',
                     borderRadius: '8px',
@@ -261,7 +261,7 @@ export const AdminMaintenancePage: React.FC = () => {
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                <Trash2 size={20} color="#f59e0b" />
+                <Trash2 size={20} color="var(--primary-text)" />
                 <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-main)' }}>
                   Expired Session Housekeeping
                 </h2>
@@ -276,7 +276,7 @@ export const AdminMaintenancePage: React.FC = () => {
                   padding: '20px',
                   backgroundColor: 'var(--bg-subtle)',
                   borderRadius: '10px',
-                  border: '1px solid #687164',
+                  border: '1px solid var(--text-main)',
                   textAlign: 'center',
                   marginBottom: '20px'
                 }}
@@ -297,8 +297,8 @@ export const AdminMaintenancePage: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  backgroundColor: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? '#687164' : '#f59e0b',
-                  color: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? '#687164' : '#000000',
+                  backgroundColor: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? 'var(--text-main)' : 'var(--primary-text)',
+                  color: (status?.expired_sessions_pending_cleanup ?? 0) === 0 ? 'var(--text-main)' : 'var(--text-main)',
                   border: 'none',
                   borderRadius: '8px',
                   fontWeight: 600,

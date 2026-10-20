@@ -42,14 +42,9 @@ def send_chat_message(
 
     history_dicts = [{"role": m.role, "content": m.content} for m in past_messages]
 
-    # Gather any completed module summaries for deeper context
-    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
-    active_module_summaries = {}
-    for m in modules:
-        if m.active_version_id:
-            ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
-            if ver and ver.data:
-                active_module_summaries[m.module_type] = ver.data
+    # Read authorized snapshots without changing any source module.
+    from app.services.project_context_service import read_project_context
+    active_module_summaries, context_sources = read_project_context(db, project.id)
 
     proj_info = {
         "name": project.name,
@@ -57,13 +52,16 @@ def send_chat_message(
         "industry": project.industry,
         "description": project.description,
         "goals": project.goals,
+        "budget": project.budget,
+        "business_context": project.business_context,
         "existing_stack": project.existing_stack,
         "target_customers": project.target_customers,
-        "generated_modules": list(active_module_summaries.keys())
+        "generated_modules": list(active_module_summaries.keys()),
+        "context_sources": context_sources
     }
 
     try:
-        reply_text = ai_service.chat_copilot(proj_info, history_dicts, req.message)
+        reply_text = ai_service.chat_copilot(proj_info, history_dicts, req.message, cross_module_context=active_module_summaries)
         assistant_msg = CopilotMessage(
             project_id=project.id,
             role="assistant",

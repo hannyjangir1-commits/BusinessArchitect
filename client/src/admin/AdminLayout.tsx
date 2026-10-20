@@ -41,18 +41,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   }, []);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: 'var(--bg-subtle)', fontFamily: 'var(--font-family)' }}>
+    <div className="admin-shell" style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: 'var(--bg-subtle)', fontFamily: 'var(--font-family)' }}>
       {/* Sidebar */}
       <AdminSidebar
         currentPath={currentPath}
         onNavigate={onNavigate}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        adminRole={adminUser?.role || 'super_admin'}
+        adminRole={adminUser?.role || 'user'}
       />
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', backgroundColor: '#f7f6ef' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-subtle)' }}>
         {/* Top Header */}
         <AdminHeader
           currentPath={currentPath}
@@ -64,7 +64,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         />
 
         {/* Scrollable Content Viewport */}
-        <main style={{ flex: 1, overflowY: 'auto', padding: '28px 36px', position: 'relative' }}>
+        <main className="admin-content" style={{ flex: 1, overflowY: 'auto', padding: '28px 36px', position: 'relative' }}>
           {children}
         </main>
       </div>

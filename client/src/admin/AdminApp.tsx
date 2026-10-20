@@ -30,40 +30,43 @@ export const AdminApp: React.FC<AdminAppProps> = ({ adminUser, onLogout, initial
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname || '/admin');
+      setSelectedUserId(null);
+      setSelectedProjectId(null);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleSelectUser = (userId: string) => {
-    setSelectedUserId(userId);
+    navigate(`/admin/users/${encodeURIComponent(userId)}`);
   };
 
   const handleSelectProject = (projectId: string) => {
-    setSelectedProjectId(projectId);
+    navigate(`/admin/projects/${encodeURIComponent(projectId)}`);
   };
 
   const renderContent = () => {
+    const routeUserId = currentPath.match(/^\/admin\/users\/([^/]+)$/)?.[1];
+    const routeProjectId = currentPath.match(/^\/admin\/projects\/([^/]+)$/)?.[1];
     // If a specific user detail is open
-    if (selectedUserId) {
+    if (selectedUserId || routeUserId) {
       return (
         <AdminUserDetailPage
-          userId={selectedUserId}
-          onBack={() => setSelectedUserId(null)}
+          userId={selectedUserId || decodeURIComponent(routeUserId!)}
+          onBack={() => navigate('/admin/users')}
           onSelectProject={(projId) => {
-            setSelectedUserId(null);
-            setSelectedProjectId(projId);
+            navigate(`/admin/projects/${encodeURIComponent(projId)}`);
           }}
         />
       );
     }
 
     // If a specific project detail is open
-    if (selectedProjectId) {
+    if (selectedProjectId || routeProjectId) {
       return (
         <AdminProjectDetailPage
-          projectId={selectedProjectId}
-          onBack={() => setSelectedProjectId(null)}
+          projectId={selectedProjectId || decodeURIComponent(routeProjectId!)}
+          onBack={() => navigate('/admin/projects')}
         />
       );
     }
@@ -82,7 +85,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ adminUser, onLogout, initial
       case '/admin/account':
         return <AdminAccountPage />;
       default:
-        return <AdminDashboardPage onNavigate={navigate} />;
+        return <div className="card"><h1>This administration page is unavailable</h1><p>Choose an available area from the navigation.</p><button className="btn-secondary" onClick={() => navigate('/admin')}>Open dashboard</button></div>;
     }
   };
 

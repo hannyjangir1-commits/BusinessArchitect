@@ -213,11 +213,11 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
           {teamMembers.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
               {teamMembers.map((m, idx) => (
-                <div key={idx} style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: 6, padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{m.name}</span>
-                  <span style={{ color: '#6d855f' }}>({m.roles.join(', ') || 'General'})</span>
+                  <span style={{ color: 'var(--primary-text)' }}>({m.roles.join(', ') || 'General'})</span>
                   <span style={{ color: 'var(--text-muted)' }}>[{m.department || 'General'}]</span>
-                  <button type="button" onClick={() => handleRemoveMember(idx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }}>
+                  <button type="button" onClick={() => handleRemoveMember(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger-text)', cursor: 'pointer', padding: 2 }}>
                     &times;
                   </button>
                 </div>
@@ -292,7 +292,7 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
         <button type="submit" className="btn-primary" disabled={busy || isDisabled || !startDate}>
-          {busy ? <><Loader2 size={15} className="animate-spin" /> {progress ? `${progress.stageText} (${progress.progressPercent}%)` : 'Generating roadmap...'}</> : <><Calendar size={15} /> <Sparkles size={14} /> Generate tailored roadmap</>}
+          {busy ? <><Loader2 size={15} className="animate-spin" /> {progress ? `${progress.stageText}` : 'Generating roadmap...'}</> : <><Calendar size={15} /> <Sparkles size={14} /> Generate tailored roadmap</>}
         </button>
       </div>
     </form>

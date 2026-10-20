@@ -1,5 +1,7 @@
-import React from 'react';
-import { Project, ModuleDetail, TechStackData } from '../types';
+import React, { useRef, useState } from 'react';
+import { downloadSvg } from '../utils/svgExport';
+import { Project, ModuleDetail, TechStackData, TechStackPlanningInputs } from '../types';
+import { TechStackPlanningForm } from './TechStackPlanningForm';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
 import { ArchitectureInfographic } from './ArchitectureInfographic';
@@ -8,7 +10,7 @@ import { Cpu, Sparkles, Layers, ShieldCheck, Server, Database, Cloud, Terminal, 
 interface Props {
   project: Project;
   moduleDetail: ModuleDetail<TechStackData> | null;
-  onGenerate: () => Promise<void>;
+  onGenerate: (inputs: TechStackPlanningInputs) => Promise<void>;
   onModify: (instruction: string) => Promise<void>;
   onRenameVersion: (newName: string) => Promise<void>;
   onDeleteVersion: (versionId: string) => Promise<void>;
@@ -39,27 +41,19 @@ export const TechStackModule: React.FC<Props> = ({
   isGenerateDisabled = false
 }) => {
   const techData = moduleDetail?.data;
+  const [showPlanner, setShowPlanner] = useState(!techData);
 
+  const diagramRef = useRef<HTMLDivElement>(null);
   const handleDownloadSvg = () => {
-    const svgEl = document.querySelector('.workspace-main-column svg');
-    if (!svgEl) return;
-    const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svgEl);
-    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_tech_stack_architecture.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const diagram = diagramRef.current?.querySelector<SVGSVGElement>('svg[data-architecture-diagram]');
+    if (diagram) downloadSvg(diagram, `${project.name.replace(/[^a-z0-9_-]/gi, '_')}_architecture.svg`);
   };
 
-  if (!techData) {
+  if (!techData || showPlanner) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e8ede2', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+      <div style={{ display: 'grid', gap: 16 }}>
+        {techData && <button className="btn-secondary" onClick={() => setShowPlanner(false)} style={{ justifySelf: 'start' }}>Back to current stack</button>}
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <Cpu size={28} />
         </div>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
@@ -68,23 +62,7 @@ export const TechStackModule: React.FC<Props> = ({
         <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
           Synthesize an enterprise-ready technology stack blueprint evaluated for {project.name}'s stage ({project.stage}) and existing technical assets.
         </p>
-        <button
-          onClick={onGenerate}
-          className="btn-primary"
-          disabled={isLoading || isGenerating || isGenerateDisabled}
-          style={{ margin: '0 auto' }}
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Synthesizing Architecture...'}
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} /> Generate Technology Stack Blueprint
-            </>
-          )}
-        </button>
+        <TechStackPlanningForm initialValues={techData?.planning_inputs} isGenerating={isGenerating} isDisabled={isLoading || isGenerateDisabled} progress={generationProgress} onSubmit={async (inputs) => { await onGenerate(inputs); setShowPlanner(false); }} onCancel={techData ? () => setShowPlanner(false) : undefined} />
       </div>
     );
   }
@@ -138,7 +116,7 @@ export const TechStackModule: React.FC<Props> = ({
           onRestore={onRestoreVersion}
           onExportPdf={onExportPdf}
           onExportSvg={handleDownloadSvg}
-          onCreateNew={onCreateNew}
+          onCreateNew={async () => { setShowPlanner(true); await Promise.resolve(); }}
           onDeleteModule={onDeleteModule}
           createLabel="Create New Stack"
           isBusy={isLoading || isGenerating}
@@ -147,7 +125,7 @@ export const TechStackModule: React.FC<Props> = ({
       </div>
 
       <div className="workspace-grid">
-        <div className="workspace-main-column">
+        <div className="workspace-main-column" ref={diagramRef}>
           {/* Dedicated Vector SVG Architecture Blueprint Infographic */}
           <ArchitectureInfographic
             techData={techData}
@@ -157,9 +135,9 @@ export const TechStackModule: React.FC<Props> = ({
           />
 
           {/* Architectural Summary Banner */}
-          <div className="card" style={{ background: 'var(--bg-card)', borderLeft: '4px solid #6d855f' }}>
+          <div className="card" style={{ background: 'var(--bg-card)', borderLeft: '4px solid var(--primary-text)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#6d855f' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--primary-text)' }}>
                 Architectural Blueprint
               </span>
               <span className="stage-badge-purple">
@@ -209,7 +187,7 @@ export const TechStackModule: React.FC<Props> = ({
                 <div key={idx} className="card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 6, background: 'rgba(109, 133, 95, 0.15)', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 6, background: 'rgb(69 60 55 / 0.15)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Icon size={16} />
                       </div>
                       <div>
@@ -248,7 +226,7 @@ export const TechStackModule: React.FC<Props> = ({
           moduleTitle="Technology Stack"
           moduleType="tech_stack"
           onModify={onModify}
-          isLoading={isLoading}
+          isLoading={isLoading || isGenerating}
         />
       </div>
     </div>

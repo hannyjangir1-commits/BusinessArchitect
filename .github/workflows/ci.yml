@@ -51,6 +51,7 @@ jobs:
           SESSION_SECRET: test-session-secret-key-minimum-32-chars-long
           COOKIE_SECURE: "false"
           ADMIN_BOOTSTRAP_ENABLED: "false"
+          GEMINI_API_KEYS: ""
           GEMINI_API_KEY: ""
         run: |
           cd server

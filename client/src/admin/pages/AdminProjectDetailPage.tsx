@@ -37,7 +37,7 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
   if (loading) {
     return (
       <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+        <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
         <p style={{ margin: 0 }}>Loading project architecture diagnostics...</p>
       </div>
     );
@@ -45,9 +45,9 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
 
   if (error || !data) {
     return (
-      <div style={{ padding: '30px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', color: '#991b1b' }}>
+      <div style={{ padding: '30px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: '12px', color: 'var(--danger-text)' }}>
         <p>{error || 'Project not found'}</p>
-        <button onClick={onBack} style={{ padding: '6px 12px', background: '#dc2626', color: 'var(--text-main)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+        <button onClick={onBack} style={{ padding: '6px 12px', background: 'var(--danger-text)', color: 'var(--text-main)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
           Back to Projects Console
         </button>
       </div>
@@ -60,18 +60,18 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <button
         onClick={onBack}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#6d855f', fontSize: '13px', fontWeight: 600, cursor: 'pointer', marginBottom: '20px' }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: 'var(--primary-text)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', marginBottom: '20px' }}
       >
         <ArrowLeft size={16} /> Back to Projects Console
       </button>
 
       {/* Project Overview Card */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>{project.name}</h2>
-              <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, backgroundColor: '#f0f1e9', color: 'var(--text-main)' }}>
+              <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, backgroundColor: 'var(--bg-subtle)', color: 'var(--text-main)' }}>
                 {project.stage}
               </span>
             </div>
@@ -82,22 +82,22 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
           <div style={{ display: 'flex', gap: '16px' }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Active Module</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#6d855f' }}>{project.active_module}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary-text)' }}>{project.active_module}</div>
             </div>
           </div>
         </div>
 
         {project.description && (
-          <p style={{ marginTop: '16px', fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.5, borderTop: '1px solid #f0f1e9', paddingTop: '16px', margin: '16px 0 0' }}>
+          <p style={{ marginTop: '16px', fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.5, borderTop: '1px solid var(--bg-subtle)', paddingTop: '16px', margin: '16px 0 0' }}>
             {project.description}
           </p>
         )}
       </div>
 
       {/* Modules Summary Grid */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', marginBottom: '24px' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Layers size={18} style={{ color: '#6d855f' }} />
+          <Layers size={18} style={{ color: 'var(--primary-text)' }} />
           Saved Enterprise Modules ({modules.length})
         </h3>
 
@@ -106,12 +106,12 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
             {modules.map((m: any) => (
-              <div key={m.id} style={{ border: '1px solid #dfe2d6', borderRadius: '8px', padding: '16px', backgroundColor: '#f7f6ef' }}>
+              <div key={m.id} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px', backgroundColor: 'var(--bg-subtle)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
                     {m.module_type.replace('_', ' ').toUpperCase()}
                   </span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#6d855f', backgroundColor: '#e8ede2', padding: '1px 6px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--primary-text)', backgroundColor: 'var(--bg-subtle)', padding: '1px 6px', borderRadius: '4px' }}>
                     {m.version_count} / 5 vers
                   </span>
                 </div>
@@ -130,31 +130,31 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
       {/* Roadmap & Copilot Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', marginBottom: '24px' }}>
         {/* Task Breakdown */}
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
           <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckSquare size={16} style={{ color: '#7a916a' }} />
+            <CheckSquare size={16} style={{ color: 'var(--text-muted)' }} />
             Execution Roadmap Tasks ({task_stats.total})
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center' }}>
-            <div style={{ padding: '12px', backgroundColor: '#fef3c7', borderRadius: '8px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#b45309' }}>{task_stats.pending}</div>
-              <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600 }}>Pending</div>
+            <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary-text)' }}>{task_stats.pending}</div>
+              <div style={{ fontSize: '11px', color: 'var(--primary-text)', fontWeight: 600 }}>Pending</div>
             </div>
-            <div style={{ padding: '12px', backgroundColor: '#edf0e7', borderRadius: '8px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#5d7550' }}>{task_stats.in_progress}</div>
-              <div style={{ fontSize: '11px', color: '#5d7550', fontWeight: 600 }}>In Progress</div>
+            <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary-text)' }}>{task_stats.in_progress}</div>
+              <div style={{ fontSize: '11px', color: 'var(--primary-text)', fontWeight: 600 }}>In Progress</div>
             </div>
-            <div style={{ padding: '12px', backgroundColor: '#dcfce7', borderRadius: '8px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#15803d' }}>{task_stats.finished}</div>
-              <div style={{ fontSize: '11px', color: '#166534', fontWeight: 600 }}>Finished</div>
+            <div style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', borderRadius: '8px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary-text)' }}>{task_stats.finished}</div>
+              <div style={{ fontSize: '11px', color: 'var(--primary-text)', fontWeight: 600 }}>Finished</div>
             </div>
           </div>
         </div>
 
         {/* Copilot Activity */}
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
           <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <MessageSquare size={16} style={{ color: '#a68757' }} />
+            <MessageSquare size={16} style={{ color: 'var(--primary-text)' }} />
             Blueprint Copilot Chat
           </h4>
           <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)' }}>
@@ -169,7 +169,7 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
       {/* Recent Generation Operations */}
       <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
         <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Cpu size={16} style={{ color: '#6d855f' }} />
+          <Cpu size={16} style={{ color: 'var(--primary-text)' }} />
           Recent Generation Operations on this Project
         </h4>
         {recent_ai_operations.length === 0 ? (
@@ -177,13 +177,13 @@ export const AdminProjectDetailPage: React.FC<AdminProjectDetailPageProps> = ({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {recent_ai_operations.map((op: any) => (
-              <div key={op.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#f7f6ef', borderRadius: '6px', fontSize: '12px' }}>
+              <div key={op.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: 'var(--bg-subtle)', borderRadius: '6px', fontSize: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{op.module_type.toUpperCase()}</span>
                   <span style={{ color: 'var(--text-muted)' }}>({op.operation_type})</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <span style={{ color: op.status === 'success' ? '#16a34a' : '#ef4444', fontWeight: 600 }}>{op.status}</span>
+                  <span style={{ color: op.status === 'success' ? 'var(--primary-text)' : 'var(--danger-text)', fontWeight: 600 }}>{op.status}</span>
                   <span style={{ color: 'var(--text-muted)' }}>{op.duration_ms}ms</span>
                   <span style={{ color: 'var(--text-muted)' }}>{new Date(op.created_at).toLocaleTimeString()}</span>
                 </div>

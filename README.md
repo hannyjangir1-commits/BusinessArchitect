@@ -39,7 +39,7 @@ An enterprise-grade business planning platform that transforms venture concepts 
 ### Core Technologies
 - **Frontend**: React 19, TypeScript, Vite, Vanilla CSS design system (dark sidebar, clean enterprise workspace), Lucide icons.
 - **Backend**: Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic database migrations.
-- **AI Intelligence**: Google Gemini API via official `google-genai` SDK (`gemini-3.5-flash` with candidate fallback chain).
+- **Generation intelligence**: Google Gemini API via the official `google-genai` SDK, using one explicitly configured model and a bounded credential fallback pool.
 - **Database**: Supabase PostgreSQL (pooler / direct connection with SSL mode) & SQLite fallback for zero-config test suites.
 - **Security**: Argon2id password hashing, HTTP-only SameSite session cookies (`aba_session`), cryptographic CSRF validation (`aba_csrf`), and strict user ownership enforcement on all project endpoints.
 - **Visualizations**: Code-based deterministic SVG Radial Business Model Canvas (9 blocks around center node), SVG Technology Stack tiered cards, interactive SVG Gantt chart with month/week grid, dependencies, and today marker.
@@ -117,7 +117,11 @@ cp .env.example .env
 
 | Variable | Description | Example |
 |---|---|---|
-| `GEMINI_API_KEY` | Google Gemini API Key | `AIzaSy...` |
+| `GEMINI_API_KEYS` | Comma-separated Gemini credential pool; each slot is attempted once only for credential, quota, or capacity failures | `key_one,key_two,key_three` |
+| `GEMINI_API_KEY` | Optional legacy single-key alias | `your_key` |
+| `GEMINI_MODEL` | One model used consistently across every credential slot | `gemini-3.5-flash-lite` |
+| `GEMINI_TOTAL_TIMEOUT_SECONDS` | Total deadline for one provider step across all key attempts | `90` |
+| `GEMINI_KEY_COOLDOWN_SECONDS` | Cooldown applied to a failing key before it becomes eligible again | `120` |
 | `DATABASE_URL` | Supabase PostgreSQL Connection String | `postgresql://postgres.xxx:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require` |
 | `SESSION_SECRET` | 32+ character random secret for signing | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
 | `APP_ENV` | Environment (`development` / `production`) | `production` |
@@ -215,7 +219,7 @@ The repository includes a production-ready multi-stage `Dockerfile` and `render.
 4. Render reads `render.yaml` and provisions the Web Service with Docker runtime.
 5. In the service settings, configure the following secrets under **Environment Variables**:
    - `DATABASE_URL`: Your Supabase PostgreSQL connection string.
-   - `GEMINI_API_KEY`: Your Google Gemini API key.
+   - `GEMINI_API_KEYS`: Your comma-separated Gemini credential pool.
    - `SESSION_SECRET`: Generated automatically or enter a random 32-character string.
 6. Render builds the multi-stage image, tests the health check at `/health`, and serves the full application on your `.onrender.com` domain.
 
@@ -226,7 +230,7 @@ The repository includes a production-ready multi-stage `Dockerfile` and `render.
 4. Set **Health Check Path** to `/health`.
 5. Add the required environment variables:
    - `DATABASE_URL`
-   - `GEMINI_API_KEY`
+   - `GEMINI_API_KEYS`
    - `SESSION_SECRET`
    - `APP_ENV`: `production`
    - `COOKIE_SECURE`: `true`

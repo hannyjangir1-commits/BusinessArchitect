@@ -37,7 +37,7 @@ export const VersionConflictModal: React.FC<Props> = ({
       <div className="modal-card" style={{ maxWidth: 580 }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--danger-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <AlertTriangle size={18} />
             </div>
             <div>
@@ -49,7 +49,7 @@ export const VersionConflictModal: React.FC<Props> = ({
         </div>
 
         <div className="modal-body">
-          <div style={{ padding: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: 13, color: '#92400e' }}>
+          <div style={{ padding: 12, background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 13, color: 'var(--primary-text)' }}>
             As per system policy, each module stores a maximum of 5 versions. To save your latest modification, select an existing version to replace. <b>No saved version will be silently deleted or overwritten without your explicit choice.</b>
           </div>
 
@@ -77,7 +77,7 @@ export const VersionConflictModal: React.FC<Props> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  background: selectedVersionId === v.id ? 'rgba(109, 133, 95, 0.12)' : 'var(--bg-card)',
+                  background: selectedVersionId === v.id ? 'rgb(69 60 55 / 0.12)' : 'var(--bg-card)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -97,13 +97,13 @@ export const VersionConflictModal: React.FC<Props> = ({
             ))}
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#b91c1c', fontWeight: 600, cursor: 'pointer', marginTop: 14, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--danger-text)', fontWeight: 600, cursor: 'pointer', marginTop: 14, padding: '10px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: 6 }}>
             <input
               type="checkbox"
               id="confirm-permanent-deletion-checkbox"
               checked={confirmedDeletion}
               onChange={(e) => setConfirmedDeletion(e.target.checked)}
-              style={{ width: 16, height: 16, accentColor: '#dc2626', cursor: 'pointer' }}
+              style={{ width: 16, height: 16, accentColor: 'var(--danger-text)', cursor: 'pointer' }}
             />
             <span>I confirm that <u>{selectedVersion?.version_name || 'the selected version'}</u> will be permanently removed to free up a slot for the new version.</span>
           </label>

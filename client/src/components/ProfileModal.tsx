@@ -22,7 +22,7 @@ export const ProfileModal: React.FC<Props> = ({
   // Profile fields
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
-  const [displayName, setDisplayName] = useState(() => localStorage.getItem('aba_fullname') || user.username);
+  const [displayName, setDisplayName] = useState(() => user.display_name || user.username);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export const ProfileModal: React.FC<Props> = ({
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Preferences fields
-  const [fontPref, setFontPref] = useState(() => localStorage.getItem('aba_font') || 'system');
+  const [fontPref, setFontPref] = useState(() => user.preferences?.font || 'system');
   const [prefSuccess, setPrefSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -48,8 +48,8 @@ export const ProfileModal: React.FC<Props> = ({
     setProfileSuccess(null);
 
     try {
-      localStorage.setItem('aba_fullname', displayName);
       const updated = await api.auth.updateProfile({
+        display_name: displayName,
         username: username !== user.username ? username : undefined,
         email: email !== user.email ? email : undefined
       });
@@ -96,20 +96,18 @@ export const ProfileModal: React.FC<Props> = ({
     }
   };
 
-  const handleSavePreferences = (e: React.FormEvent) => {
+  const handleSavePreferences = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('aba_font', fontPref);
-    if (fontPref === 'mono') {
-      document.body.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-    } else {
-      document.body.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    setProfileError(null);
+    try {
+      const updated = await api.auth.updateProfile({ preferences: { font: fontPref as 'system' | 'mono' } });
+      onUserUpdated?.(updated);
+      document.body.style.fontFamily = fontPref === 'mono'
+        ? 'ui-monospace, Consolas, monospace' : 'var(--font-family)';
+      setPrefSuccess(true);
+    } catch (error: any) {
+      setProfileError(error.message || 'Preferences could not be saved.');
     }
-
-    setPrefSuccess(true);
-    setTimeout(() => {
-      setPrefSuccess(false);
-      onClose();
-    }, 800);
   };
 
   return (
@@ -117,7 +115,7 @@ export const ProfileModal: React.FC<Props> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15, 23, 42, 0.65)',
+        background: 'rgb(69 60 55 / 0.65)',
         backdropFilter: 'blur(3px)',
         display: 'flex',
         alignItems: 'center',
@@ -151,8 +149,8 @@ export const ProfileModal: React.FC<Props> = ({
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: '#e8ede2',
-                color: '#6d855f',
+                background: 'var(--bg-subtle)',
+                color: 'var(--primary-text)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -233,12 +231,12 @@ export const ProfileModal: React.FC<Props> = ({
         {activeTab === 'profile' && (
           <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
             {profileSuccess && (
-              <div style={{ padding: '8px 12px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Check size={14} /> {profileSuccess}
               </div>
             )}
             {profileError && (
-              <div style={{ padding: '8px 12px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <AlertCircle size={14} /> {profileError}
               </div>
             )}
@@ -325,12 +323,12 @@ export const ProfileModal: React.FC<Props> = ({
         {activeTab === 'security' && (
           <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
             {passwordSuccess && (
-              <div style={{ padding: '8px 12px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Check size={14} /> {passwordSuccess}
               </div>
             )}
             {passwordError && (
-              <div style={{ padding: '8px 12px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <AlertCircle size={14} /> {passwordError}
               </div>
             )}

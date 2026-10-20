@@ -115,7 +115,7 @@ def api_health(response: Response):
     if not db_connected:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    is_configured = bool(settings.GEMINI_API_KEY)
+    is_configured = bool(settings.GEMINI_API_KEYS)
 
     return {
         "status": "healthy" if db_connected else "degraded",
@@ -191,7 +191,9 @@ if client_dist:
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
         # If a specific static file is requested and exists in dist, serve it
-        target_file = client_dist / full_path
+        target_file = (client_dist / full_path).resolve()
+        if not target_file.is_relative_to(client_dist.resolve()):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
         if full_path and target_file.is_file():
             return FileResponse(str(target_file))
 

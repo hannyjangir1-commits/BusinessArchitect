@@ -127,13 +127,13 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
       </div>
 
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', color: 'var(--danger-text)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
           {error}
         </div>
       )}
 
       {/* Toolbar: Search, Filters, Refresh */}
-      <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px 20px', border: '1px solid #dfe2d6', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border-color)', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, maxWidth: '400px' }}>
           <div style={{ position: 'relative', width: '100%' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -146,7 +146,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                 width: '100%',
                 padding: '8px 12px 8px 36px',
                 borderRadius: '6px',
-                border: '1px solid #d9ddcf',
+                border: '1px solid var(--border-color)',
                 fontSize: '13px',
                 outline: 'none'
               }}
@@ -154,7 +154,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
           </div>
           <button
             type="submit"
-            style={{ padding: '8px 14px', background: '#6d855f', color: 'var(--text-main)', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+            style={{ padding: '8px 14px', background: 'var(--bg-subtle)', color: 'var(--text-main)', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
           >
             Search
           </button>
@@ -170,7 +170,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', outline: 'none' }}
             >
               <option value="all">All Accounts</option>
               <option value="active">Active Only</option>
@@ -181,7 +181,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
           <button
             onClick={fetchUsers}
             title="Refresh users"
-            style={{ background: '#f7f6ef', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
             <RefreshCw size={15} style={{ color: 'var(--text-main)' }} />
           </button>
@@ -189,10 +189,10 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
       </div>
 
       {/* Users Table */}
-      <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+            <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
             <p style={{ margin: 0, fontSize: '13px' }}>Loading user directory...</p>
           </div>
         ) : users.length === 0 ? (
@@ -203,7 +203,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+              <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '14px 18px' }}>User</th>
                 <th style={{ padding: '14px 18px' }}>Role</th>
                 <th style={{ padding: '14px 18px' }}>Status</th>
@@ -215,7 +215,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
             </thead>
             <tbody>
               {users.map(u => (
-                <tr key={u.id} style={{ borderBottom: '1px solid #f0f1e9', transition: 'background-color 0.1s' }}>
+                <tr key={u.id} style={{ borderBottom: '1px solid var(--bg-subtle)', transition: 'background-color 0.1s' }}>
                   <td style={{ padding: '14px 18px' }}>
                     <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{u.username}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{u.email}</div>
@@ -227,8 +227,8 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                         borderRadius: '4px',
                         fontSize: '11px',
                         fontWeight: 700,
-                        backgroundColor: u.role === 'super_admin' ? '#e8ede2' : u.role.includes('admin') ? '#e8ede2' : '#f0f1e9',
-                        color: u.role === 'super_admin' ? '#5d7550' : u.role.includes('admin') ? '#5d7550' : '#687164'
+                        backgroundColor: u.role === 'super_admin' ? 'var(--bg-subtle)' : u.role.includes('admin') ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                        color: u.role === 'super_admin' ? 'var(--primary-text)' : u.role.includes('admin') ? 'var(--primary-text)' : 'var(--text-main)'
                       }}
                     >
                       {u.role.replace('_', ' ').toUpperCase()}
@@ -236,11 +236,11 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                   </td>
                   <td style={{ padding: '14px 18px' }}>
                     {u.is_suspended ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontWeight: 600, fontSize: '12px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--danger-text)', fontWeight: 600, fontSize: '12px' }}>
                         <Ban size={14} /> Suspended
                       </span>
                     ) : (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-text)', fontWeight: 600, fontSize: '12px' }}>
                         <CheckCircle size={14} /> Active
                       </span>
                     )}
@@ -259,7 +259,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                       <button
                         onClick={() => onSelectUser(u.id)}
                         title="View user details"
-                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', color: '#5d7550', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
                       >
                         Detail
                       </button>
@@ -268,7 +268,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                         <button
                           onClick={() => handleReactivate(u)}
                           title="Reactivate account"
-                          style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#16a34a', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                          style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-subtle)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
                         >
                           Reactivate
                         </button>
@@ -276,7 +276,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                         <button
                           onClick={() => setSuspendModalUser(u)}
                           title="Suspend account"
-                          style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                          style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--bg-subtle)', background: 'var(--bg-subtle)', color: 'var(--danger-text)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
                         >
                           Suspend
                         </button>
@@ -285,7 +285,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                       <button
                         onClick={() => handleRevokeSessions(u)}
                         title="Revoke active sessions"
-                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', color: 'var(--text-main)', cursor: 'pointer' }}
+                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer' }}
                       >
                         <Key size={13} />
                       </button>
@@ -293,7 +293,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                       <button
                         onClick={() => setDeleteModalUser(u)}
                         title="Delete user permanently"
-                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #fecaca', background: '#ffffff', color: '#dc2626', cursor: 'pointer' }}
+                        style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--bg-subtle)', background: 'var(--bg-card)', color: 'var(--danger-text)', cursor: 'pointer' }}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -306,7 +306,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
         )}
 
         {/* Pagination Footer */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
           <div>
             Showing {users.length} of {total} registered users
           </div>
@@ -314,7 +314,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => Math.max(1, p - 1))}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
+              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
             >
               Previous
             </button>
@@ -324,7 +324,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
+              style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
             >
               Next
             </button>
@@ -334,8 +334,8 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
 
       {/* Suspend User Modal */}
       {suspendModalUser && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgb(69 60 55 / 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 25px -5px rgb(69 60 55 / 0.1)' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
               Suspend User: {suspendModalUser.username}
             </h3>
@@ -351,20 +351,20 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                 placeholder="e.g. Terms violation or suspicious activity"
                 value={suspendReason}
                 onChange={e => setSuspendReason(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', outline: 'none' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setSuspendModalUser(null)}
-                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer' }}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSuspend}
                 disabled={actionLoading}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#dc2626', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--danger-text)', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer' }}
               >
                 {actionLoading ? 'Suspending...' : 'Confirm Suspension'}
               </button>
@@ -375,9 +375,9 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
 
       {/* Delete User Modal */}
       {deleteModalUser && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#dc2626', marginBottom: '8px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgb(69 60 55 / 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 25px -5px rgb(69 60 55 / 0.1)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--danger-text)', marginBottom: '8px' }}>
               Permanently Delete User Account
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-main)', marginBottom: '16px' }}>
@@ -391,13 +391,13 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                 type="text"
                 value={confirmUsername}
                 onChange={e => setConfirmUsername(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px', outline: 'none' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', outline: 'none' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setDeleteModalUser(null)}
-                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: 'pointer' }}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -408,7 +408,7 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ onSelectUser }) 
                   padding: '8px 16px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: confirmUsername === deleteModalUser.username ? '#dc2626' : '#d9ddcf',
+                  background: confirmUsername === deleteModalUser.username ? 'var(--danger-text)' : 'var(--border-color)',
                   color: 'var(--text-main)',
                   fontWeight: 600,
                   cursor: confirmUsername === deleteModalUser.username ? 'pointer' : 'not-allowed'

@@ -50,11 +50,11 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Overview Metric Banner */}
-      <div className="card" style={{ padding: '20px 24px', background: 'linear-gradient(135deg, #f7f6ef 0%, #f0f1e9 100%)' }}>
+      <div className="card" style={{ padding: '20px 24px', background: 'var(--bg-card)', border: '1px solid var(--bg-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #6d855f, #a68757)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-main)' }}>
-              <GitPullRequest size={22} />
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-main)' }}>
+              <GitPullRequest size={20} />
             </div>
             <div>
               <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
@@ -67,23 +67,23 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ background: '#ffffff', border: '1px solid #dfe2d6', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#6d855f' }}>{totalDependencies}</div>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary-text)' }}>{totalDependencies}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Relationships</div>
             </div>
-            <div style={{ background: '#ffffff', border: '1px solid #dfe2d6', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: blockedTasksCount > 0 ? '#ef4444' : '#10b981' }}>{blockedTasksCount}</div>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: blockedTasksCount > 0 ? 'var(--danger-text)' : 'var(--primary-text)' }}>{blockedTasksCount}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Blocked Tasks</div>
             </div>
-            <div style={{ background: '#ffffff', border: '1px solid #dfe2d6', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{completedTasksCount}</div>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary-text)' }}>{completedTasksCount}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Finished</div>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid #dfe2d6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-color)' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <Filter size={13} /> Filter:
           </span>
@@ -128,19 +128,19 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
               padding: '16px 20px',
               borderLeft: `4px solid ${
                 task.status === 'Finished'
-                  ? '#10b981'
+                  ? 'var(--primary-text)'
                   : isBlocked
-                  ? '#ef4444'
+                  ? 'var(--danger-text)'
                   : hasDeps
-                  ? '#6d855f'
-                  : '#d9ddcf'
+                  ? 'var(--primary-text)'
+                  : 'var(--border-color)'
               }`
             }}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6d855f', background: '#e8ede2', padding: '2px 8px', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', background: 'var(--bg-subtle)', padding: '2px 8px', borderRadius: 6 }}>
                     {task.task_code}
                   </span>
                   <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -173,16 +173,16 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                     fontWeight: 700,
                     background:
                       task.status === 'Finished'
-                        ? '#dcfce7'
+                        ? 'var(--bg-subtle)'
                         : task.status === 'Ongoing' || task.status === 'In Progress'
-                        ? '#fef3c7'
-                        : '#f0f1e9',
+                        ? 'var(--bg-subtle)'
+                        : 'var(--bg-subtle)',
                     color:
                       task.status === 'Finished'
-                        ? '#166534'
+                        ? 'var(--primary-text)'
                         : task.status === 'Ongoing' || task.status === 'In Progress'
-                        ? '#92400e'
-                        : '#687164'
+                        ? 'var(--primary-text)'
+                        : 'var(--text-main)'
                   }}
                 >
                   {task.status === 'Finished' && <CheckCircle2 size={13} />}
@@ -193,9 +193,9 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
             </div>
 
             {/* Prerequisite and Dependent Relationships */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid #f0f1e9' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--bg-subtle)' }}>
               {/* Upstream Prerequisites */}
-              <div style={{ background: '#f7f6ef', padding: '10px 14px', borderRadius: 8, border: '1px solid #dfe2d6' }}>
+              <div style={{ background: 'var(--bg-subtle)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                   Upstream Prerequisites (Depends On)
                 </div>
@@ -213,14 +213,14 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           fontSize: 12,
-                          background: '#ffffff',
+                          background: 'var(--bg-card)',
                           padding: '6px 10px',
                           borderRadius: 6,
-                          border: `1px solid ${p.isCompleted ? '#bbf7d0' : '#fed7aa'}`
+                          border: `1px solid ${p.isCompleted ? 'var(--border-color)' : 'var(--border-color)'}`
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, color: '#5d7550' }}>{p.code}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--primary-text)' }}>{p.code}</span>
                           <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
                             {p.task?.title || 'External reference'}
                           </span>
@@ -229,8 +229,8 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                           style={{
                             fontSize: 11,
                             fontWeight: 700,
-                            color: p.isCompleted ? '#166534' : '#c2410c',
-                            background: p.isCompleted ? '#dcfce7' : '#ffedd5',
+                            color: p.isCompleted ? 'var(--primary-text)' : 'var(--danger-text)',
+                            background: p.isCompleted ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
                             padding: '2px 6px',
                             borderRadius: 4
                           }}
@@ -244,7 +244,7 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
               </div>
 
               {/* Downstream Dependents */}
-              <div style={{ background: '#f7f6ef', padding: '10px 14px', borderRadius: 8, border: '1px solid #dfe2d6' }}>
+              <div style={{ background: 'var(--bg-subtle)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                   Downstream Dependents (Blocks)
                 </div>
@@ -262,14 +262,14 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           fontSize: 12,
-                          background: '#ffffff',
+                          background: 'var(--bg-card)',
                           padding: '6px 10px',
                           borderRadius: 6,
-                          border: '1px solid #dfe2d6'
+                          border: '1px solid var(--border-color)'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, color: '#6d855f' }}>{d.task_code}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--primary-text)' }}>{d.task_code}</span>
                           <span style={{ color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
                             {d.title}
                           </span>
@@ -286,7 +286,7 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
 
             {/* Condition alert banner */}
             {isBlocked && task.status !== 'Finished' && (
-              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, fontSize: 12, color: '#b91c1c' }}>
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, color: 'var(--danger-text)' }}>
                 <AlertTriangle size={14} />
                 <span>
                   <b>Execution Blocked:</b> Prerequisite tasks are incomplete. Complete upstream items before advancing this task.
@@ -294,7 +294,7 @@ export const DependenciesPanel: React.FC<Props> = ({ tasks }) => {
               </div>
             )}
             {!isBlocked && hasDeps && task.status !== 'Finished' && (
-              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f0fdf4', border: '1px solid #dcfce7', borderRadius: 6, fontSize: 12, color: '#15803d' }}>
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, color: 'var(--primary-text)' }}>
                 <CheckCircle2 size={14} />
                 <span>
                   <b>Ready to Execute:</b> All upstream prerequisites have been completed.

@@ -4,7 +4,7 @@ import { Sparkles, ArrowRight, ArrowLeft, Check, Layers, AlertCircle, Loader2 } 
 import { buildNewProjectPayload } from '../utils/projectPayload';
 
 interface Props {
-  onProjectCreated: (project: any) => void;
+  onProjectCreated: (project: any) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -31,15 +31,8 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
   const [description, setDescription] = useState('');
   const [targetCustomers, setTargetCustomers] = useState('');
   const [goals, setGoals] = useState('');
-  const [budget, setBudget] = useState('$50,000 - $100,000');
-  const [existingStack, setExistingStack] = useState<Record<string, string[]>>({
-    Frontend: ['React'],
-    Backend: ['FastAPI', 'Python'],
-    Database: ['PostgreSQL'],
-    'Cloud / Hosting': ['Render'],
-    Authentication: ['Server Sessions', 'Argon2id'],
-    'DevOps & CI/CD': ['Docker']
-  });
+  const [budget, setBudget] = useState('');
+  const [existingStack, setExistingStack] = useState<Record<string, string[]>>({});
   const [customTechInput, setCustomTechInput] = useState('');
   const [customCategory, setCustomCategory] = useState('Backend');
 
@@ -94,9 +87,10 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
         existingStack
       });
 
-      onProjectCreated(payload);
+      await onProjectCreated(payload);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to create project');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -107,7 +101,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
         {/* Wizard Header */}
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e8ede2', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Layers size={18} />
             </div>
             <div>
@@ -119,7 +113,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
         </div>
 
         {/* Step Progress Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: '#f7f6ef', borderBottom: '1px solid #dfe2d6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)' }}>
           {[
             { num: 1, title: 'Venture & Stage' },
             { num: 2, title: stage === 'Idea' ? 'Discovery & Goals' : 'Existing Stack & Architecture' },
@@ -135,8 +129,8 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                     width: 26,
                     height: 26,
                     borderRadius: '50%',
-                    background: isCurrent ? '#6d855f' : isDone ? '#10b981' : '#dfe2d6',
-                    color: isCurrent || isDone ? '#ffffff' : '#687164',
+                    background: isCurrent ? 'var(--primary-text)' : isDone ? 'var(--primary-text)' : 'var(--border-color)',
+                    color: isCurrent || isDone ? 'var(--bg-card)' : 'var(--text-main)',
                     fontSize: 12,
                     fontWeight: 700,
                     display: 'flex',
@@ -146,7 +140,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                 >
                   {isDone ? <Check size={14} /> : s.num}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? '#626b5f' : '#687164' }}>
+                <span style={{ fontSize: 13, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? 'var(--text-main)' : 'var(--text-main)' }}>
                   {s.title}
                 </span>
               </div>
@@ -157,7 +151,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
         {/* Wizard Body */}
         <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
           {errorMsg && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: '#fee2e2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: 'var(--bg-subtle)', color: 'var(--danger-text)', borderRadius: 8, fontSize: 13 }}>
               <AlertCircle size={16} />
               <span>{errorMsg}</span>
             </div>
@@ -193,13 +187,13 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                       style={{
                         padding: 14,
                         borderRadius: 10,
-                        border: `2px solid ${stage === st.id ? '#6d855f' : '#dfe2d6'}`,
-                        background: stage === st.id ? '#f0f1e9' : '#ffffff',
+                        border: `2px solid ${stage === st.id ? 'var(--primary-text)' : 'var(--border-color)'}`,
+                        background: stage === st.id ? 'var(--bg-subtle)' : 'var(--bg-card)',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <div style={{ fontWeight: 700, fontSize: 13.5, color: stage === st.id ? '#6d855f' : '#626b5f' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13.5, color: stage === st.id ? 'var(--primary-text)' : 'var(--text-main)' }}>
                         {st.label}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -284,7 +278,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
                     {Object.entries(STACK_CATEGORIES).map(([cat, techs]) => (
-                      <div key={cat} style={{ background: '#f7f6ef', padding: 12, borderRadius: 8, border: '1px solid #dfe2d6' }}>
+                      <div key={cat} style={{ background: 'var(--bg-subtle)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8, textTransform: 'uppercase' }}>
                           {cat}
                         </div>
@@ -301,9 +295,9 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                                   fontSize: 12,
                                   fontWeight: isSelected ? 700 : 500,
                                   borderRadius: 20,
-                                  border: `1px solid ${isSelected ? '#6d855f' : '#d9ddcf'}`,
-                                  background: isSelected ? '#6d855f' : '#ffffff',
-                                  color: isSelected ? '#ffffff' : '#687164',
+                                  border: `1px solid ${isSelected ? 'var(--primary-text)' : 'var(--border-color)'}`,
+                                  background: isSelected ? 'var(--primary-text)' : 'var(--bg-card)',
+                                  color: isSelected ? 'var(--bg-card)' : 'var(--text-main)',
                                   cursor: 'pointer',
                                   transition: 'all 0.15s ease'
                                 }}
@@ -386,10 +380,10 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
                 </div>
               </div>
 
-              <div style={{ padding: 12, background: 'rgba(109, 133, 95, 0.1)', borderRadius: 8, border: '1px solid rgba(109, 133, 95, 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Sparkles size={18} color="#6d855f" />
+              <div style={{ padding: 12, background: 'rgb(69 60 55 / 0.1)', borderRadius: 8, border: '1px solid rgb(69 60 55 / 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Sparkles size={18} color="var(--primary-text)" />
                 <span style={{ fontSize: 12.5, color: 'var(--primary)' }}>
-                  Upon submission, Venture Atlas will synthesize the 9-block Business Model Canvas, Technology Architecture recommendations, and Execution Roadmap with interactive Gantt milestones.
+                  Create the project first, then generate each module from its workspace. Your inputs will be saved and used by every generation.
                 </span>
               </div>
             </div>
@@ -423,12 +417,12 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
               {isSubmitting ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Architecting Blueprint...
+                  Creating project...
                 </>
               ) : (
                 <>
                   <Sparkles size={15} />
-                  Generate Enterprise Blueprint
+                  Create project
                 </>
               )}
             </button>

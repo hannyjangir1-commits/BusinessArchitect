@@ -24,7 +24,7 @@ const LEFT_COLUMN_WIDTH = 365;
 const PIXELS_PER_DAY = 4.5;
 const ROW_PHASE = 42;
 const ROW_TASK = 38;
-const COLORS = ['#10b981', '#7a916a', '#a68757', '#f97316', '#eab308', '#879579', '#b77d68'];
+const COLORS = ['var(--primary-text)', 'var(--text-muted)', 'var(--primary-text)', 'var(--primary-text)', 'var(--primary-text)', 'var(--text-muted)', 'var(--danger-text)'];
 
 const utcDate = (year: number, month: number, day: number) => new Date(Date.UTC(year, month, day));
 const parseDate = (value: string | undefined): Date => {
@@ -104,7 +104,7 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
   if (tasks.length === 0) {
     return (
       <div className="card" style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
-        <Calendar size={22} color="#6d855f" style={{ margin: '0 auto 8px' }} />
+        <Calendar size={22} color="var(--primary-text)" style={{ margin: '0 auto 8px' }} />
         <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>No roadmap tasks yet</div>
         <div style={{ fontSize: 12, marginTop: 4 }}>Add tasks or generate a roadmap to build the timeline.</div>
       </div>
@@ -116,7 +116,7 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Calendar size={18} color="#6d855f" />
+          <Calendar size={18} color="var(--primary-text)" />
           <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)' }}>Project Execution Timeline</h3>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -188,10 +188,10 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
                     const taskLeft = daysBetween(timeline.start, start) * PIXELS_PER_DAY;
                     const taskWidth = Math.max(8, (daysBetween(start, end) + 1) * PIXELS_PER_DAY);
                     const overdue = !isFinished(task.status) && end < today;
-                    const color = isFinished(task.status) ? '#16a34a' : overdue ? '#ef4444' : group.color;
+                    const color = isFinished(task.status) ? 'var(--primary-text)' : overdue ? 'var(--danger-text)' : group.color;
                     return (
                       <div key={`bar-row-${task.id}`} style={{ height: ROW_TASK, borderBottom: '1px solid var(--border-color)', position: 'relative', background: 'var(--bg-subtle)' }}>
-                        <div title={`${task.title}: ${isoDate(start)} – ${isoDate(end)}${overdue ? ' (overdue)' : ''}`} style={{ position: 'absolute', top: 10, left: taskLeft + 2, width: Math.max(5, taskWidth - 4), height: 18, background: color, borderRadius: 5, boxShadow: '0 1px 3px rgba(0,0,0,0.12)' }} />
+                        <div title={`${task.title}: ${isoDate(start)} – ${isoDate(end)}${overdue ? ' (overdue)' : ''}`} style={{ position: 'absolute', top: 10, left: taskLeft + 2, width: Math.max(5, taskWidth - 4), height: 18, background: color, borderRadius: 5, boxShadow: '0 1px 3px rgb(69 60 55 / 0.12)' }} />
                       </div>
                     );
                   })}
@@ -201,16 +201,16 @@ export const GanttChart: React.FC<Props> = ({ tasks }) => {
           })()}
 
           {todayX >= 0 && todayX <= timeline.width && (
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: '#6d855f', zIndex: 3, pointerEvents: 'none' }}>
-              <div style={{ position: 'absolute', top: 3, left: -18, background: '#6d855f', color: 'var(--text-main)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}>Today</div>
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: 'var(--bg-subtle)', zIndex: 3, pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: 3, left: -18, background: 'var(--bg-subtle)', color: 'var(--text-main)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4 }}>Today</div>
             </div>
           )}
         </div>
       </div>
       <div style={{ padding: '9px 14px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 10.5, color: 'var(--text-muted)' }}>
-        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#16a34a', marginRight: 5 }} />Completed</span>
-        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#ef4444', marginRight: 5 }} />Overdue unfinished task</span>
-        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: '#6d855f', marginRight: 5 }} />Today</span>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: 'var(--bg-subtle)', marginRight: 5 }} />Completed</span>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: 'var(--danger-text)', marginRight: 5 }} />Overdue unfinished task</span>
+        <span><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 3, background: 'var(--bg-subtle)', marginRight: 5 }} />Today</span>
       </div>
     </div>
   );

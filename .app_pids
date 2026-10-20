@@ -1,0 +1,11 @@
+{
+  "backend_pids": [
+    1300
+  ],
+  "frontend_pids": [
+    14008
+  ],
+  "backend_port": 8000,
+  "frontend_port": 5173,
+  "recorded_at": "2026-10-20T12:51:55Z"
+}

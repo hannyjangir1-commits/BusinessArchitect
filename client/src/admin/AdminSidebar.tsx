@@ -63,7 +63,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onToggleCollapse,
   adminRole
 }) => {
-  const allowedPerms = ROLE_PERMISSIONS[adminRole] || ROLE_PERMISSIONS['super_admin'] || [];
+  const allowedPerms = ROLE_PERMISSIONS[adminRole] || [];
 
   const rawNavGroups: NavGroup[] = [
     {
@@ -135,12 +135,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               width: '34px',
               height: '34px',
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, #6d855f 0%, #5d7550 100%)',
+              background: 'var(--bg-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--text-main)',
-              boxShadow: '0 0 12px rgba(109, 133, 95, 0.4)'
+              boxShadow: '0 1px 3px rgb(69 60 55 / 0.1)'
             }}
           >
             <Sparkles size={18} />
@@ -150,8 +150,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '14px', letterSpacing: '0.02em' }}>
                 ADMIN CONTROL
               </div>
-              <div style={{ color: '#6d855f', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Level 3 Enterprise
+              <div style={{ color: 'var(--primary-text)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Workspace administration
               </div>
             </div>
           )}
@@ -211,15 +211,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     borderRadius: '8px',
                     border: 'none',
-                    background: isActive ? 'linear-gradient(90deg, rgba(109, 133, 95, 0.15), rgba(109, 133, 95, 0.05))' : 'transparent',
-                    color: isActive ? '#ffffff' : '#7c8478',
+                    background: isActive ? 'var(--bg-subtle)' : 'transparent',
+                    color: isActive ? 'var(--primary-text)' : 'var(--primary-text)',
                     fontWeight: isActive ? 600 : 500,
                     fontSize: '13px',
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                     marginBottom: '2px',
-                    borderLeft: isActive ? '3px solid #6d855f' : '3px solid transparent'
+                    borderLeft: isActive ? '3px solid var(--primary-text)' : '3px solid transparent'
                   }}
                   onMouseEnter={e => {
                     if (!isActive) {
@@ -234,7 +234,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     }
                   }}
                 >
-                  <Icon size={18} style={{ color: isActive ? '#82936d' : '#687164', flexShrink: 0 }} />
+                  <Icon size={18} style={{ color: isActive ? 'var(--text-muted)' : 'var(--text-main)', flexShrink: 0 }} />
                   {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
                 </button>
               );
@@ -256,7 +256,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             gap: '10px',
             padding: '8px 12px',
             borderRadius: '6px',
-            border: '1px solid #687164',
+            border: '1px solid var(--text-main)',
             background: 'var(--bg-card)',
             color: 'var(--text-muted)',
             fontSize: '12px',
@@ -264,7 +264,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             cursor: 'pointer'
           }}
         >
-          <ExternalLink size={14} style={{ color: '#82936d' }} />
+          <ExternalLink size={14} style={{ color: 'var(--text-muted)' }} />
           {!collapsed && <span>User Application</span>}
         </button>
       </div>

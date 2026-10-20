@@ -54,6 +54,25 @@ class TechStackData(BaseModel):
     recommendations: List[TechItem]
     existing_stack_evaluation: Optional[Dict[str, Any]] = Field(default_factory=dict)
     assumptions: Optional[List[str]] = Field(default_factory=list)
+    planning_inputs: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+class TechStackPlanningRequest(BaseModel):
+    solution_type: str = Field(default="", max_length=120)
+    preferred_languages: List[str] = Field(default_factory=list, max_length=12)
+    preferred_frameworks: List[str] = Field(default_factory=list, max_length=20)
+    current_stack: str = Field(default="", max_length=2000)
+    target_platforms: List[str] = Field(default_factory=list, max_length=10)
+    deployment_preference: str = Field(default="", max_length=200)
+    database_preference: str = Field(default="", max_length=200)
+    expected_scale: str = Field(default="", max_length=200)
+    data_sensitivity: str = Field(default="", max_length=200)
+    compliance_requirements: List[str] = Field(default_factory=list, max_length=12)
+    required_integrations: List[str] = Field(default_factory=list, max_length=20)
+    budget_constraint: str = Field(default="", max_length=500)
+    team_experience: str = Field(default="", max_length=1000)
+    must_use: List[str] = Field(default_factory=list, max_length=20)
+    avoid: List[str] = Field(default_factory=list, max_length=20)
+    constraints: str = Field(default="", max_length=2000)
 
 # --- Idea Validator Schemas ---
 class ValidationRisk(BaseModel):

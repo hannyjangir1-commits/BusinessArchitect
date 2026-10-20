@@ -44,7 +44,7 @@ export const BMCModule: React.FC<Props> = ({
   if (!bmcData) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e8ede2', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <Compass size={28} />
         </div>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
@@ -62,7 +62,7 @@ export const BMCModule: React.FC<Props> = ({
           {isGenerating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Synthesizing Canvas...'}
+              {generationProgress ? `${generationProgress.stageText}` : 'Synthesizing Canvas...'}
             </>
           ) : (
             <>
@@ -75,15 +75,15 @@ export const BMCModule: React.FC<Props> = ({
   }
 
   const bmcBlocks = [
-    { key: 'key_partnerships', title: '1. Key Partnerships', items: bmcData.key_partnerships, color: '#78906c' },
-    { key: 'key_activities', title: '2. Key Activities', items: bmcData.key_activities, color: '#9a815c' },
-    { key: 'key_resources', title: '3. Key Resources', items: bmcData.key_resources, color: '#b09a68' },
-    { key: 'value_propositions', title: '4. Value Propositions', items: bmcData.value_propositions, color: '#687f5d' },
-    { key: 'customer_relationships', title: '5. Customer Relationships', items: bmcData.customer_relationships, color: '#b77d68' },
-    { key: 'channels', title: '6. Channels', items: bmcData.channels, color: '#bb816a' },
-    { key: 'customer_segments', title: '7. Customer Segments', items: bmcData.customer_segments, color: '#c39270' },
-    { key: 'cost_structure', title: '8. Cost Structure', items: bmcData.cost_structure, color: '#b49460' },
-    { key: 'revenue_streams', title: '9. Revenue Streams', items: bmcData.revenue_streams, color: '#788e68' }
+    { key: 'key_partnerships', title: '1. Key Partnerships', items: bmcData.key_partnerships, color: 'var(--text-muted)' },
+    { key: 'key_activities', title: '2. Key Activities', items: bmcData.key_activities, color: 'var(--primary-text)' },
+    { key: 'key_resources', title: '3. Key Resources', items: bmcData.key_resources, color: 'var(--primary-text)' },
+    { key: 'value_propositions', title: '4. Value Propositions', items: bmcData.value_propositions, color: 'var(--text-muted)' },
+    { key: 'customer_relationships', title: '5. Customer Relationships', items: bmcData.customer_relationships, color: 'var(--danger-text)' },
+    { key: 'channels', title: '6. Channels', items: bmcData.channels, color: 'var(--danger-text)' },
+    { key: 'customer_segments', title: '7. Customer Segments', items: bmcData.customer_segments, color: 'var(--primary-text)' },
+    { key: 'cost_structure', title: '8. Cost Structure', items: bmcData.cost_structure, color: 'var(--primary-text)' },
+    { key: 'revenue_streams', title: '9. Revenue Streams', items: bmcData.revenue_streams, color: 'var(--text-muted)' }
   ];
 
   return (

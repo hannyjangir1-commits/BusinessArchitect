@@ -150,7 +150,7 @@ def test_sensitive_credentials_not_leaked_in_public_endpoints():
     """Verify that public endpoints never expose GEMINI_API_KEY, DATABASE_URL, or SESSION_SECRET."""
     res_root = client.get("/health")
     content_root = res_root.text
-    assert settings.GEMINI_API_KEY not in content_root or not settings.GEMINI_API_KEY
+    assert all(key not in content_root for key in settings.GEMINI_API_KEYS)
     assert settings.SESSION_SECRET not in content_root
 
     res_api = client.get("/api/health")
@@ -218,14 +218,15 @@ def test_admin_bootstrap_env_var_aliases(monkeypatch):
     assert test_settings.INITIAL_ADMIN_EMAIL == "custom_bootstrap@test.internal"
 
 
-def test_gemini_configured_model_prioritization(monkeypatch):
-    """Verify that ai_service._get_candidate_models() places the configured model at index 0."""
-    from app.ai.gemini_service import ai_service
+def test_gemini_uses_only_the_explicitly_configured_model(monkeypatch):
+    """Credential fallback must never silently change the requested model."""
+    from app.ai.gemini_service import GeminiAIService
     test_model = "gemini-2.5-flash-custom"
     monkeypatch.setattr(settings, "GEMINI_MODEL", test_model)
-    candidates = ai_service._get_candidate_models()
-    assert len(candidates) > 1
-    assert candidates[0] == test_model
+    service = GeminiAIService()
+    service.api_key = "test-key"
+    candidates = service._get_candidate_models()
+    assert candidates == [test_model]
 
 
 def test_version_delete_atomicity_and_fallback():

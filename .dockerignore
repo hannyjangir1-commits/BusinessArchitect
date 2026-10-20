@@ -78,3 +78,12 @@ run_app.bat
 stop_app.bat
 test-artifacts/
 state/
+
+# Keep QA tools, reports, checkpoints and desktop releases out of runtime images.
+**/state/
+release/
+server/tests/
+client/src/__tests__/
+client/test_*.cjs
+*.key
+*.pem

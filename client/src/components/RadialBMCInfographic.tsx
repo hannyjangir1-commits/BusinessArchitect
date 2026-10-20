@@ -11,15 +11,15 @@ interface Props {
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const BMC_BLOCKS = [
-  { key: 'value_propositions', title: 'Value Propositions', color: '#687f5d', number: '01', angle: -90, description: 'Core bundles of value and solutions addressing target customer pain points.' },
-  { key: 'customer_relationships', title: 'Customer Relationships', color: '#b77d68', number: '02', angle: -50, description: 'Types of relationships established with each customer segment.' },
-  { key: 'channels', title: 'Channels', color: '#bb816a', number: '03', angle: -10, description: 'Touchpoints through which you communicate and deliver value propositions.' },
-  { key: 'customer_segments', title: 'Customer Segments', color: '#c39270', number: '04', angle: 30, description: 'Distinct groups of people or organizations the venture aims to serve.' },
-  { key: 'revenue_streams', title: 'Revenue Streams', color: '#788e68', number: '05', angle: 70, description: 'Cash generated from each customer segment through pricing mechanisms.' },
-  { key: 'cost_structure', title: 'Cost Structure', color: '#b49460', number: '06', angle: 110, description: 'All monetary expenses incurred to operate the business model.' },
-  { key: 'key_partnerships', title: 'Key Partnerships', color: '#78906c', number: '07', angle: 150, description: 'Network of suppliers, distributors, and strategic alliances.' },
-  { key: 'key_activities', title: 'Key Activities', color: '#9a815c', number: '08', angle: 190, description: 'Most crucial actions a company must perform to execute successfully.' },
-  { key: 'key_resources', title: 'Key Resources', color: '#b09a68', number: '09', angle: 230, description: 'Most important physical, intellectual, human, or financial assets.' },
+  { key: 'value_propositions', title: 'Value Propositions', color: 'var(--text-muted)', number: '01', angle: -90, description: 'Core bundles of value and solutions addressing target customer pain points.' },
+  { key: 'customer_relationships', title: 'Customer Relationships', color: 'var(--danger-text)', number: '02', angle: -50, description: 'Types of relationships established with each customer segment.' },
+  { key: 'channels', title: 'Channels', color: 'var(--danger-text)', number: '03', angle: -10, description: 'Touchpoints through which you communicate and deliver value propositions.' },
+  { key: 'customer_segments', title: 'Customer Segments', color: 'var(--primary-text)', number: '04', angle: 30, description: 'Distinct groups of people or organizations the venture aims to serve.' },
+  { key: 'revenue_streams', title: 'Revenue Streams', color: 'var(--text-muted)', number: '05', angle: 70, description: 'Cash generated from each customer segment through pricing mechanisms.' },
+  { key: 'cost_structure', title: 'Cost Structure', color: 'var(--primary-text)', number: '06', angle: 110, description: 'All monetary expenses incurred to operate the business model.' },
+  { key: 'key_partnerships', title: 'Key Partnerships', color: 'var(--text-muted)', number: '07', angle: 150, description: 'Network of suppliers, distributors, and strategic alliances.' },
+  { key: 'key_activities', title: 'Key Activities', color: 'var(--primary-text)', number: '08', angle: 190, description: 'Most crucial actions a company must perform to execute successfully.' },
+  { key: 'key_resources', title: 'Key Resources', color: 'var(--primary-text)', number: '09', angle: 230, description: 'Most important physical, intellectual, human, or financial assets.' },
 ] as const;
 
 function appendWrappedSvgText(
@@ -76,28 +76,28 @@ export function buildCompleteBmcSvg(
 
   const appendix = document.createElementNS(SVG_NS, 'g');
   let y = 790;
-  y += appendWrappedSvgText(appendix, `${projectName} — Complete Business Model Canvas`, 40, y, 105, 28, 23, '#626b5f', '700');
-  y += appendWrappedSvgText(appendix, `Stage: ${stage}. The sections below contain every generated point, validation guidance, and assumptions.`, 40, y + 4, 135, 21, 13, '#687164');
+  y += appendWrappedSvgText(appendix, `${projectName} — Complete Business Model Canvas`, 40, y, 105, 28, 23, 'var(--text-main)', '700');
+  y += appendWrappedSvgText(appendix, `Stage: ${stage}. The sections below contain every generated point, validation guidance, and assumptions.`, 40, y + 4, 135, 21, 13, 'var(--text-main)');
   y += 16;
 
   for (const block of BMC_BLOCKS) {
     const items = (data[block.key] as string[] | undefined) || [];
     y += appendWrappedSvgText(appendix, block.title, 40, y + 4, 115, 23, 17, block.color, '700');
-    y += appendWrappedSvgText(appendix, block.description, 40, y + 4, 135, 19, 12, '#687164');
+    y += appendWrappedSvgText(appendix, block.description, 40, y + 4, 135, 19, 12, 'var(--text-main)');
     for (const [index, item] of items.entries()) {
       y += appendWrappedSvgText(appendix, `${index + 1}. ${item}`, 56, y + 7, 132, 19, 12, 'var(--border-color)');
     }
     const guidance = data.actionable_guidance?.[block.key];
     if (guidance) {
-      y += appendWrappedSvgText(appendix, `What to do: ${guidance}`, 56, y + 7, 132, 19, 12, '#166534');
+      y += appendWrappedSvgText(appendix, `What to do: ${guidance}`, 56, y + 7, 132, 19, 12, 'var(--primary-text)');
     }
     y += 14;
   }
 
   if (data.assumptions?.length) {
-    y += appendWrappedSvgText(appendix, 'Assumptions to validate', 40, y + 4, 115, 23, 17, '#92400e', '700');
+    y += appendWrappedSvgText(appendix, 'Assumptions to validate', 40, y + 4, 115, 23, 17, 'var(--primary-text)', '700');
     for (const [index, assumption] of data.assumptions.entries()) {
-      y += appendWrappedSvgText(appendix, `${index + 1}. ${assumption}`, 56, y + 7, 132, 19, 12, '#78350f');
+      y += appendWrappedSvgText(appendix, `${index + 1}. ${assumption}`, 56, y + 7, 132, 19, 12, 'var(--primary-text)');
     }
   }
 
@@ -106,7 +106,7 @@ export function buildCompleteBmcSvg(
   appendixBackground.setAttribute('y', '750');
   appendixBackground.setAttribute('width', '1100');
   appendixBackground.setAttribute('height', String(y - 750 + 32));
-  appendixBackground.setAttribute('fill', '#ffffff');
+  appendixBackground.setAttribute('fill', 'var(--bg-card)');
   clone.appendChild(appendixBackground);
   clone.appendChild(appendix);
   clone.setAttribute('viewBox', `0 0 1100 ${y + 32}`);
@@ -116,6 +116,7 @@ export function buildCompleteBmcSvg(
 
 export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const blocksConfig = BMC_BLOCKS;
@@ -136,6 +137,14 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setSelectedKey(null);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
   const downloadSVG = () => {
     if (!svgRef.current) return;
     const completeSvg = buildCompleteBmcSvg(svgRef.current, projectName, stage, data);
@@ -154,7 +163,7 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
   const activeGuidance = selectedKey && data.actionable_guidance ? data.actionable_guidance[selectedKey] : null;
 
   return (
-    <div className="radial-bmc-container" style={{ position: 'relative', width: '100%', background: '#ffffff', borderRadius: 12, border: '1px solid #dfe2d6', padding: 16 }}>
+    <div ref={containerRef} className="radial-bmc-container" style={{ position: 'relative', width: '100%', background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border-color)', padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
@@ -183,24 +192,16 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
           aria-label={`Radial Business Model Canvas for ${projectName}`}
         >
           <defs>
-            <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#82936d" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="var(--text-main)" stopOpacity="0" />
-            </radialGradient>
-            <linearGradient id="centerNodeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#5d7550" />
-              <stop offset="100%" stopColor="#a68757" />
-            </linearGradient>
             <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.08" floodColor="var(--text-main)" />
+              <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.06" floodColor="var(--primary-text)" />
             </filter>
             <filter id="hoverGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="6" stdDeviation="10" floodOpacity="0.2" floodColor="#6d855f" />
+              <feDropShadow dx="0" dy="4" stdDeviation="8" floodOpacity="0.12" floodColor="var(--primary-text)" />
             </filter>
           </defs>
 
-          {/* Background Ambient Glow */}
-          <circle cx={centerX} cy={centerY} r={radiusX * 0.9} fill="url(#centerGlow)" />
+          {/* Background Ambient Circle */}
+          <circle cx={centerX} cy={centerY} r={radiusX * 0.9} fill="var(--bg-card)" />
 
           {/* Dynamic Connectors from Center to 9 Blocks */}
           {blocksConfig.map((b, i) => {
@@ -235,16 +236,16 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
             aria-label={`Center venture node: ${projectName}`}
             onClick={() => setSelectedKey(null)}
           >
-            <circle r="72" fill="url(#centerNodeGrad)" filter="url(#cardShadow)" />
-            <circle r="78" fill="none" stroke="#6d855f" strokeWidth="2" strokeDasharray="6 4" opacity="0.6" />
-            <text textAnchor="middle" y="-12" fill="#ffffff" fontWeight="800" fontSize="14" fontFamily="sans-serif">
+            <circle r="72" fill="var(--primary-text)" filter="url(#cardShadow)" />
+            <circle r="78" fill="none" stroke="var(--bg-subtle)" strokeWidth="2" strokeDasharray="6 4" />
+            <text textAnchor="middle" y="-12" fill="var(--bg-card)" fontWeight="800" fontSize="14" fontFamily="sans-serif">
               {projectName.length > 18 ? projectName.slice(0, 16) + '...' : projectName}
             </text>
-            <rect x="-45" y="4" width="90" height="18" rx="9" fill="rgba(255,255,255,0.2)" />
-            <text textAnchor="middle" y="17" fill="#ffffff" fontWeight="700" fontSize="10" fontFamily="sans-serif">
+            <rect x="-45" y="4" width="90" height="18" rx="9" fill="rgb(69 60 55 / 0.2)" />
+            <text textAnchor="middle" y="17" fill="var(--bg-card)" fontWeight="700" fontSize="10" fontFamily="sans-serif">
               {stage}
             </text>
-            <text textAnchor="middle" y="38" fill="rgba(255,255,255,0.85)" fontWeight="500" fontSize="8.5" fontFamily="sans-serif">
+            <text textAnchor="middle" y="38" fill="var(--paper)" fontWeight="500" fontSize="8.5" fontFamily="sans-serif">
               9-Block Canvas Core
             </text>
           </g>
@@ -282,8 +283,8 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
                   width={cardW}
                   height={cardH}
                   rx="10"
-                  fill="#ffffff"
-                  stroke={isSelected ? b.color : '#dfe2d6'}
+                  fill="var(--bg-card)"
+                  stroke={isSelected ? b.color : 'var(--border-color)'}
                   strokeWidth={isSelected ? '2.5' : '1.5'}
                   filter={isSelected ? 'url(#hoverGlow)' : 'url(#cardShadow)'}
                 />
@@ -306,7 +307,7 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
                   return (
                     <g key={`line-${idx}`} transform={`translate(10, ${44 + idx * 22})`}>
                       <circle cx="3" cy="-3" r="2.5" fill={b.color} />
-                      <text x="10" y="0" fontSize="9.5" fill="#626b5f" fontWeight="500" fontFamily="sans-serif">
+                      <text x="10" y="0" fontSize="9.5" fill="var(--text-main)" fontWeight="500" fontFamily="sans-serif">
                         {label}
                       </text>
                     </g>
@@ -315,7 +316,7 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
 
                 {/* Counter Footer */}
                 <g transform={`translate(10, ${cardH - 10})`}>
-                  <rect x="0" y="-10" width={cardW - 20} height="15" rx="4" fill={isSelected ? b.color : '#f0f1e9'} opacity={isSelected ? 0.15 : 0.7} />
+                  <rect x="0" y="-10" width={cardW - 20} height="15" rx="4" fill={isSelected ? b.color : 'var(--bg-subtle)'} opacity={isSelected ? 0.15 : 0.7} />
                   <text x="6" y="1" fontSize="8" fill={b.color} fontWeight="700" fontFamily="sans-serif">
                     {items.length} items • Click for guidance ➔
                   </text>
@@ -335,11 +336,11 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
             right: 0,
             bottom: 0,
             width: 'min(480px, 95%)',
-            background: '#ffffff',
-            boxShadow: '-8px 0 24px rgba(15, 23, 42, 0.15)',
+            background: 'var(--bg-card)',
+            boxShadow: '-8px 0 24px rgb(69 60 55 / 0.15)',
             borderTopRightRadius: 12,
             borderBottomRightRadius: 12,
-            borderLeft: '1px solid #dfe2d6',
+            borderLeft: '1px solid var(--border-color)',
             zIndex: 30,
             display: 'flex',
             flexDirection: 'column',
@@ -351,7 +352,7 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
           aria-labelledby="detail-panel-title"
         >
           {/* Drawer Header */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f1e9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f7f6ef' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bg-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'var(--bg-subtle)' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="bmc-detail-number" style={{ color: activeBlockConfig.color }}>{activeBlockConfig.number}</span>
@@ -384,8 +385,8 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
                   <div
                     key={idx}
                     style={{
-                      background: '#f7f6ef',
-                      border: '1px solid #dfe2d6',
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 8,
                       padding: '10px 14px',
                       fontSize: 13,
@@ -402,22 +403,22 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
             </div>
 
             {/* Actionable Guidance (BMC-004, BMC-012) */}
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 14 }}>
-              <h5 style={{ fontSize: 13, fontWeight: 700, color: '#166534', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <MessageCircle size={15} color="#718765" /> Actionable Guidance: What to Test, Decide & Validate
+            <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 14 }}>
+              <h5 style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MessageCircle size={15} color="var(--text-muted)" /> Actionable Guidance: What to Test, Decide & Validate
               </h5>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: '#14532d' }}>
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: 'var(--primary-text)' }}>
                 {activeGuidance || "Execute structured interviews with 15 target users in this category to validate willingness-to-pay and measure conversion friction."}
               </p>
             </div>
 
             {/* Assumptions (BMC-011) */}
             {data.assumptions && data.assumptions.length > 0 && (
-              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 14 }}>
-                <h5 style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <AlertCircle size={15} color="#d97706" /> Identified Venture Assumptions
+              <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 14 }}>
+                <h5 style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertCircle size={15} color="var(--primary-text)" /> Identified Venture Assumptions
                 </h5>
-                <ul style={{ margin: '6px 0 0 0', paddingLeft: 18, fontSize: 12, color: '#78350f', lineHeight: 1.5 }}>
+                <ul style={{ margin: '6px 0 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--primary-text)', lineHeight: 1.5 }}>
                   {data.assumptions.map((assump, aIdx) => (
                     <li key={aIdx} style={{ marginBottom: 4 }}>{assump}</li>
                   ))}

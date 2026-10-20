@@ -61,9 +61,9 @@ def get_system_health(
         },
         {
             "name": "Content Generation Service",
-            "status": "healthy" if settings.GEMINI_API_KEY else "not_configured",
+            "status": "healthy" if settings.GEMINI_API_KEYS else "not_configured",
             "latency_ms": 0.0,
-            "details": f"Processing configuration: {settings.GEMINI_MODEL}, Credential status: {'Configured' if settings.GEMINI_API_KEY else 'Missing'}"
+            "details": f"Processing configuration: {settings.GEMINI_MODEL}, Credential pool: {len(settings.GEMINI_API_KEYS)} configured"
         },
         {
             "name": "Session Store",

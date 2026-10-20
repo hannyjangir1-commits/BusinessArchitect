@@ -58,6 +58,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   const [activeSubTab, setActiveSubTab] = useState<'mindmap' | 'tasks' | 'gantt' | 'milestones' | 'dependencies'>('mindmap');
   const [planningOpenForVersion, setPlanningOpenForVersion] = useState<string | null | false>(false);
   const [staleDismissed, setStaleDismissed] = useState<boolean>(false);
+  const [showAssistant, setShowAssistant] = useState<boolean>(false);
 
   const isPlanningOpen = !moduleDetail?.active_version_id || planningOpenForVersion === moduleDetail.active_version_id;
   const feasibility = moduleDetail?.data?.feasibility_evaluation;
@@ -119,9 +120,9 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   }
 
   const phases = moduleDetail?.data?.phases || [
-    { name: 'Phase 1: Foundation & Architecture', color: '#7a916a' },
-    { name: 'Phase 2: Core Implementation', color: '#10b981' },
-    { name: 'Phase 3: Launch & Feedback', color: '#a68757' }
+    { name: 'Phase 1: Foundation & Architecture', color: 'var(--text-muted)' },
+    { name: 'Phase 2: Core Implementation', color: 'var(--primary-text)' },
+    { name: 'Phase 3: Launch & Feedback', color: 'var(--primary-text)' }
   ];
 
   return (
@@ -174,14 +175,14 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             justifyContent: 'space-between',
             gap: 16,
             padding: '12px 16px',
-            border: '1px solid #e4d5b8',
+            border: '1px solid var(--border-color)',
             borderRadius: 10,
-            background: '#fbf7ef',
+            background: 'var(--bg-subtle)',
             color: 'var(--text-main)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Calendar size={18} color="#9a7b45" aria-hidden="true" />
+            <Calendar size={18} color="var(--primary-text)" aria-hidden="true" />
             <span style={{ fontSize: 13 }}>
               This roadmap has ended dates. Replan it to anchor the timeline to today ({today}) and keep the Gantt chart current.
             </span>
@@ -194,10 +195,10 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
 
       {/* Freshness / Staleness Notification Banner (SYNC-004 to SYNC-006) */}
       {isStale && (
-        <div style={{ background: '#f0f1e9', border: '1px solid #dbe4d4', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Sparkles size={18} color="#a68757" />
-            <div style={{ fontSize: 13, color: '#8a7558' }}>
+            <Sparkles size={18} color="var(--primary-text)" />
+            <div style={{ fontSize: 13, color: 'var(--primary-text)' }}>
               <b>New Architecture Available:</b> {moduleDetail?.stale_reason || "Tech Stack was recently updated. Would you like to refresh your roadmap?"}
             </div>
           </div>
@@ -205,7 +206,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             <button
               onClick={handleAcceptStaleUpdate}
               className="btn-primary"
-              style={{ fontSize: 12, padding: '5px 12px', background: '#a68757', borderColor: '#a68757' }}
+              style={{ fontSize: 12, padding: '5px 12px', background: 'var(--bg-subtle)', borderColor: 'var(--primary-text)' }}
               disabled={isGenerating}
             >
               <RefreshCw size={12} className={isGenerating ? "animate-spin" : ""} /> Update Roadmap
@@ -223,24 +224,24 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
 
       {/* Feasibility Alert Banner for Solo Dev / Unrealistic Deadlines (ROAD-012, ROAD-013) */}
       {feasibility && !feasibility.is_realistic && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: 8, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldAlert size={20} color="#dc2626" />
+            <ShieldAlert size={20} color="var(--danger-text)" />
             <div>
-              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#991b1b' }}>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--danger-text)' }}>
                 Unrealistic Scope & Timeline Warning
               </h4>
-              <p style={{ margin: '2px 0 0 0', fontSize: 12.5, color: '#b91c1c' }}>
+              <p style={{ margin: '2px 0 0 0', fontSize: 12.5, color: 'var(--danger-text)' }}>
                 {feasibility.feasibility_issues?.[0] || "Solo developer requested full enterprise scope within 12 weeks. High risk of schedule overrun and burnout."}
               </p>
             </div>
           </div>
 
-          <div style={{ background: '#ffffff', borderRadius: 6, padding: '10px 14px', border: '1px solid #fee2e2' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d', display: 'block', marginBottom: 6 }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 6, padding: '10px 14px', border: '1px solid var(--bg-subtle)' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-text)', display: 'block', marginBottom: 6 }}>
               Recommended Realistic Alternatives:
             </span>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#991b1b', lineHeight: 1.5 }}>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--danger-text)', lineHeight: 1.5 }}>
               {feasibility.recommended_alternatives?.map((alt: string, aIdx: number) => (
                 <li key={aIdx} style={{ marginBottom: 4 }}>{alt}</li>
               ))}
@@ -251,7 +252,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             <button
               onClick={handleReduceScope}
               className="btn-primary"
-              style={{ fontSize: 12, padding: '6px 14px', background: '#dc2626', borderColor: '#dc2626' }}
+              style={{ fontSize: 12, padding: '6px 14px', background: 'var(--danger-text)', borderColor: 'var(--danger-text)' }}
               disabled={isGenerating}
             >
               Reduce to Core MVP Scope ➔
@@ -307,6 +308,17 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
         >
           <GitPullRequest size={14} /> Dependencies
         </button>
+
+        <div style={{ marginLeft: 'auto' }}>
+          <button
+            className={`subtab-pill ${showAssistant ? 'active' : ''}`}
+            onClick={() => setShowAssistant(!showAssistant)}
+            aria-label="Toggle Plan Assistant"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          >
+            <Sparkles size={14} /> {showAssistant ? 'Hide Plan Assistant' : 'Plan Assistant'}
+          </button>
+        </div>
       </div>
 
       {/* Main Workspace Layout */}
@@ -351,17 +363,17 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
               <MilestoneCards summary={summary} />
               <div className="card" style={{ padding: 20 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Milestone size={18} color="#6d855f" /> Key Milestone Deliverables
+                  <Milestone size={18} color="var(--primary-text)" /> Key Milestone Deliverables
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
                   {tasks.filter(t => t.deliverables).map((t, idx) => (
-                    <div key={t.id || idx} style={{ background: '#f7f6ef', border: '1px solid #dfe2d6', borderRadius: 8, padding: 14 }}>
+                    <div key={t.id || idx} style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6d855f' }}>{t.task_code}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary-text)' }}>{t.task_code}</span>
                         <span className={`badge-priority ${(t.priority || 'medium').toLowerCase()}`}>{t.priority}</span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>{t.title}</div>
-                      <div style={{ fontSize: 12, color: '#059669', background: '#ecfdf5', padding: '6px 10px', borderRadius: 6 }}>
+                      <div style={{ fontSize: 12, color: 'var(--primary-text)', background: 'var(--bg-subtle)', padding: '6px 10px', borderRadius: 6 }}>
                         <b>Deliverable:</b> {t.deliverables}
                       </div>
                       <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>
@@ -380,13 +392,16 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Blueprint Copilot Contextual Assistant */}
-        <ContextualAssistant
-          moduleTitle="Roadmap & Execution Plan"
-          moduleType="execution_roadmap"
-          onModify={onModify}
-          isLoading={isLoading}
-        />
+        {/* Blueprint Copilot Contextual Assistant: rendered only when requested */}
+        {showAssistant && (
+          <ContextualAssistant
+            moduleTitle="Roadmap & Execution Plan"
+            moduleType="execution_roadmap"
+            onModify={onModify}
+            onClose={() => setShowAssistant(false)}
+            isLoading={isLoading}
+          />
+        )}
       </div>
     </div>
   );

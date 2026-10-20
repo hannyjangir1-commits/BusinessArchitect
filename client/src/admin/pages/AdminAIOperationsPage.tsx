@@ -88,7 +88,7 @@ export const AdminAIOperationsPage: React.FC = () => {
         <button
           onClick={fetchData}
           title="Refresh metrics and operations"
-          style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}
         >
           <RefreshCw size={13} className={loading ? 'spin-animate' : ''} />
           Refresh Data
@@ -96,21 +96,21 @@ export const AdminAIOperationsPage: React.FC = () => {
       </div>
 
       {errorMsg && (
-        <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
+        <div style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', color: 'var(--danger-text)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
           {errorMsg}
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #dfe2d6', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', gap: '24px', marginBottom: '24px' }}>
         <button
           onClick={() => setActiveTab('requests')}
           style={{
             padding: '12px 4px',
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'requests' ? '2px solid #6d855f' : '2px solid transparent',
-            color: activeTab === 'requests' ? '#6d855f' : '#687164',
+            borderBottom: activeTab === 'requests' ? '2px solid var(--primary-text)' : '2px solid transparent',
+            color: activeTab === 'requests' ? 'var(--primary-text)' : 'var(--text-main)',
             fontWeight: activeTab === 'requests' ? 700 : 500,
             fontSize: '14px',
             cursor: 'pointer',
@@ -129,8 +129,8 @@ export const AdminAIOperationsPage: React.FC = () => {
             padding: '12px 4px',
             background: 'none',
             border: 'none',
-            borderBottom: activeTab === 'quality' ? '2px solid #6d855f' : '2px solid transparent',
-            color: activeTab === 'quality' ? '#6d855f' : '#687164',
+            borderBottom: activeTab === 'quality' ? '2px solid var(--primary-text)' : '2px solid transparent',
+            color: activeTab === 'quality' ? 'var(--primary-text)' : 'var(--text-main)',
             fontWeight: activeTab === 'quality' ? 700 : 500,
             fontSize: '14px',
             cursor: 'pointer',
@@ -149,25 +149,25 @@ export const AdminAIOperationsPage: React.FC = () => {
         <>
           {/* KPI Stats Bar */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Processing Engine</div>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: '#5d7550', marginTop: '4px' }}>{stats?.configured_model || 'Gemini 2.5 Pro'}</div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--primary-text)', marginTop: '4px' }}>{stats?.configured_model || 'Gemini 2.5 Pro'}</div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Success Rate</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: (stats?.success_rate ?? 100) >= 80 ? '#16a34a' : '#ef4444', marginTop: '4px' }}>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: (stats?.success_rate ?? 100) >= 80 ? 'var(--primary-text)' : 'var(--danger-text)', marginTop: '4px' }}>
                 {stats?.success_rate ?? 100}%
               </div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Latency (Median)</div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>{stats?.median_latency_ms || 0}ms</div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Latency (p95)</div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>{stats?.p95_latency_ms || 0}ms</div>
             </div>
-            <div style={{ background: '#ffffff', borderRadius: '10px', padding: '16px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total / Retried</div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
                 {stats?.total_operations || 0} <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 500 }}>({stats?.retried_operations || 0} retried)</span>
@@ -176,7 +176,7 @@ export const AdminAIOperationsPage: React.FC = () => {
           </div>
 
           {/* Filter Toolbar */}
-          <div style={{ background: '#ffffff', borderRadius: '10px', padding: '14px 18px', border: '1px solid #dfe2d6', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '10px', padding: '14px 18px', border: '1px solid var(--border-color)', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}>
                 <Filter size={15} />
@@ -187,7 +187,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                     setStatusFilter(e.target.value);
                     setPage(1);
                   }}
-                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
                 >
                   <option value="all">All Outcomes</option>
                   <option value="success">Success</option>
@@ -205,7 +205,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                     setModuleFilter(e.target.value);
                     setPage(1);
                   }}
-                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d9ddcf', fontSize: '13px' }}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px' }}
                 >
                   <option value="all">All Modules</option>
                   <option value="bmc">BMC</option>
@@ -224,10 +224,10 @@ export const AdminAIOperationsPage: React.FC = () => {
           </div>
 
           {/* Operations Table */}
-          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)', overflow: 'hidden' }}>
             {loading ? (
               <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+                <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
                 <p style={{ margin: 0 }}>Loading operation telemetry...</p>
               </div>
             ) : ops.length === 0 ? (
@@ -239,7 +239,7 @@ export const AdminAIOperationsPage: React.FC = () => {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                  <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                     <th style={{ padding: '14px 18px' }}>Operation / Module</th>
                     <th style={{ padding: '14px 18px' }}>Type</th>
                     <th style={{ padding: '14px 18px' }}>Status</th>
@@ -251,7 +251,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {ops.map(o => (
-                    <tr key={o.id} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                    <tr key={o.id} style={{ borderBottom: '1px solid var(--bg-subtle)' }}>
                       <td style={{ padding: '14px 18px' }}>
                         <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{o.module_type?.replace('_', ' ').toUpperCase()}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>ID: {o.id}</div>
@@ -266,8 +266,8 @@ export const AdminAIOperationsPage: React.FC = () => {
                             borderRadius: '4px',
                             fontSize: '11px',
                             fontWeight: 700,
-                            backgroundColor: o.status === 'success' ? '#dcfce7' : o.status === 'retried' ? '#e8ede2' : '#fee2e2',
-                            color: o.status === 'success' ? '#15803d' : o.status === 'retried' ? '#5d7550' : '#b91c1c'
+                            backgroundColor: o.status === 'success' ? 'var(--bg-subtle)' : o.status === 'retried' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                            color: o.status === 'success' ? 'var(--primary-text)' : o.status === 'retried' ? 'var(--primary-text)' : 'var(--danger-text)'
                           }}
                         >
                           {o.status.toUpperCase()}
@@ -278,11 +278,11 @@ export const AdminAIOperationsPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '14px 18px' }}>
                         {o.error_message ? (
-                          <span title={o.error_message} style={{ color: '#ef4444', fontSize: '12px' }}>
+                          <span title={o.error_message} style={{ color: 'var(--danger-text)', fontSize: '12px' }}>
                             {o.error_category || 'Error'}: {o.error_message.slice(0, 45)}...
                           </span>
                         ) : (
-                          <span style={{ color: '#16a34a', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ color: 'var(--primary-text)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <CheckCircle2 size={13} /> Schema Validated
                           </span>
                         )}
@@ -299,9 +299,9 @@ export const AdminAIOperationsPage: React.FC = () => {
                             style={{
                               padding: '5px 10px',
                               borderRadius: '4px',
-                              border: '1px solid #d9ddcf',
-                              background: '#ffffff',
-                              color: '#5d7550',
+                              border: '1px solid var(--border-color)',
+                              background: 'var(--bg-card)',
+                              color: 'var(--primary-text)',
                               cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: 600,
@@ -330,13 +330,13 @@ export const AdminAIOperationsPage: React.FC = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div style={{ padding: '14px 20px', borderTop: '1px solid #dfe2d6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+              <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
                 <div>Showing {ops.length} of {total} operations</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage(p => Math.max(1, p - 1))}
-                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
+                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
                   >
                     Previous
                   </button>
@@ -346,7 +346,7 @@ export const AdminAIOperationsPage: React.FC = () => {
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid #d9ddcf', background: '#ffffff', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
+                    style={{ padding: '5px 12px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
                   >
                     Next
                   </button>
@@ -362,9 +362,9 @@ export const AdminAIOperationsPage: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Quality Summary Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Validation Pass Rate</div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: '#16a34a', marginTop: '6px' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--primary-text)', marginTop: '6px' }}>
                 {quality?.structured_validation_rate ?? 100}%
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
@@ -372,9 +372,9 @@ export const AdminAIOperationsPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Parse Failures</div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: (quality?.parse_failures || 0) > 0 ? '#ef4444' : '#10b981', marginTop: '6px' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: (quality?.parse_failures || 0) > 0 ? 'var(--danger-text)' : 'var(--primary-text)', marginTop: '6px' }}>
                 {quality?.parse_failures || 0}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
@@ -382,9 +382,9 @@ export const AdminAIOperationsPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Persistence Failures</div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: (quality?.persistence_failures || 0) > 0 ? '#ef4444' : '#10b981', marginTop: '6px' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: (quality?.persistence_failures || 0) > 0 ? 'var(--danger-text)' : 'var(--primary-text)', marginTop: '6px' }}>
                 {quality?.persistence_failures || 0}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
@@ -394,7 +394,7 @@ export const AdminAIOperationsPage: React.FC = () => {
           </div>
 
           {/* Module Performance Table */}
-          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 16px' }}>
               Module-Specific Performance & Reliability
             </h3>
@@ -404,7 +404,7 @@ export const AdminAIOperationsPage: React.FC = () => {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f7f6ef', borderBottom: '1px solid #dfe2d6', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                  <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
                     <th style={{ padding: '12px 16px' }}>Module</th>
                     <th style={{ padding: '12px 16px' }}>Total Operations</th>
                     <th style={{ padding: '12px 16px' }}>Success Count</th>
@@ -414,14 +414,14 @@ export const AdminAIOperationsPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {stats.module_performance.map((m: any) => (
-                    <tr key={m.module_type} style={{ borderBottom: '1px solid #f0f1e9' }}>
+                    <tr key={m.module_type} style={{ borderBottom: '1px solid var(--bg-subtle)' }}>
                       <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--text-main)' }}>
                         {m.module_type.replace('_', ' ').toUpperCase()}
                       </td>
                       <td style={{ padding: '12px 16px', color: 'var(--text-main)' }}>{m.total}</td>
-                      <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: 600 }}>{m.success}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--primary-text)', fontWeight: 600 }}>{m.success}</td>
                       <td style={{ padding: '12px 16px' }}>
-                        <span style={{ fontWeight: 700, color: (m.success_rate ?? 100) >= 80 ? '#16a34a' : '#ef4444' }}>
+                        <span style={{ fontWeight: 700, color: (m.success_rate ?? 100) >= 80 ? 'var(--primary-text)' : 'var(--danger-text)' }}>
                           {m.success_rate != null ? `${m.success_rate}%` : 'N/A'}
                         </span>
                       </td>
@@ -435,15 +435,15 @@ export const AdminAIOperationsPage: React.FC = () => {
 
           {/* Error Categories Breakdown */}
           {stats?.error_categories && Object.keys(stats.error_categories).length > 0 && (
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 16px' }}>
                 Error Category Distribution
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 {Object.entries(stats.error_categories).map(([cat, count]: any) => (
-                  <div key={cat} style={{ padding: '12px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 700, textTransform: 'uppercase' }}>{cat}</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#dc2626', marginTop: '4px' }}>{count}</div>
+                  <div key={cat} style={{ padding: '12px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--danger-text)', fontWeight: 700, textTransform: 'uppercase' }}>{cat}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>{count}</div>
                   </div>
                 ))}
               </div>

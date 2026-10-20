@@ -35,7 +35,7 @@ export const AdminDatabasePage: React.FC = () => {
         </div>
         <button
           onClick={fetchDbData}
-          style={{ background: '#ffffff', border: '1px solid #d9ddcf', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
         >
           <RefreshCw size={14} className={loading ? 'spin-animate' : ''} />
           <span>Refresh</span>
@@ -44,14 +44,14 @@ export const AdminDatabasePage: React.FC = () => {
 
       {loading && !data ? (
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: '#6d855f' }} />
+          <Loader2 size={28} className="spin-animate" style={{ margin: '0 auto 12px', color: 'var(--primary-text)' }} />
           <p style={{ margin: 0 }}>Querying database metadata...</p>
         </div>
       ) : (
         <>
           {/* Metadata Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px', marginBottom: '28px' }}>
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Database Engine</div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px', textTransform: 'capitalize' }}>
                 {data?.engine || 'SQLite'}
@@ -61,17 +61,17 @@ export const AdminDatabasePage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Alembic Head Revision</div>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#5d7550', marginTop: '4px', fontFamily: 'monospace' }}>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary-text)', marginTop: '4px', fontFamily: 'monospace' }}>
                 {data?.current_migration_revision?.slice(0, 12) || 'Synced'}
               </div>
-              <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600, marginTop: '4px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--primary-text)', fontWeight: 600, marginTop: '4px' }}>
                 ✓ Up to date with migrations
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Connection Pool</div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
                 {data?.pool_configuration?.pool_class || 'Standard'}
@@ -81,9 +81,9 @@ export const AdminDatabasePage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>SSL Mode</div>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary-text)', marginTop: '4px' }}>
                 {data?.ssl_enforced ? 'Require' : 'Local Dev'}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -93,15 +93,15 @@ export const AdminDatabasePage: React.FC = () => {
           </div>
 
           {/* Table Row Counts */}
-          <div style={{ background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Table2 size={18} style={{ color: '#6d855f' }} />
+              <Table2 size={18} style={{ color: 'var(--primary-text)' }} />
               Core Table Row Counts
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
               {Object.entries(data?.table_row_counts || {}).map(([table, count]: any) => (
-                <div key={table} style={{ padding: '14px', borderRadius: '8px', border: '1px solid #dfe2d6', backgroundColor: '#f7f6ef' }}>
+                <div key={table} style={{ padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-subtle)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
                     {table}
                   </div>

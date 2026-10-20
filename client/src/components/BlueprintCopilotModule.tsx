@@ -69,7 +69,7 @@ const MarkdownContent: React.FC<{ content: string; isUser: boolean }> = ({ conte
           <code
             key={idx}
             style={{
-              background: 'rgba(109, 133, 95, 0.1)',
+              background: 'rgb(69 60 55 / 0.1)',
               color: 'var(--primary)',
               padding: '2px 5px',
               borderRadius: 4,
@@ -252,13 +252,13 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
           <div style={{
             width: 38,
             height: 38,
-            borderRadius: 10,
-            background: 'linear-gradient(135deg, #6d855f, #a68757)',
+            borderRadius: 8,
+            background: 'var(--bg-subtle)',
             color: 'var(--text-main)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 3px 10px rgba(109, 133, 95, 0.25)'
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <Bot size={20} />
           </div>
@@ -280,7 +280,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               width: 50,
               height: 50,
               borderRadius: '50%',
-              background: 'rgba(109, 133, 95, 0.12)',
+              background: 'rgb(69 60 55 / 0.12)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -326,7 +326,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    background: 'rgba(109, 133, 95, 0.12)',
+                    background: 'rgb(69 60 55 / 0.12)',
                     color: 'var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
@@ -339,7 +339,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                 <div
                   style={{
                     background: isUser ? 'var(--primary)' : 'var(--bg-subtle)',
-                    color: isUser ? '#ffffff' : 'var(--text-main)',
+                    color: isUser ? 'var(--bg-card)' : 'var(--text-main)',
                     padding: '12px 16px',
                     borderRadius: 12,
                     fontSize: 13.5,
@@ -375,7 +375,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: 'rgba(109, 133, 95, 0.12)',
+              background: 'rgb(69 60 55 / 0.12)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',

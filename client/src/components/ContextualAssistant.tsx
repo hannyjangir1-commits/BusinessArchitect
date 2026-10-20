@@ -9,47 +9,21 @@ interface Props {
   isLoading: boolean;
 }
 
-export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, onModify, onClose, isLoading }) => {
+export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, onModify, onClose, isLoading }) => {
   const [input, setInput] = useState('');
   const [isClosed, setIsClosed] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
-  // Module-specific suggested prompts tailored for each supported module
-  const modulePromptMap: Record<string, { label: string; text: string }[]> = {
-    overview: [
-      { label: '📝 Refine business description', text: 'Refine and sharpen the executive business description for clarity and investor appeal' },
-      { label: '🎯 Clarify target customers', text: 'Clarify target customer demographics, primary user personas, and acute pain points' },
-      { label: '📈 Update strategic goals', text: 'Update the strategic goals with quarterly measurable metrics and expansion targets' },
-      { label: '🏢 Industry positioning', text: 'Sharpen the competitive industry positioning and primary market differentiation' }
-    ],
-    bmc: [],
-    tech_stack: [
-      { label: '🛡️ Add authentication layer', text: 'Add an enterprise OAuth2, RBAC, and multi-factor authentication security architecture' },
-      { label: '🗄️ Evaluate database choice', text: 'Evaluate PostgreSQL and Redis caching suitability for scalable read/write operations' },
-      { label: '⚡ Improve scalability', text: 'Optimize architecture for high concurrency with asynchronous queues and connection pooling' },
-      { label: '📊 Add observability', text: 'Add distributed telemetry tracing, Prometheus metrics monitoring, and structured audit logging' }
-    ],
-    execution_roadmap: [
-      { label: '+ Add a strategic phase', text: 'Add a new strategic beta deployment phase with dedicated milestone deliverables' },
-      { label: '🎯 Adjust milestone deadlines', text: 'Re-align milestone target dates and allocate critical path buffer time' },
-      { label: '🔗 Extend development phase', text: 'Extend development phase by 2 weeks and reconcile dependent downstream tasks' },
-      { label: '🧪 Add testing tasks', text: 'Add automated end-to-end regression tests, penetration testing, and load validation' }
-    ],
-  };
-
-  const chips = modulePromptMap[moduleType] ?? modulePromptMap.execution_roadmap;
+  // Suggestions cannot be safely inferred from a module name alone. A software
+  // prompt such as "add OAuth" is actively misleading for projects like a local
+  // bakery, so the assistant accepts only the user's project-specific request.
+  const chips: { label: string; text: string }[] = [];
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
     const text = input;
-    setInput('');
-    await onModify(text);
-  };
-
-  const handleChipClick = async (chipText: string) => {
-    if (isLoading) return;
-    await onModify(chipText);
+    try { await onModify(text); setInput(''); } catch { /* Workspace displays the error and keeps this instruction. */ }
   };
 
   if (isClosed) {
@@ -65,7 +39,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             fontSize: 12.5,
             padding: '8px 14px',
             background: 'var(--bg-card)',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+            boxShadow: '0 2px 6px rgb(69 60 55 / 0.06)'
           }}
           title="Reopen Contextual Blueprint Assistant"
         >
@@ -83,7 +57,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
         <div className="ai-assistant-title">
           <MessageCircle size={16} />
           <span>Blueprint Assistant</span>
-          <span style={{ fontSize: 11, color: '#6d855f', fontWeight: 600 }}>({moduleTitle})</span>
+          <span style={{ fontSize: 11, color: 'var(--primary-text)', fontWeight: 600 }}>({moduleTitle})</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
           <button
@@ -124,7 +98,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
                   <button
                     key={idx}
                     className="ai-chip-btn"
-                    onClick={() => handleChipClick(c.text)}
+                    onClick={() => setInput(c.text)}
                     disabled={isLoading}
                   >
                     <span>{c.label}</span>
@@ -134,7 +108,7 @@ export const ContextualAssistant: React.FC<Props> = ({ moduleTitle, moduleType, 
             )}
 
             {isLoading && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'rgba(109, 133, 95, 0.1)', borderRadius: 8, color: 'var(--primary)', fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'rgb(69 60 55 / 0.1)', borderRadius: 8, color: 'var(--primary)', fontSize: 12 }}>
                 <Loader2 size={16} className="animate-spin" />
                 <span>Updating your blueprint recommendations...</span>
               </div>

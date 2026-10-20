@@ -33,7 +33,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
   if (!data) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e8ede2', color: '#6d855f', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <CheckCircle2 size={28} />
         </div>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
@@ -51,7 +51,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
           {isGenerating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText} (${generationProgress.progressPercent}%)` : 'Evaluating Feasibility...'}
+              {generationProgress ? `${generationProgress.stageText}` : 'Evaluating Feasibility...'}
             </>
           ) : (
             <>
@@ -64,7 +64,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
   }
 
   const score = data.overall_viability_score ?? 85;
-  const scoreColor = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+  const scoreColor = score >= 80 ? 'var(--primary-text)' : score >= 60 ? 'var(--primary-text)' : 'var(--danger-text)';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -97,7 +97,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
             isCreateDisabled={isGenerateDisabled}
           />
           <button onClick={onExportPdf} className="btn-secondary">
-            <Download size={14} color="#6d855f" /> Export This Module (PDF)
+            <Download size={14} color="var(--primary-text)" /> Export This Module (PDF)
           </button>
         </div>
       </div>
@@ -120,7 +120,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
           <p style={{ fontSize: 13, color: 'var(--text-main)', lineHeight: 1.5 }}>
             {data.problem_clarity}
           </p>
-          <div style={{ marginTop: 8, fontSize: 12, color: '#6d855f', fontWeight: 600 }}>
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--primary-text)', fontWeight: 600 }}>
             ICP: {data.customer_fit}
           </div>
         </div>
@@ -164,19 +164,19 @@ export const IdeaValidatorModule: React.FC<Props> = ({
       {/* Key Strategic Pillars Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <div className="card">
-          <div className="card-title" style={{ color: '#6d855f' }}>
+          <div className="card-title" style={{ color: 'var(--primary-text)' }}>
             <Target size={16} /> Value Proposition & Wedge
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-main)', marginTop: 10, lineHeight: 1.5 }}>
             {data.value_proposition}
           </p>
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f0f1e9', fontSize: 12, color: 'var(--text-muted)' }}>
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--bg-subtle)', fontSize: 12, color: 'var(--text-muted)' }}>
             <b>Moat:</b> {data.differentiation}
           </div>
         </div>
 
         <div className="card">
-          <div className="card-title" style={{ color: '#7a916a' }}>
+          <div className="card-title" style={{ color: 'var(--text-muted)' }}>
             <Sparkles size={16} /> Market Assumptions That Must Be True
           </div>
           <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -189,7 +189,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
 
       {/* Risks & Mitigations Table */}
       <div className="card">
-        <div className="card-title" style={{ color: '#ef4444', marginBottom: 14 }}>
+        <div className="card-title" style={{ color: 'var(--danger-text)', marginBottom: 14 }}>
           <AlertTriangle size={16} /> Critical Venture Risks & Mitigations
         </div>
         <div className="table-responsive">
@@ -220,7 +220,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
 
       {/* Recommended Validation Experiments */}
       <div className="card">
-        <div className="card-title" style={{ color: '#a68757', marginBottom: 14 }}>
+        <div className="card-title" style={{ color: 'var(--primary-text)', marginBottom: 14 }}>
           <FlaskConical size={16} /> Actionable Validation Experiments
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
@@ -232,7 +232,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 <b>Metric:</b> {exp.metric}
               </div>
-              <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600, marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--primary-text)', fontWeight: 600, marginTop: 4 }}>
                 <b>Target Criteria:</b> {exp.target_criteria}
               </div>
             </div>

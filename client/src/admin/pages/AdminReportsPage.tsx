@@ -63,19 +63,19 @@ export const AdminReportsPage: React.FC = () => {
       {/* Security alert callout */}
       <div
         style={{
-          backgroundColor: '#edf0e7',
-          border: '1px solid #dfe2d6',
+          backgroundColor: 'var(--bg-subtle)',
+          border: '1px solid var(--border-color)',
           borderRadius: '10px',
           padding: '14px 18px',
           marginBottom: '28px',
           display: 'flex',
           alignItems: 'center',
           gap: '12px',
-          color: '#718765',
+          color: 'var(--text-muted)',
           fontSize: '13px'
         }}
       >
-        <ShieldCheck size={20} style={{ flexShrink: 0, color: '#a68757' }} />
+        <ShieldCheck size={20} style={{ flexShrink: 0, color: 'var(--primary-text)' }} />
         <div>
           <strong>Security Protection Enforced:</strong> All CSV exports are sanitized on the server against CSV/Formula Injection attacks. Any fields beginning with formula triggers (<code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>) are safely prefixed with single quotes.
         </div>
@@ -92,8 +92,8 @@ export const AdminReportsPage: React.FC = () => {
                 backgroundColor: 'var(--bg-card)',
                 borderRadius: '12px',
                 padding: '24px',
-                border: '1px solid #dfe2d6',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between'
@@ -106,8 +106,8 @@ export const AdminReportsPage: React.FC = () => {
                       width: '42px',
                       height: '42px',
                       borderRadius: '10px',
-                      backgroundColor: rep.id === 'summary_pdf' ? '#e8ede2' : '#e8ede2',
-                      color: rep.id === 'summary_pdf' ? '#a68757' : '#5d7550',
+                      backgroundColor: rep.id === 'summary_pdf' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                      color: rep.id === 'summary_pdf' ? 'var(--primary-text)' : 'var(--primary-text)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -121,7 +121,7 @@ export const AdminReportsPage: React.FC = () => {
                       fontWeight: 700,
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      backgroundColor: '#f0f1e9',
+                      backgroundColor: 'var(--bg-subtle)',
                       color: 'var(--text-main)'
                     }}
                   >
@@ -136,14 +136,14 @@ export const AdminReportsPage: React.FC = () => {
                 </p>
               </div>
 
-              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f0f1e9' }}>
+              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--bg-subtle)' }}>
                 <button
                   onClick={rep.action}
                   style={{
                     width: '100%',
                     padding: '9px 16px',
                     borderRadius: '6px',
-                    border: '1px solid #d9ddcf',
+                    border: '1px solid var(--border-color)',
                     backgroundColor: 'var(--bg-card)',
                     color: 'var(--text-main)',
                     fontSize: '13px',
@@ -156,8 +156,8 @@ export const AdminReportsPage: React.FC = () => {
                     transition: 'all 0.15s ease'
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.backgroundColor = '#6d855f';
-                    e.currentTarget.style.borderColor = '#6d855f';
+                    e.currentTarget.style.backgroundColor = 'var(--primary-text)';
+                    e.currentTarget.style.borderColor = 'var(--primary-text)';
                     e.currentTarget.style.color = 'var(--text-main)';
                   }}
                   onMouseLeave={e => {

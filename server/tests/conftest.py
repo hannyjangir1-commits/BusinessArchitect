@@ -22,6 +22,7 @@ _DB_PATH.unlink(missing_ok=True)
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH.as_posix()}"
 os.environ["GEMINI_API_KEY"] = ""
+os.environ["GEMINI_API_KEYS"] = ""
 os.environ["ADMIN_BOOTSTRAP_ENABLED"] = "false"
 os.environ["INITIAL_ADMIN_USERNAME"] = ""
 os.environ["INITIAL_ADMIN_PASSWORD"] = ""

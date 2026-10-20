@@ -1,4 +1,5 @@
 import io
+from html import escape
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from reportlab.lib.pagesizes import letter
@@ -8,15 +9,27 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
 )
 
-# Brand colors inspired by UI reference
-PRIMARY = colors.HexColor("#6366f1")      # Indigo / Purple accent
-PRIMARY_DARK = colors.HexColor("#4338ca") # Dark Indigo
-SECONDARY = colors.HexColor("#0ea5e9")    # Cyan / Sky
-NEUTRAL_DARK = colors.HexColor("#0f172a") # Slate 900
-NEUTRAL_MID = colors.HexColor("#334155")  # Slate 700
-NEUTRAL_LIGHT = colors.HexColor("#f8fafc")# Slate 50
-CARD_BG = colors.HexColor("#f1f5f9")      # Slate 100
-BORDER_COLOR = colors.HexColor("#cbd5e1") # Slate 300
+# Copper & Paper export palette matches the application.
+PRIMARY = colors.HexColor("#955137")
+PRIMARY_DARK = colors.HexColor("#955137")
+SECONDARY = colors.HexColor("#955137")
+NEUTRAL_DARK = colors.HexColor("#453C37")
+NEUTRAL_MID = colors.HexColor("#453C37")
+NEUTRAL_LIGHT = colors.HexColor("#FAF7F2")
+CARD_BG = colors.HexColor("#FAF7F2")
+BORDER_COLOR = colors.HexColor("#DED0C2")
+
+
+def _export_data(value):
+    """Escape untrusted report text and omit private generation instructions."""
+    private = {"context_metadata", "generation_brief", "constructed_prompt", "system_prompt", "custom_instructions"}
+    if isinstance(value, str):
+        return escape(value, quote=False)
+    if isinstance(value, dict):
+        return {key: _export_data(item) for key, item in value.items() if key not in private}
+    if isinstance(value, list):
+        return [_export_data(item) for item in value]
+    return value
 
 class PDFService:
     @staticmethod
@@ -114,6 +127,9 @@ class PDFService:
         Generates a consolidated enterprise blueprint PDF containing all active modules.
         Explicitly excludes version history, copilot conversations, and audit records.
         """
+        project_dict = _export_data(project_dict)
+        modules_data = _export_data(modules_data)
+        tasks_list = _export_data(tasks_list)
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             buffer,
@@ -441,6 +457,8 @@ class PDFService:
         module_data: Dict[str, Any]
     ) -> bytes:
         """Generates a PDF dedicated solely to the single specified module."""
+        project_dict = _export_data(project_dict)
+        module_data = _export_data(module_data)
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             buffer,
@@ -466,34 +484,25 @@ class PDFService:
         story.append(Paragraph(f"Business Stage: {project_dict.get('stage')} | Generated: {datetime.now(timezone.utc).strftime('%B %d, %Y')}", styles["BodyDark"]))
         story.append(HRFlowable(width="100%", thickness=1.5, color=PRIMARY, spaceBefore=10, spaceAfter=20))
 
-        if module_type == "bmc":
-            for block_name, items in module_data.items():
-                if block_name == "tagline":
-                    continue
-                readable = block_name.replace("_", " ").title()
-                story.append(Paragraph(readable, styles["SubHeading"]))
-                if isinstance(items, list):
-                    for item in items:
+        def append_value(label, value, depth=0):
+            if label:
+                title = escape(str(label).replace("_", " ").title(), quote=False)
+                story.append(Paragraph(title, styles["SubHeading"] if depth < 2 else styles["BodyDark"]))
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    append_value(key, item, depth + 1)
+            elif isinstance(value, list):
+                for index, item in enumerate(value, 1):
+                    if isinstance(item, (dict, list)):
+                        append_value(f"Item {index}", item, depth + 1)
+                    else:
                         story.append(Paragraph(f"• {item}", styles["BulletText"]))
-                story.append(Spacer(1, 8))
-        else:
-            # Generic structured representation
-            for k, v in module_data.items():
-                readable = k.replace("_", " ").title()
-                story.append(Paragraph(f"<b>{readable}:</b>", styles["SubHeading"]))
-                if isinstance(v, list):
-                    for it in v:
-                        if isinstance(it, dict):
-                            summary = ", ".join([f"{sub_k}: {sub_v}" for sub_k, sub_v in it.items() if not isinstance(sub_v, (list, dict))])
-                            story.append(Paragraph(f"• {summary}", styles["BulletText"]))
-                        else:
-                            story.append(Paragraph(f"• {it}", styles["BulletText"]))
-                elif isinstance(v, dict):
-                    for sub_k, sub_v in v.items():
-                        story.append(Paragraph(f"  - <b>{sub_k.title()}:</b> {sub_v}", styles["BodyDark"]))
-                else:
-                    story.append(Paragraph(str(v), styles["BodyDark"]))
-                story.append(Spacer(1, 8))
+            elif value is not None:
+                story.append(Paragraph(str(value), styles["BodyDark"]))
+            story.append(Spacer(1, 5))
+
+        for key, value in module_data.items():
+            append_value(key, value)
 
         doc.build(story)
         pdf_bytes = buffer.getvalue()

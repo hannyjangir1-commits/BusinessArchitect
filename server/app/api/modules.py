@@ -11,11 +11,13 @@ from app.schemas.modules import (
     ModuleDetailResponse, VersionItemResponse, VersionRenameRequest,
     VersionConflictResolveRequest, SectionModifyRequest,
     BMCData, TechStackData, IdeaValidatorData, MarketResearchData,
-    ExecutionRoadmapData, RoadmapPlanningRequest
+    ExecutionRoadmapData, RoadmapPlanningRequest, TechStackPlanningRequest
 )
 from app.services.version_service import VersionService
 from app.services.readiness_service import ReadinessValidationService
 from app.services.pdf_service import PDFService
+from app.services.project_context_service import active_version, current_module_data, find_module, project_fingerprint, read_project_context
+from app.services.transaction_service import lock_record
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
 from app.core.telemetry import record_ai_operation, record_analytics_event
@@ -28,92 +30,16 @@ ALLOWED_CHAT_MODULES = {"overview", "bmc", "tech_stack", "execution_roadmap", "d
 DISALLOWED_CHAT_MODULES = {"idea_validator", "market_research"}
 DELETABLE_MODULE_TYPES = {"bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap"}
 
-def _validate_module_data(module_type: str, data: Dict[str, Any]):
-    if not isinstance(data, dict):
-        raise ValueError("Module data must be a structured dictionary")
-    if module_type == "bmc":
-        BMCData.model_validate(data)
-    elif module_type == "tech_stack":
-        TechStackData.model_validate(data)
-    elif module_type == "idea_validator":
-        IdeaValidatorData.model_validate(data)
-    elif module_type == "market_research":
-        MarketResearchData.model_validate(data)
-    elif module_type in ("execution_roadmap", "detailed_roadmap"):
-        ExecutionRoadmapData.model_validate(data)
+from app.services.roadmap_service import RoadmapDomainService
+from app.services.module_orchestration_service import ModuleOrchestrationService
 
-def _reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dict[str, Any]]):
-    existing_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
-    existing_by_code = {t.task_code: t for t in existing_tasks}
-
-    base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
-    active_codes = set()
-
-    for idx, t in enumerate(tasks_data):
-        code = t.get("task_code") or f"TSK-{str(idx+1).zfill(2)}"
-        active_codes.add(code)
-        s_date = t.get("start_date") or base_date_str
-        e_date = t.get("end_date") or s_date
-        if e_date < s_date:
-            e_date = s_date
-
-        if code in existing_by_code:
-            cur = existing_by_code[code]
-            # Preserve user edits if in progress or finished
-            if cur.status not in ("In Progress", "Ongoing", "Finished"):
-                raw_st = t.get("status", "Pending")
-                cur.status = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
-            cur.phase = t.get("phase", cur.phase)
-            cur.title = t.get("title", cur.title)
-            cur.description = t.get("description", cur.description)
-            cur.timeline = t.get("timeline", cur.timeline)
-            cur.start_date = s_date
-            cur.end_date = e_date
-            cur.priority = t.get("priority", cur.priority)
-            cur.dependencies = t.get("dependencies", cur.dependencies)
-            cur.deliverables = t.get("deliverables", cur.deliverables)
-            cur.effort = t.get("effort", cur.effort)
-            cur.assigned_to = t.get("assigned_to", cur.assigned_to or "Unassigned")
-            cur.assigned_role = t.get("assigned_role", cur.assigned_role)
-            cur.department = t.get("department", cur.department)
-            cur.steps = t.get("steps", cur.steps or [])
-            cur.is_overloaded = t.get("is_overloaded", cur.is_overloaded or False)
-            cur.order_index = idx
-        else:
-            raw_st = t.get("status", "Pending")
-            st_val = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
-            new_task = RoadmapTask(
-                project_id=project.id,
-                task_code=code,
-                phase=t.get("phase", "Planning & Research"),
-                title=t.get("title", f"Task {idx+1}"),
-                description=t.get("description", ""),
-                timeline=t.get("timeline", "30-day"),
-                start_date=s_date,
-                end_date=e_date,
-                priority=t.get("priority", "Medium"),
-                status=st_val,
-                dependencies=t.get("dependencies", []),
-                deliverables=t.get("deliverables", ""),
-                effort=t.get("effort", "1 week"),
-                assigned_to=t.get("assigned_to", "Unassigned"),
-                assigned_role=t.get("assigned_role"),
-                department=t.get("department"),
-                steps=t.get("steps", []),
-                is_overloaded=t.get("is_overloaded", False),
-                order_index=idx,
-                is_ai_generated=True
-            )
-            db.add(new_task)
-
-    # Obsolete AI-generated tasks removal:
-    # Delete tasks if they were AI-generated and are not in the active roadmap JSON.
-    # Preserve manual user-created tasks (is_ai_generated == False).
-    for cur in existing_tasks:
-        if cur.task_code not in active_codes and cur.is_ai_generated and cur.status not in ("Finished", "Completed"):
-            db.delete(cur)
-
-    db.flush()
+# Facade aliases for internal and external module callers
+_validate_module_data = ModuleOrchestrationService.validate_module_payload
+_reconcile_roadmap_tasks = RoadmapDomainService.reconcile_roadmap_tasks
+_normalize_roadmap_schedule = RoadmapDomainService.normalize_roadmap_schedule
+_detect_and_break_dependency_cycles = RoadmapDomainService.detect_and_break_dependency_cycles
+_parse_roadmap_date = RoadmapDomainService.parse_roadmap_date
+_matches_planning_items = RoadmapDomainService.matches_planning_items
 
 def _get_project_dict(project: Project) -> Dict[str, Any]:
     return {
@@ -129,150 +55,8 @@ def _get_project_dict(project: Project) -> Dict[str, Any]:
         "existing_stack": project.existing_stack or {}
     }
 
-
-def _parse_roadmap_date(value: Any) -> date | None:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    if isinstance(value, str):
-        try:
-            return date.fromisoformat(value[:10])
-        except ValueError:
-            return None
-    return None
-
-
-def _matches_planning_items(task: Dict[str, Any], items: List[str]) -> bool:
-    ignored = {"the", "and", "for", "with", "from", "that", "this", "are", "was", "were", "have", "has", "been", "already", "complete", "completed", "defined", "work", "task"}
-    task_text = f"{task.get('title', '')} {task.get('description', '')}".lower()
-    task_terms = set(re.findall(r"[a-z0-9]+", task_text)) - ignored
-    if not task_terms:
-        return False
-    for item in items:
-        item_text = str(item).strip().lower()
-        item_terms = set(re.findall(r"[a-z0-9]+", item_text)) - ignored
-        if item_text and (item_text in task_text or task_text.strip() in item_text):
-            return True
-        overlap = len(task_terms & item_terms)
-        if len(item_terms) >= 2 and overlap >= 2 and overlap / len(item_terms) >= 0.65:
-            return True
-    return False
-
-
-def _normalize_roadmap_schedule(data: Dict[str, Any], planning: RoadmapPlanningRequest) -> Dict[str, Any]:
-    """Repair malformed dates and shift unfinished work to the requested/current date."""
-    result = dict(data)
-    today = date.today()
-    baseline = max(planning.start_date, today)
-    tasks = [dict(task) for task in result.get("tasks", []) if isinstance(task, dict)]
-    completed_items = [item.item for item in planning.checklist if item.status == "Completed"]
-    completed_items.extend(part.strip() for part in re.split(r"[\n;]+", planning.completed_work) if part.strip())
-    in_progress_items = [item.item for item in planning.checklist if item.status == "In progress"]
-    in_progress_items.extend(part.strip() for part in re.split(r"[\n;]+", planning.in_progress_work) if part.strip())
-    cursor = baseline
-
-    for index, task in enumerate(tasks):
-        task["task_code"] = task.get("task_code") or f"TSK-{index + 1:02d}"
-        task["phase"] = str(task.get("phase") or "Execution").strip() or "Execution"
-        raw_status = str(task.get("status") or "Pending").strip().lower()
-        if raw_status in {"in progress", "ongoing", "underway"} and _matches_planning_items(task, in_progress_items):
-            task["status"] = "In Progress"
-        elif raw_status in {"finished", "completed", "done"} and _matches_planning_items(task, completed_items):
-            task["status"] = "Finished"
-        else:
-            task["status"] = "Pending"
-        start = _parse_roadmap_date(task.get("start_date")) or cursor
-        end = _parse_roadmap_date(task.get("end_date")) or (start + timedelta(days=6))
-        if end < start:
-            end = start + timedelta(days=6)
-        task["start_date"] = start.isoformat()
-        task["end_date"] = end.isoformat()
-        cursor = max(cursor, end + timedelta(days=1))
-
-    unfinished_starts = [
-        _parse_roadmap_date(task["start_date"])
-        for task in tasks
-        if str(task.get("status", "Pending")).strip().lower() not in {"finished", "completed"}
-    ]
-    valid_starts = [value for value in unfinished_starts if value]
-    shift_days = max(0, (baseline - min(valid_starts)).days) if valid_starts else 0
-
-    for task in tasks:
-        is_finished = str(task.get("status", "Pending")).strip().lower() in {"finished", "completed"}
-        if not is_finished and shift_days:
-            start = _parse_roadmap_date(task["start_date"]) + timedelta(days=shift_days)
-            end = _parse_roadmap_date(task["end_date"]) + timedelta(days=shift_days)
-            task["start_date"] = start.isoformat()
-            task["end_date"] = end.isoformat()
-
-    colors = ["#78906c", "#9a815c", "#b09a68", "#687f5d", "#b77d68", "#bb816a"]
-    raw_phases = {phase.get("name"): phase for phase in (result.get("phases") or []) if isinstance(phase, dict)}
-    grouped: Dict[str, List[Dict[str, Any]]] = {}
-    for task in tasks:
-        grouped.setdefault(task["phase"], []).append(task)
-
-    phases = []
-    for index, (name, phase_tasks) in enumerate(grouped.items()):
-        first = raw_phases.get(name, {})
-        phases.append({
-            "name": name,
-            "color": first.get("color") or colors[index % len(colors)],
-            "start_date": min(task["start_date"] for task in phase_tasks),
-            "end_date": max(task["end_date"] for task in phase_tasks),
-            "description": first.get("description") or f"Work grouped under {name}.",
-        })
-
-    _detect_and_break_dependency_cycles(tasks)
-    result["tasks"] = tasks
-    result["phases"] = phases
-    return result
-
-def _detect_and_break_dependency_cycles(tasks: List[Dict[str, Any]]) -> None:
-    """Detect circular dependencies (e.g. A -> B and B -> A) and remove offending back-edges."""
-    adj: Dict[str, List[str]] = {}
-    for t in tasks:
-        code = t.get("task_code")
-        if code:
-            deps = t.get("dependencies") or []
-            adj[code] = [d for d in deps if isinstance(d, str)]
-
-    visited: Dict[str, int] = {}
-
-    def dfs(node: str, path: List[str]):
-        visited[node] = 1
-        path.append(node)
-        for neighbor in list(adj.get(node, [])):
-            if visited.get(neighbor) == 1:
-                # Cycle detected: remove back-edge
-                if neighbor in adj[node]:
-                    adj[node].remove(neighbor)
-                for t in tasks:
-                    if t.get("task_code") == node:
-                        t_deps = t.get("dependencies", [])
-                        if neighbor in t_deps:
-                            t_deps.remove(neighbor)
-            elif visited.get(neighbor, 0) == 0:
-                dfs(neighbor, path)
-        path.pop()
-        visited[node] = 2
-
-    for code in list(adj.keys()):
-        if visited.get(code, 0) == 0:
-            dfs(code, [])
-    return tasks
-
 def _gather_cross_module_context(db: Session, project_id: str) -> Dict[str, Any]:
-    context = {}
-    modules = db.query(ModuleContent).filter(
-        ModuleContent.project_id == project_id
-    ).order_by(ModuleContent.updated_at.desc()).all()
-    for m in modules:
-        if m.active_version_id:
-            ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
-            if ver and ver.data:
-                context.setdefault(normalize_module_type(m.module_type), ver.data)
-    return context
+    return read_project_context(db, project_id)[0]
 
 
 def _merge_legacy_roadmap_history(
@@ -320,6 +104,8 @@ def _merge_legacy_roadmap_history(
 def _get_or_create_canonical_module(db: Session, project_id: str, module_type: str) -> ModuleContent:
     """Reuse a legacy roadmap record on first write, preserving its full history."""
     canonical_type = normalize_module_type(module_type)
+    if canonical_type not in DELETABLE_MODULE_TYPES and canonical_type != "overview":
+        raise HTTPException(status_code=404, detail="Unknown module")
     module = db.query(ModuleContent).filter(
         ModuleContent.project_id == project_id,
         ModuleContent.module_type == canonical_type
@@ -353,14 +139,16 @@ def get_module(
     db: Session = Depends(get_db)
 ):
     module_type = normalize_module_type(module_type)
+    if module_type not in DELETABLE_MODULE_TYPES and module_type != "overview":
+        raise HTTPException(status_code=404, detail="Unknown module")
     module = db.query(ModuleContent).filter(
         ModuleContent.project_id == project.id,
         ModuleContent.module_type == module_type
     ).first()
 
-    # Old projects may contain only the former module, or both former and
-    # unified rows. Reads of a legacy-only project remain side-effect free;
-    # when both rows exist, merge their version history so it remains visible.
+    # Reads never migrate or repair records. Legacy history is combined for
+    # display, and is moved only during an authorized write.
+    legacy_module = None
     if not module and module_type == "execution_roadmap":
         module = db.query(ModuleContent).filter(
             ModuleContent.project_id == project.id,
@@ -371,9 +159,6 @@ def get_module(
             ModuleContent.project_id == project.id,
             ModuleContent.module_type == "detailed_roadmap"
         ).first()
-        if legacy_module:
-            _merge_legacy_roadmap_history(db, module, legacy_module)
-            db.commit()
 
     if not module:
         return ModuleDetailResponse(
@@ -386,14 +171,9 @@ def get_module(
         )
 
     versions = VersionService.get_versions(db, module.id)
-
-    active_ver = None
-    if module.active_version_id:
-        active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
-    if not active_ver and versions:
-        active_ver = versions[-1]
-        module.active_version_id = active_ver.id
-        db.commit()
+    if legacy_module and legacy_module.id != module.id:
+        versions += VersionService.get_versions(db, legacy_module.id)
+    active_ver = active_version(db, module)
 
     is_stale = False
     stale_reason = None
@@ -406,7 +186,7 @@ def get_module(
                 ModuleContent.module_type == "tech_stack"
             ).first()
             if ts_mod and ts_mod.active_version_id:
-                ts_ver = db.query(ModuleVersion).filter(ModuleVersion.id == ts_mod.active_version_id).first()
+                ts_ver = active_version(db, ts_mod)
                 if ts_ver and ts_ver.created_at > active_ver.created_at:
                     is_stale = True
                     stale_reason = f"Tech Stack was updated on {ts_ver.created_at.strftime('%Y-%m-%d %H:%M')}. Would you like to refresh your Roadmap to align with the latest architecture?"
@@ -418,18 +198,33 @@ def get_module(
                 ModuleContent.module_type == "bmc"
             ).first()
             if bmc_mod and bmc_mod.active_version_id:
-                bmc_ver = db.query(ModuleVersion).filter(ModuleVersion.id == bmc_mod.active_version_id).first()
+                bmc_ver = active_version(db, bmc_mod)
                 if bmc_ver and bmc_ver.created_at > active_ver.created_at:
                     is_stale = True
                     stale_reason = f"Business Model Canvas was updated on {bmc_ver.created_at.strftime('%Y-%m-%d %H:%M')}. Refresh {module_type.replace('_', ' ').title()} to incorporate revised customer segments and value propositions?"
                     stale_source_module = "bmc"
+
+    if active_ver and isinstance(active_ver.data, dict):
+        saved_metadata = active_ver.data.get("context_metadata") or {}
+        if saved_metadata.get("project_fingerprint") and saved_metadata["project_fingerprint"] != project_fingerprint(project):
+            is_stale, stale_source_module = True, "overview"
+            stale_reason = "Project details have changed since this version was created. Refresh this section to use the current scope and constraints."
+        else:
+            _, current_sources = read_project_context(db, project.id, exclude_module=module_type)
+            current_by_module = {source["module_type"]: source for source in current_sources}
+            for source in saved_metadata.get("source_versions", []):
+                current = current_by_module.get(source.get("module_type"))
+                if not current or current.get("content_fingerprint") != source.get("content_fingerprint"):
+                    is_stale, stale_source_module = True, source.get("module_type")
+                    stale_reason = "A source section has changed or was deleted. Review and refresh this section when you are ready."
+                    break
 
     return ModuleDetailResponse(
         module_type=module_type,
         active_version_id=active_ver.id if active_ver else None,
         active_version_name=active_ver.version_name if active_ver else None,
         active_version_number=active_ver.version_number if active_ver else None,
-        data=active_ver.data if active_ver else None,
+        data=current_module_data(db, module, active_ver) if active_ver else None,
         versions=[VersionItemResponse.model_validate(v) for v in versions],
         is_stale=is_stale,
         stale_reason=stale_reason,
@@ -454,6 +249,7 @@ def delete_module(
         stored_types.append("detailed_roadmap")
 
     try:
+        lock_record(db, Project, project.id)
         modules = db.query(ModuleContent).filter(
             ModuleContent.project_id == project.id,
             ModuleContent.module_type.in_(stored_types)
@@ -490,11 +286,20 @@ def delete_module(
 @router.post("/{module_type}/generate", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def generate_module(
     module_type: str,
-    planning_inputs: RoadmapPlanningRequest | None = None,
+    planning_inputs: dict | None = None,
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
     module_type = normalize_module_type(module_type)
+    if module_type not in DELETABLE_MODULE_TYPES:
+        raise HTTPException(status_code=404, detail="Unknown generated module")
+    typed_inputs = None
+    if module_type in ("execution_roadmap", "detailed_roadmap"):
+        typed_inputs = RoadmapPlanningRequest.model_validate(planning_inputs or {})
+    elif module_type == "tech_stack":
+        typed_inputs = TechStackPlanningRequest.model_validate(planning_inputs or {})
+    elif planning_inputs:
+        raise HTTPException(status_code=400, detail="This module does not accept planning inputs")
     # Enforce input readiness validation before invoking AI service
     is_ready, missing_fields, error_msgs = ReadinessValidationService.validate_project_readiness(project, module_type)
     if not is_ready:
@@ -511,133 +316,27 @@ def generate_module(
 
     proj_info = _get_project_dict(project)
     module = _get_or_create_canonical_module(db, project.id, module_type)
-    cross_ctx = _gather_cross_module_context(db, project.id)
-    t0 = time.time()
 
-    try:
-        planning_dict = None
-        if module_type in ("execution_roadmap", "detailed_roadmap"):
-            planning = planning_inputs or RoadmapPlanningRequest()
-            planning_dict = planning.model_dump(mode="json")
+    new_ver, data_dict = ModuleOrchestrationService.execute_module_generation(
+        db=db,
+        project=project,
+        module=module,
+        module_type=module_type,
+        planning_inputs=typed_inputs,
+        project_dict=proj_info,
+    )
 
-        # Stage 1: Build server-side generation brief
-        brief = ai_service.build_generation_brief(
-            proj_info,
-            module_type,
-            cross_module_context=cross_ctx,
-            planning_inputs=planning_dict
-        )
-
-        # Stage 2: Tailored module synthesis
-        if module_type == "bmc":
-            generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx)
-            data_dict = generated.model_dump()
-        elif module_type == "tech_stack":
-            generated = ai_service.generate_tech_stack(proj_info, brief, cross_module_context=cross_ctx)
-            data_dict = generated.model_dump()
-        elif module_type == "idea_validator":
-            generated = ai_service.generate_idea_validator(proj_info, brief, cross_module_context=cross_ctx)
-            data_dict = generated.model_dump()
-        elif module_type == "market_research":
-            generated = ai_service.generate_market_research(proj_info, brief, cross_module_context=cross_ctx)
-            data_dict = generated.model_dump()
-        elif module_type in ("execution_roadmap", "detailed_roadmap"):
-            roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict, brief, cross_module_context=cross_ctx)
-            data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
-            data_dict["planning_inputs"] = planning_dict
-            if "feasibility_evaluation" in roadmap_raw and "feasibility_evaluation" not in data_dict:
-                data_dict["feasibility_evaluation"] = roadmap_raw["feasibility_evaluation"]
-        else:
-            raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
-
-        # Provenance: Attach context metadata
-        data_dict["context_metadata"] = {
-            "stage": proj_info.get("stage"),
-            "industry": proj_info.get("industry"),
-            "budget": proj_info.get("budget"),
-            "technical_depth": brief.technical_depth,
-            "brief_summary": brief.venture_summary,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "cross_modules_used": [k for k in cross_ctx.keys() if k != module_type]
-        }
-
-        # Validate module payload against schema before persistence (F-09)
-        _validate_module_data(module_type, data_dict)
-
-        # Save new version and reconcile roadmap tasks in single atomic transaction (F-08)
-        new_ver = VersionService.save_new_version(
-            db=db,
-            module=module,
-            data=data_dict,
-            change_summary="Initial blueprint generation",
-            commit=False
-        )
-
-        if module_type in ("execution_roadmap", "detailed_roadmap"):
-            tasks_data = data_dict.get("tasks", [])
-            _reconcile_roadmap_tasks(db, project, tasks_data)
-
-        db.commit()
-        db.refresh(new_ver)
-
-        dur_ms = int((time.time() - t0) * 1000)
-        record_ai_operation(
-            db,
-            user_id=project.user_id,
-            project_id=project.id,
-            module_type=module_type,
-            operation_type="generate",
-            model_name=settings.GEMINI_MODEL,
-            duration_ms=dur_ms,
-            status="success",
-            structured_validation_passed=True,
-            persistence_status="persisted"
-        )
-        record_analytics_event(
-            db,
-            user_id=project.user_id,
-            project_id=project.id,
-            event_name=f"{module_type}_generated"
-        )
-
-        versions = VersionService.get_versions(db, module.id)
-        return ModuleDetailResponse(
-            module_type=module_type,
-            active_version_id=new_ver.id,
-            active_version_name=new_ver.version_name,
-            active_version_number=new_ver.version_number,
-            data=new_ver.data,
-            versions=[VersionItemResponse.model_validate(v) for v in versions],
-            is_stale=False,
-            context_metadata=data_dict["context_metadata"]
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        dur_ms = int((time.time() - t0) * 1000)
-        terminal_provider_error = ai_service._terminal_provider_error_message(e)
-        err_msg = terminal_provider_error or str(e)
-        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in err_msg.lower() else ("parse_error" if "json" in err_msg.lower() or "validation" in err_msg.lower() else "api_error"))
-        record_ai_operation(
-            db,
-            user_id=project.user_id,
-            project_id=project.id,
-            module_type=module_type,
-            operation_type="generate",
-            model_name=settings.GEMINI_MODEL,
-            duration_ms=dur_ms,
-            status="timeout" if "timeout" in err_msg.lower() else "failed",
-            error_category=err_cat,
-            error_message=err_msg,
-            structured_validation_passed=False,
-            persistence_status="failed",
-            is_retryable=terminal_provider_error is None
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Generation failed: {err_msg}"
-        )
+    versions = VersionService.get_versions(db, module.id)
+    return ModuleDetailResponse(
+        module_type=module_type,
+        active_version_id=new_ver.id,
+        active_version_name=new_ver.version_name,
+        active_version_number=new_ver.version_number,
+        data=new_ver.data,
+        versions=[VersionItemResponse.model_validate(v) for v in versions],
+        is_stale=False,
+        context_metadata=data_dict.get("context_metadata")
+    )
 
 @router.post("/{module_type}/accept-update", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def accept_module_update(
@@ -646,7 +345,13 @@ def accept_module_update(
     db: Session = Depends(get_db)
 ):
     """Explicitly refresh a stale module using latest cross-module context without mutating other modules."""
-    return generate_module(module_type=module_type, planning_inputs=None, project=project, db=db)
+    canonical = normalize_module_type(module_type)
+    planning = None
+    if canonical == "execution_roadmap":
+        version = active_version(db, find_module(db, project.id, canonical))
+        saved = version.data.get("planning_inputs") if version and isinstance(version.data, dict) else None
+        planning = RoadmapPlanningRequest.model_validate(saved) if saved else None
+    return generate_module(module_type=canonical, planning_inputs=planning, project=project, db=db)
 
 @router.post("/{module_type}/modify", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def modify_module_with_ai(
@@ -674,7 +379,7 @@ def modify_module_with_ai(
             detail="Module has no active version to modify. Please generate content first."
         )
 
-    active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
+    active_ver = active_version(db, module)
     if not active_ver:
         raise HTTPException(status_code=404, detail="Active version data not found")
 
@@ -703,8 +408,10 @@ def modify_module_with_ai(
     try:
         new_data, change_summary = ai_service.modify_section(
             module_type=module_type,
-            current_data=active_ver.data,
-            instruction=req.instruction
+            current_data=current_module_data(db, module, active_ver),
+            instruction=req.instruction,
+            project_info=_get_project_dict(project),
+            cross_module_context=read_project_context(db, project.id, exclude_module=module_type)[0]
         )
         if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
             saved_inputs = (active_ver.data or {}).get("planning_inputs", {}) if isinstance(active_ver.data, dict) else {}
@@ -810,7 +517,7 @@ def resolve_version_conflict(
 
     # If pending instruction provided, apply it via Gemini AI and validate
     if req.instruction:
-        active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
+        active_ver = active_version(db, module)
         if not active_ver:
             raise HTTPException(status_code=400, detail="No active version data found to apply modification")
 
@@ -818,8 +525,10 @@ def resolve_version_conflict(
         try:
             modified_data, summary = ai_service.modify_section(
                 module_type=module_type,
-                current_data=active_ver.data,
-                instruction=req.instruction
+                current_data=current_module_data(db, module, active_ver),
+                instruction=req.instruction,
+                project_info=_get_project_dict(project),
+                cross_module_context=read_project_context(db, project.id, exclude_module=module_type)[0]
             )
             _validate_module_data(module_type, modified_data)
             new_data = modified_data
@@ -925,7 +634,7 @@ def delete_version(
 ):
     module_type = normalize_module_type(module_type)
     module = _get_or_create_canonical_module(db, project.id, module_type)
-    VersionService.delete_version(db, module, version_id)
+    VersionService.delete_version(db, module, version_id, commit=False)
     if module_type == "execution_roadmap":
         active_version = db.query(ModuleVersion).filter(
             ModuleVersion.id == module.active_version_id,
@@ -933,7 +642,7 @@ def delete_version(
         ).first()
         tasks_data = active_version.data.get("tasks", []) if active_version and isinstance(active_version.data, dict) else []
         _reconcile_roadmap_tasks(db, project, tasks_data)
-        db.commit()
+    db.commit()
     return {"message": "Version successfully deleted"}
 
 @router.post("/{module_type}/versions/{version_id}/restore", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -944,7 +653,7 @@ def restore_version(
     db: Session = Depends(get_db)
 ):
     module_type = normalize_module_type(module_type)
-    module = _get_or_create_canonical_module(db, project.id, module_type)
+    module = find_module(db, project.id, module_type)
     new_ver = VersionService.restore_version(db, module, version_id, commit=False)
 
     if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_ver.data, dict):
@@ -982,10 +691,10 @@ def export_module_pdf_alias(
         else:
             raise HTTPException(status_code=404, detail="No active version found for this module to export")
     else:
-        ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
+        ver = active_version(db, module)
         if not ver:
             raise HTTPException(status_code=404, detail="Active version content not found")
-        mod_data = ver.data
+        mod_data = current_module_data(db, module, ver)
 
     try:
         pdf_bytes = PDFService.generate_single_module_pdf(proj_dict, module_type, mod_data)

@@ -184,7 +184,7 @@ export const AllTasksTable: React.FC<Props> = ({
         </div>
 
         <div className="tasks-action-group">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f7f6ef', border: '1px solid #dfe2d6', borderRadius: 8, padding: '6px 10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '6px 10px' }}>
             <Search size={14} color="var(--text-muted)" />
             <input
               type="text"
@@ -258,7 +258,7 @@ export const AllTasksTable: React.FC<Props> = ({
                   <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                     {t.description || '—'}
                   </td>
-                  <td style={{ color: '#6d855f', fontWeight: 600, fontSize: 12 }}>
+                  <td style={{ color: 'var(--primary-text)', fontWeight: 600, fontSize: 12 }}>
                     {t.dependencies && t.dependencies.length > 0 ? t.dependencies.join(', ') : '—'}
                   </td>
                   <td>
@@ -304,7 +304,7 @@ export const AllTasksTable: React.FC<Props> = ({
             <form onSubmit={handleSave}>
               <div className="modal-body">
                 {errorMessage && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: '#fee2e2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: 'var(--bg-subtle)', color: 'var(--danger-text)', borderRadius: 8, fontSize: 13 }}>
                     <AlertCircle size={16} />
                     <span>{errorMessage}</span>
                   </div>

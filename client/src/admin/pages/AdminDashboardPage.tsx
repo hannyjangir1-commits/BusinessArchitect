@@ -47,7 +47,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   if (loading && !stats) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: '12px' }}>
-        <Loader2 size={32} style={{ color: '#6d855f', animation: 'spin 1s linear infinite' }} />
+        <Loader2 size={32} style={{ color: 'var(--primary-text)', animation: 'spin 1s linear infinite' }} />
         <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 500 }}>Aggregating live platform telemetry...</span>
       </div>
     );
@@ -55,12 +55,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   if (error && !stats) {
     return (
-      <div style={{ padding: '30px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', color: '#991b1b' }}>
+      <div style={{ padding: '30px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--bg-subtle)', borderRadius: '12px', color: 'var(--danger-text)' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Failed to load dashboard</h3>
         <p style={{ fontSize: '13px', marginBottom: '16px' }}>{error}</p>
         <button
           onClick={fetchDashboardData}
-          style={{ padding: '8px 16px', background: '#dc2626', color: 'var(--text-main)', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+          style={{ padding: '8px 16px', background: 'var(--danger-text)', color: 'var(--text-main)', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
         >
           Retry
         </button>
@@ -90,7 +90,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
         {/* Date Filter Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ffffff', padding: '4px', borderRadius: '8px', border: '1px solid #dfe2d6', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg-card)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgb(69 60 55 / 0.05)' }}>
             {['24h', '7d', '30d', '90d', 'custom'].map(opt => (
               <button
                 key={opt}
@@ -99,8 +99,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   padding: '6px 12px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: range === opt ? '#6d855f' : 'transparent',
-                  color: range === opt ? '#ffffff' : '#687164',
+                  background: range === opt ? 'var(--primary-text)' : 'transparent',
+                  color: range === opt ? 'var(--bg-card)' : 'var(--text-main)',
                   fontWeight: 600,
                   fontSize: '12px',
                   cursor: 'pointer',
@@ -120,12 +120,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           </div>
 
           {range === 'custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', padding: '4px 8px', borderRadius: '8px', border: '1px solid #dfe2d6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-card)', padding: '4px 8px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <input
                 type="date"
                 value={customStart}
                 onChange={e => setCustomStart(e.target.value)}
-                style={{ border: '1px solid #d9ddcf', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}
+                style={{ border: '1px solid var(--border-color)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}
                 title="Start Date"
               />
               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>to</span>
@@ -133,7 +133,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 type="date"
                 value={customEnd}
                 onChange={e => setCustomEnd(e.target.value)}
-                style={{ border: '1px solid #d9ddcf', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}
+                style={{ border: '1px solid var(--border-color)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}
                 title="End Date"
               />
             </div>
@@ -144,33 +144,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       {/* KPI Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px', marginBottom: '28px' }}>
         {/* Total Users */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Users</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#e8ede2', color: '#5d7550', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Users size={16} />
             </div>
           </div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1 }}>{userStats.total || 0}</div>
           <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ color: '#16a34a', fontWeight: 600 }}>+{userStats.new_in_period || 0} new</span>
+            <span style={{ color: 'var(--primary-text)', fontWeight: 600 }}>+{userStats.new_in_period || 0} new</span>
             <span>•</span>
             <span>{userStats.active_in_period || 0} active</span>
-            {userStats.suspended > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>({userStats.suspended} suspended)</span>}
+            {userStats.suspended > 0 && <span style={{ color: 'var(--danger-text)', fontWeight: 600 }}>({userStats.suspended} suspended)</span>}
           </div>
         </div>
 
         {/* Total Projects */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Projects</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#e8ede2', color: '#a68757', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <FolderKanban size={16} />
             </div>
           </div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1 }}>{projStats.total || 0}</div>
           <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
-            <span style={{ color: '#16a34a', fontWeight: 600 }}>+{projStats.new_in_period || 0} new</span>
+            <span style={{ color: 'var(--primary-text)', fontWeight: 600 }}>+{projStats.new_in_period || 0} new</span>
             <span>•</span>
             <span>{projStats.with_saved_modules || 0} with modules</span>
           </div>
@@ -180,7 +180,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Generation Success Rate</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Cpu size={16} />
             </div>
           </div>
@@ -197,14 +197,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         </div>
 
         {/* Database Health & Latency */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Database Status</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Database size={16} />
             </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#16a34a', lineHeight: 1 }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--primary-text)', lineHeight: 1 }}>
             {infraStats.database_status === 'connected' ? 'Connected' : 'Degraded'}
           </div>
           <div style={{ marginTop: '14px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
@@ -219,7 +219,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       {alerts.length > 0 && (
         <div style={{ marginBottom: '28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <AlertTriangle size={18} style={{ color: '#f59e0b' }} />
+            <AlertTriangle size={18} style={{ color: 'var(--primary-text)' }} />
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
               Active Operational Alerts ({alerts.length})
             </h3>
@@ -229,8 +229,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               <div
                 key={al.id}
                 style={{
-                  backgroundColor: al.severity === 'high' ? '#fff1f2' : al.severity === 'medium' ? '#fffbeb' : '#f7f6ef',
-                  border: `1px solid ${al.severity === 'high' ? '#fecdd3' : al.severity === 'medium' ? '#fde68a' : '#dfe2d6'}`,
+                  backgroundColor: al.severity === 'high' ? 'var(--bg-subtle)' : al.severity === 'medium' ? 'var(--bg-subtle)' : 'var(--bg-subtle)',
+                  border: `1px solid ${al.severity === 'high' ? 'var(--bg-subtle)' : al.severity === 'medium' ? 'var(--border-color)' : 'var(--border-color)'}`,
                   borderRadius: '10px',
                   padding: '14px 18px',
                   display: 'flex',
@@ -248,7 +248,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         fontSize: '10px',
                         fontWeight: 700,
                         textTransform: 'uppercase',
-                        backgroundColor: al.severity === 'high' ? '#e11d48' : '#d97706',
+                        backgroundColor: al.severity === 'high' ? 'var(--danger-text)' : 'var(--primary-text)',
                         color: 'var(--text-main)'
                       }}
                     >
@@ -264,7 +264,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <button
                     onClick={() => {
                       if (onNavigate) {
-                        onNavigate(al.link);
+                        onNavigate(al.link === '/admin/security' ? '/admin/account' : al.link);
                       } else {
                         window.location.href = al.link;
                       }
@@ -273,7 +273,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       padding: '6px 12px',
                       borderRadius: '6px',
                       backgroundColor: 'var(--bg-card)',
-                      border: '1px solid #d9ddcf',
+                      border: '1px solid var(--border-color)',
                       color: 'var(--text-main)',
                       fontSize: '12px',
                       fontWeight: 600,
@@ -293,7 +293,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       {/* Visual Analytics Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px', marginBottom: '28px' }}>
         {/* Trend Chart: Users & Projects */}
-        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid #dfe2d6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgb(69 60 55 / 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 2px' }}>Platform Growth</h3>
@@ -301,11 +301,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             </div>
             <div style={{ display: 'flex', gap: '14px', fontSize: '12px', fontWeight: 600 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#6d855f' }} />
+                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: 'var(--bg-subtle)' }} />
                 <span>Users</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#7a916a' }} />
+                <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: 'var(--bg-subtle)' }} />
                 <span>Projects</span>
               </div>
             </div>
@@ -323,11 +323,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     <div style={{ width: '100%', display: 'flex', gap: '2px', alignItems: 'flex-end', justifyContent: 'center' }}>
                       <div
                         title={`${pt.date}: ${pt.users} users`}
-                        style={{ width: '45%', height: `${uHeight}px`, backgroundColor: '#6d855f', borderRadius: '3px 3px 0 0' }}
+                        style={{ width: '45%', height: `${uHeight}px`, backgroundColor: 'var(--bg-subtle)', borderRadius: '3px 3px 0 0' }}
                       />
                       <div
                         title={`${pt.date}: ${pt.projects} projects`}
-                        style={{ width: '45%', height: `${pHeight}px`, backgroundColor: '#7a916a', borderRadius: '3px 3px 0 0' }}
+                        style={{ width: '45%', height: `${pHeight}px`, backgroundColor: 'var(--bg-subtle)', borderRadius: '3px 3px 0 0' }}
                       />
                     </div>
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}>
@@ -362,8 +362,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       <span>{mod.replace('_', ' ').toUpperCase()}</span>
                       <span>{count} ops ({pct}%)</span>
                     </div>
-                    <div style={{ width: '100%', height: '8px', backgroundColor: '#f0f1e9', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', backgroundColor: '#6d855f', borderRadius: '4px' }} />
+                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-subtle)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', backgroundColor: 'var(--bg-subtle)', borderRadius: '4px' }} />
                     </div>
                   </div>
                 );

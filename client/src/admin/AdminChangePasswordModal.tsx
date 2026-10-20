@@ -58,7 +58,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+        backgroundColor: 'rgb(69 60 55 / 0.75)',
         backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
@@ -73,21 +73,21 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
           borderRadius: '12px',
           width: '100%',
           maxWidth: '440px',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 20px 25px -5px rgb(69 60 55 / 0.1)',
           overflow: 'hidden'
         }}
       >
         <div
           style={{
             padding: '18px 24px',
-            borderBottom: '1px solid #dfe2d6',
+            borderBottom: '1px solid var(--border-color)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <KeyRound size={20} style={{ color: '#6d855f' }} />
+            <KeyRound size={20} style={{ color: 'var(--primary-text)' }} />
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
               Rotate Admin Password
             </h3>
@@ -104,15 +104,15 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
           {error && (
             <div
               style={{
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--bg-subtle)',
                 borderRadius: '8px',
                 padding: '10px 14px',
                 marginBottom: '16px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                color: '#991b1b',
+                color: 'var(--danger-text)',
                 fontSize: '13px'
               }}
             >
@@ -135,7 +135,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                   width: '100%',
                   padding: '9px 36px 9px 12px',
                   borderRadius: '6px',
-                  border: '1px solid #d9ddcf',
+                  border: '1px solid var(--border-color)',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -173,7 +173,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                   width: '100%',
                   padding: '9px 36px 9px 12px',
                   borderRadius: '6px',
-                  border: '1px solid #d9ddcf',
+                  border: '1px solid var(--border-color)',
                   fontSize: '14px',
                   outline: 'none'
                 }}
@@ -213,7 +213,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                 width: '100%',
                 padding: '9px 12px',
                 borderRadius: '6px',
-                border: '1px solid #d9ddcf',
+                border: '1px solid var(--border-color)',
                 fontSize: '14px',
                 outline: 'none'
               }}
@@ -228,8 +228,8 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
-                border: '1px solid #d9ddcf',
-                background: '#ffffff',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-card)',
                 color: 'var(--text-main)',
                 fontSize: '13px',
                 fontWeight: 600,
@@ -245,7 +245,7 @@ export const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> =
                 padding: '8px 18px',
                 borderRadius: '6px',
                 border: 'none',
-                background: '#6d855f',
+                background: 'var(--bg-subtle)',
                 color: 'var(--text-main)',
                 fontSize: '13px',
                 fontWeight: 600,

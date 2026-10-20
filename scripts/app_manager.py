@@ -135,17 +135,19 @@ def cmd_check_prereqs():
         try:
             with open(target_env, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-                match = re.search(r"^\s*GEMINI_API_KEY\s*=\s*(.+)$", content, re.MULTILINE)
-                if match:
-                    val = match.group(1).strip().strip("'\"")
-                    if val and val != "your_gemini_api_key_here":
-                        gemini_key_status = "Configured (verified)"
-                    else:
-                        gemini_key_status = "Placeholder / empty"
+                pool_match = re.search(r"^\s*GEMINI_API_KEYS\s*=\s*(.+)$", content, re.MULTILINE)
+                legacy_match = re.search(r"^\s*GEMINI_API_KEY\s*=\s*(.+)$", content, re.MULTILINE)
+                raw_value = (pool_match or legacy_match).group(1).strip().strip("'\"") if (pool_match or legacy_match) else ""
+                values = [value.strip() for value in re.split(r"[,;\s]+", raw_value) if value.strip()]
+                configured = [value for value in values if value not in {"your_gemini_api_key_here", "key_one", "key_two", "key_three"}]
+                if configured:
+                    gemini_key_status = f"Configured ({len(configured)} credential slot(s))"
+                elif pool_match or legacy_match:
+                    gemini_key_status = "Placeholder / empty"
         except Exception:
             pass
 
-    print(f"[INFO] Gemini AI API Key: {gemini_key_status}")
+    print(f"[INFO] Gemini credential pool: {gemini_key_status}")
 
     if errors:
         print("\n[ERROR] Missing prerequisites detected:")
