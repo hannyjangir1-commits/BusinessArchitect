@@ -58,13 +58,18 @@ class ModuleOrchestrationService:
                 planning = planning_inputs or (RoadmapPlanningRequest() if module_type != "tech_stack" else TechStackPlanningRequest())
                 planning_dict = planning.model_dump(mode="json")
 
-            # Stage 1: Private server-side generation brief
-            brief: GenerationBrief = ai_service.build_generation_brief(
-                proj_info,
-                module_type,
-                cross_module_context=cross_ctx,
-                planning_inputs=planning_dict,
-            )
+            # Stage 1: Private server-side generation brief. The planning modules
+            # support explicitly labeled offline baselines when credentials are
+            # absent; scoped modifications and copilot still require live generation.
+            if module_type in {"bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap", "detailed_roadmap"} and not ai_service._configured_api_keys():
+                brief = ai_service.build_offline_generation_brief(proj_info, module_type)
+            else:
+                brief = ai_service.build_generation_brief(
+                    proj_info,
+                    module_type,
+                    cross_module_context=cross_ctx,
+                    planning_inputs=planning_dict,
+                )
 
             # Stage 2: Module synthesis dispatch
             if module_type == "bmc":

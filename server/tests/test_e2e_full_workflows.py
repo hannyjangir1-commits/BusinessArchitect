@@ -3,6 +3,7 @@ import time
 import uuid
 from datetime import datetime
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.config import settings
@@ -242,9 +243,22 @@ def test_workflow_08_and_09_ai_section_chat_and_version_creation(primary_user):
         db.close()
 
     # Modify via section chat
-    mod_resp = cli.post(f"/api/projects/{project_id}/modules/bmc/modify", json={
-        "instruction": "Add Pharmaceutical Companies to customer segments and describe a custom enterprise SLA revenue model."
-    }, headers=headers)
+    current_canvas = {
+        "tagline": "AI Genomics",
+        "customer_segments": ["Research Institutes", "Pharmaceutical Companies"],
+        "value_propositions": ["Fast alignment"],
+        "channels": ["Direct"],
+        "customer_relationships": ["Self-serve"],
+        "revenue_streams": ["Subscription", "Custom enterprise SLA"],
+        "key_resources": ["Cluster"],
+        "key_activities": ["Pipelines"],
+        "key_partnerships": ["Illumina"],
+        "cost_structure": ["AWS Cloud"],
+    }
+    with patch("app.api.modules.ai_service.modify_section", return_value=(current_canvas, "Added the enterprise segment and SLA revenue option.")):
+        mod_resp = cli.post(f"/api/projects/{project_id}/modules/bmc/modify", json={
+            "instruction": "Add Pharmaceutical Companies to customer segments and describe a custom enterprise SLA revenue model."
+        }, headers=headers)
     assert mod_resp.status_code == 200
     assert mod_resp.json()["active_version_number"] == 2
     assert len(mod_resp.json()["versions"]) == 2

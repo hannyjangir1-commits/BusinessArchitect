@@ -34,7 +34,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [healthLoading, setHealthLoading] = useState(false);
-  const [serviceHealth, setServiceHealth] = useState<{ status: string; database_connected: boolean; generation_configured: boolean } | null>(null);
+  const [serviceHealth, setServiceHealth] = useState<{ status: string; database_connected: boolean; generation_configured: boolean; generation_provider_status?: string; available_generation_keys?: number; configured_generation_keys?: number; generation_model?: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ProjectSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -201,7 +201,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
                 <div style={{ display: 'grid', gap: 5, fontSize: 11.5, color: 'var(--text-muted)' }} aria-live="polite">
                   <span><CheckCircle2 size={12} /> API {serviceHealth.status === 'healthy' ? 'available' : 'degraded'}</span>
                   <span>{serviceHealth.database_connected ? 'Database connected' : 'Database unavailable'}</span>
-                  <span>{serviceHealth.generation_configured ? 'Generation provider configured' : 'Generation provider not configured'}</span>
+                  <span>{serviceHealth.generation_provider_status === 'ready' ? `Generation ready (${serviceHealth.available_generation_keys ?? 0}/${serviceHealth.configured_generation_keys ?? 0} keys)` : serviceHealth.generation_provider_status === 'cooling_down_or_unavailable' ? 'Generation provider temporarily unavailable' : serviceHealth.generation_configured ? 'Generation provider configured' : 'Generation provider not configured'}</span>
                 </div>
               ) : <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11.5, color: 'var(--danger-text)' }}><AlertCircle size={13} /> Service health could not be checked.</div>}
               <button type="button" className="health-refresh-btn" onClick={() => void checkServiceHealth()}>Check again</button>

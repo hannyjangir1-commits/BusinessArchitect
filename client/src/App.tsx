@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy } from 'react';
 import { User, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs, TechStackPlanningInputs } from './types';
 import { api } from './services/api';
 import { LandingPage } from './pages/LandingPage';
@@ -6,16 +6,16 @@ import { DashboardPage } from './pages/DashboardPage';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { OverviewModule } from './components/OverviewModule';
-import { BMCModule } from './components/BMCModule';
-import { TechStackModule } from './components/TechStackModule';
-import { IdeaValidatorModule } from './components/IdeaValidatorModule';
-import { MarketResearchModule } from './components/MarketResearchModule';
-import { ExecutionRoadmapModule } from './components/ExecutionRoadmapModule';
-import { BlueprintCopilotModule } from './components/BlueprintCopilotModule';
+const BMCModule = lazy(() => import('./components/BMCModule').then(module => ({ default: module.BMCModule })));
+const TechStackModule = lazy(() => import('./components/TechStackModule').then(module => ({ default: module.TechStackModule })));
+const IdeaValidatorModule = lazy(() => import('./components/IdeaValidatorModule').then(module => ({ default: module.IdeaValidatorModule })));
+const MarketResearchModule = lazy(() => import('./components/MarketResearchModule').then(module => ({ default: module.MarketResearchModule })));
+const ExecutionRoadmapModule = lazy(() => import('./components/ExecutionRoadmapModule').then(module => ({ default: module.ExecutionRoadmapModule })));
+const BlueprintCopilotModule = lazy(() => import('./components/BlueprintCopilotModule').then(module => ({ default: module.BlueprintCopilotModule })));
 import { NewProjectWizard } from './components/NewProjectWizard';
 import { VersionConflictModal } from './components/VersionConflictModal';
-import { AdminApp } from './admin/AdminApp';
-import { AdminLoginPage } from './admin/pages/AdminLoginPage';
+const AdminApp = lazy(() => import('./admin/AdminApp').then(module => ({ default: module.AdminApp })));
+const AdminLoginPage = lazy(() => import('./admin/pages/AdminLoginPage').then(module => ({ default: module.AdminLoginPage })));
 import { Loader2, AlertCircle, X } from 'lucide-react';
 import './styles/index.css';
 
@@ -42,6 +42,7 @@ export const App: React.FC = () => {
 
   // Projects & Navigation
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [activeModule, setActiveModule] = useState<string>('execution_roadmap');
   const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
@@ -94,6 +95,7 @@ export const App: React.FC = () => {
   // Dynamic Badges & Race-Condition Guard Refs
   const activeProjectIdRef = React.useRef<string | null>(null);
   const activeModuleTypeRef = React.useRef<string>('execution_roadmap');
+  const openProjectRef = React.useRef<(projectId: string, targetModuleOverride?: string, writeHistory?: boolean) => Promise<void>>(async () => {});
 
   const isViewing = (projectId: string, moduleType?: string, navigation?: number) =>
     activeProjectIdRef.current === projectId &&
@@ -121,6 +123,7 @@ export const App: React.FC = () => {
     setCurrentUser(null);
     setAdminUser(null);
     setProjects([]);
+    setProjectsError(null);
     setIsWizardOpen(false);
     Object.values(generationTimersRef.current).forEach(timer => clearInterval(timer));
     generationTimersRef.current = {};
@@ -161,9 +164,14 @@ export const App: React.FC = () => {
     try {
       const epoch = sessionEpochRef.current;
       const projs = await api.projects.list();
-      if (sessionEpochRef.current === epoch) setProjects(projs);
-    } catch (e) {
-      console.error('Failed to load projects', e);
+      if (sessionEpochRef.current === epoch) {
+        setProjects(projs);
+        setProjectsError(null);
+      }
+    } catch (error: any) {
+      if (sessionEpochRef.current === epoch) {
+        setProjectsError(error?.message || 'Your projects could not be loaded. Please retry.');
+      }
     }
   }, []);
 
@@ -177,7 +185,7 @@ export const App: React.FC = () => {
           loadProjects();
           const route = new URLSearchParams(window.location.search);
           const projectId = route.get("project");
-          if (projectId && !window.location.pathname.startsWith("/admin")) await handleOpenProject(projectId, route.get("module") || undefined, false);
+          if (projectId && !window.location.pathname.startsWith("/admin")) await openProjectRef.current(projectId, route.get("module") || undefined, false);
         }
       } catch {
         setCurrentUser(null);
@@ -221,7 +229,7 @@ export const App: React.FC = () => {
       } else {
         const route = new URLSearchParams(window.location.search);
         const projectId = route.get('project');
-        if (projectId) void handleOpenProject(projectId, route.get('module') || undefined, false);
+        if (projectId) void openProjectRef.current(projectId, route.get('module') || undefined, false);
         else clearWorkspace();
       }
     };
@@ -273,6 +281,9 @@ export const App: React.FC = () => {
       if (isViewing(projectId)) { clearWorkspace(); alert(err.message || 'Failed to open project'); }
     }
   };
+  useEffect(() => {
+    openProjectRef.current = handleOpenProject;
+  });
 
   // 3. Switch Module and Persist Per-Project Navigation Memory
   const handleSelectModule = async (moduleId: string) => {
@@ -297,7 +308,7 @@ export const App: React.FC = () => {
   };
 
   // Keep every response scoped to the navigation that requested it.
-  const loadModuleContent = async (projectId: string, moduleType: string) => {
+  async function loadModuleContent(projectId: string, moduleType: string) {
     moduleType = normalizeModuleType(moduleType);
     const navigation = ++navigationRef.current;
     const viewing = () => isViewing(projectId, moduleType, navigation);
@@ -325,7 +336,7 @@ export const App: React.FC = () => {
     } finally {
       if (viewing()) setModuleLoading(false);
     }
-  };
+  }
 
   // 5. Generate Module with Readiness Validation and Module-Scoped Progress
   const handleGenerateModule = async (moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs) => {
@@ -430,6 +441,11 @@ export const App: React.FC = () => {
     setModuleLoading(true);
     try {
       await work(projectId, moduleType);
+    } catch (error: any) {
+      if (isViewing(projectId, moduleType, navigation)) {
+        setModuleError(error?.message || 'This section could not be updated. Please try again.');
+      }
+      throw error;
     } finally {
       mutationKeysRef.current.delete(key);
       if (isViewing(projectId, moduleType, navigation)) setModuleLoading(false);
@@ -550,14 +566,10 @@ export const App: React.FC = () => {
 
   // 12. Delete Project
   const handleDeleteProject = async (projectId: string) => {
-    try {
-      await api.projects.delete(projectId);
-      await loadProjects();
-      if (currentProject?.id === projectId) {
-        clearWorkspace();
-      }
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete project');
+    await api.projects.delete(projectId);
+    await loadProjects();
+    if (currentProject?.id === projectId) {
+      clearWorkspace();
     }
   };
 
@@ -583,6 +595,7 @@ export const App: React.FC = () => {
 
     if (!adminUser || window.location.pathname === '/admin/login') {
       return (
+        <React.Suspense fallback={<div style={{ padding: 24 }} role="status">Loading admin panel…</div>}>
         <AdminLoginPage
           onLoginSuccess={(session) => {
             setAdminUser(session.user);
@@ -590,10 +603,12 @@ export const App: React.FC = () => {
             setIsAdminRoute(true);
           }}
         />
+        </React.Suspense>
       );
     }
 
     return (
+      <React.Suspense fallback={<div style={{ padding: 24 }} role="status">Loading admin panel…</div>}>
       <AdminApp
         adminUser={adminUser}
         initialPath={window.location.pathname}
@@ -605,6 +620,7 @@ export const App: React.FC = () => {
           window.history.pushState({}, '', '/admin/login');
         }}
       />
+      </React.Suspense>
     );
   }
 
@@ -630,6 +646,8 @@ export const App: React.FC = () => {
         <DashboardPage
           user={currentUser}
           projects={projects}
+          projectsError={projectsError}
+          onRetryProjects={() => void loadProjects()}
           onOpenProject={handleOpenProject}
           onCreateNewProject={() => setIsWizardOpen(true)}
           onDeleteProject={handleDeleteProject}
@@ -729,6 +747,7 @@ export const App: React.FC = () => {
             </div>
           )}
 
+          <React.Suspense fallback={<div className="card" role="status" style={{ margin: 20 }}>Loading module…</div>}>
           {activeModule === 'overview' && (
             <OverviewModule
               key={currentProject.id}
@@ -766,7 +785,6 @@ export const App: React.FC = () => {
               onRenameVersion={handleRenameVersion}
               onDeleteVersion={handleDeleteVersion}
               onRestoreVersion={handleRestoreVersion}
-              onCreateNew={() => handleGenerateModule('tech_stack')}
               onDeleteModule={() => handleDeleteModule('tech_stack')}
               onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'tech_stack', currentProject.name)}
               isLoading={moduleLoading}
@@ -846,6 +864,7 @@ export const App: React.FC = () => {
               isLoading={moduleLoading}
             />
           )}
+          </React.Suspense>
         </div>
       </div>
 

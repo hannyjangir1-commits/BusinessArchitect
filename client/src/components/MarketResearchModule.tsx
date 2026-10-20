@@ -51,7 +51,7 @@ export const MarketResearchModule: React.FC<Props> = ({
           {isGenerating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText}` : 'Synthesizing Market Intelligence...'}
+              {generationProgress ? `${generationProgress.stageText} ${generationProgress.progressPercent}%` : 'Synthesizing Market Intelligence...'}
             </>
           ) : (
             <>

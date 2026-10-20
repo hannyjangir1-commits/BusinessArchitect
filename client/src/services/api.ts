@@ -25,6 +25,19 @@ interface RequestOptions extends RequestInit {
   _isCsrfRetry?: boolean;
 }
 
+export class ApiError extends Error {
+  status: number;
+  data: any;
+  code?: string;
+  constructor(message: string, status: number, data: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+    this.code = typeof data === 'object' && data ? data.error : undefined;
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const headers = new Headers(options.headers || {});
@@ -60,7 +73,11 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000); // Bounded timeout for the two-stage generation pipeline
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abortFromCaller();
+  else options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+  const timeoutId = setTimeout(() => { timedOut = true; controller.abort(); }, 300000); // Bounded timeout for the two-stage generation pipeline
 
   let response: Response;
   try {
@@ -68,15 +85,17 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       ...options,
       headers,
       credentials: 'include', // Send HTTP-only session cookie
-      signal: options.signal || controller.signal
+      signal: controller.signal
     });
   } catch (fetchErr: any) {
-    if (fetchErr.name === 'AbortError') {
+    if (timedOut) {
       throw new Error('The request took longer than five minutes. Reload the module to check whether it was saved before retrying.');
     }
+    if (options.signal?.aborted) throw new Error('The request was cancelled.');
     throw fetchErr;
   } finally {
     clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', abortFromCaller);
   }
 
   if (response.status === 401) {
@@ -134,9 +153,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     const message = typeof detail === 'string' ? detail
       : Array.isArray(detail) ? detail.map(item => `${(item.loc || []).slice(1).join('.')}: ${item.msg || 'Invalid value'}`).join('; ')
       : detail.message || detail.error || 'The request could not be completed.';
-    const err = new Error(message);
-    (err as any).status = response.status;
-    (err as any).data = detail;
+    const err = new ApiError(message, response.status, detail);
     (err as any).isCsrfError = message.toLowerCase().includes('csrf');
     throw err;
   }
@@ -176,7 +193,7 @@ async function downloadFile(url: string, filename: string) {
 }
 
 export const api = {
-  health: (): Promise<{ status: string; database_connected: boolean; generation_configured: boolean }> =>
+  health: (): Promise<{ status: string; database_connected: boolean; generation_configured: boolean; generation_model?: string; configured_generation_keys?: number; available_generation_keys?: number; generation_provider_status?: string }> =>
     request('/api/health'),
 
   auth: {

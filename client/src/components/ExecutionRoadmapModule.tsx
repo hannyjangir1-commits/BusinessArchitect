@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { RoadmapPlanningForm } from './RoadmapPlanningForm';
 
+const TODAY_DATE = new Date().toISOString().slice(0, 10);
+
 interface Props {
   project: Project;
   moduleDetail: ModuleDetail | null;
@@ -63,8 +65,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   const isPlanningOpen = !moduleDetail?.active_version_id || planningOpenForVersion === moduleDetail.active_version_id;
   const feasibility = moduleDetail?.data?.feasibility_evaluation;
   const isStale = !!moduleDetail?.is_stale && !staleDismissed;
-  const today = new Date().toISOString().slice(0, 10);
-  const hasExpiredTimeline = tasks.length > 0 && tasks.every((task) => task.end_date && task.end_date < today);
+  const hasExpiredTimeline = tasks.length > 0 && tasks.every((task) => task.end_date && task.end_date < TODAY_DATE);
 
   const planningForm = (
     <RoadmapPlanningForm
@@ -184,7 +185,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Calendar size={18} color="var(--primary-text)" aria-hidden="true" />
             <span style={{ fontSize: 13 }}>
-              This roadmap has ended dates. Replan it to anchor the timeline to today ({today}) and keep the Gantt chart current.
+              This roadmap has ended dates. Replan it to anchor the timeline to today ({TODAY_DATE}) and keep the Gantt chart current.
             </span>
           </div>
           <button className="btn-secondary" onClick={openPlanning} disabled={isGenerating}>

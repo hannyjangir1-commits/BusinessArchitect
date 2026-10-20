@@ -178,7 +178,19 @@ def test_ai_operations_explorer_and_retry(admin_client, db):
     assert stats_resp.json()["total_operations"] > 0
 
     # Retry failed operation
-    retry_resp = admin_client.post(f"/api/admin/ai-operations/{failed_op.id}/retry")
+    from unittest.mock import patch
+    from app.schemas.modules import BMCData
+    retry_canvas = BMCData(
+        customer_segments=["Enterprise IT teams"], value_propositions=["Reliable planning"],
+        channels=["Direct sales"], customer_relationships=["Dedicated onboarding"],
+        revenue_streams=["Subscription"], key_resources=["Product team"],
+        key_activities=["Build and support"], key_partnerships=["Cloud provider"],
+        cost_structure=["Engineering and hosting"],
+    )
+    # Keep the retry test deterministic and offline: it verifies the admin retry,
+    # validation, version write, and idempotency path without contacting Gemini.
+    with patch("app.ai.gemini_service.ai_service.generate_bmc", return_value=retry_canvas):
+        retry_resp = admin_client.post(f"/api/admin/ai-operations/{failed_op.id}/retry")
     assert retry_resp.status_code == 200
     assert retry_resp.json()["status"] == "success"
 

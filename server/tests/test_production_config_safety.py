@@ -223,6 +223,6 @@ def test_ci_database_schema_and_alembic_head():
         # Check alembic_version has head revision
         from sqlalchemy import text
         res = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert res == "d4f6a2c91b7e", f"Expected Alembic head revision 'd4f6a2c91b7e', got '{res}'"
+        assert res == "e6b30f8a2c19", f"Expected Alembic head revision 'e6b30f8a2c19', got '{res}'"
     finally:
         db.close()

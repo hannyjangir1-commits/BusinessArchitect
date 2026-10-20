@@ -1,12 +1,13 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 import { VersionConflictModal } from '../components/VersionConflictModal';
 import { ContextualAssistant } from '../components/ContextualAssistant';
 import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
 import { ProfileModal } from '../components/ProfileModal';
 import { ArchitectureInfographic } from '../components/ArchitectureInfographic';
+import { ModuleLifecycleActions } from '../components/ModuleLifecycleActions';
 import { VersionItem, TechStackData } from '../types';
 
 describe('VersionConflictModal', () => {
@@ -223,5 +224,28 @@ describe('ArchitectureInfographic', () => {
     const downloadSvgBtn = screen.getByText('Download SVG Diagram');
     fireEvent.click(downloadSvgBtn);
     expect(onDownloadSvg).toHaveBeenCalled();
+  });
+});
+
+describe('ModuleLifecycleActions', () => {
+  it('keeps the module in place and exposes an error when deletion fails', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onDeleteModule = vi.fn().mockRejectedValue(new Error('The server could not delete this module'));
+
+    render(
+      <ModuleLifecycleActions
+        moduleTitle="Technology Stack"
+        onDeleteModule={onDeleteModule}
+        versions={[{ id: 'v1', version_name: 'V1', version_number: 1, is_active: true, created_at: '2026-10-01T10:00:00Z' }]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Technology Stack' }));
+
+    await waitFor(() => {
+      expect(onDeleteModule).toHaveBeenCalledOnce();
+      expect(screen.getByRole('alert').textContent).toContain('The server could not delete this module');
+    });
+    confirmSpy.mockRestore();
   });
 });

@@ -17,6 +17,17 @@ from app.services.transaction_service import lock_record
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
+def _project_completeness(project: Project) -> tuple[int, list[str]]:
+    checks = {
+        "Project description": project.description,
+        "Industry": project.industry,
+        "Target customers": project.target_customers,
+        "Goals": project.goals,
+        "Budget": project.budget,
+    }
+    missing = [label for label, value in checks.items() if not isinstance(value, str) or len(value.strip()) < 3]
+    return round((len(checks) - len(missing)) / len(checks) * 100), missing
+
 def _format_project_response(project: Project, db: Session) -> ProjectResponse:
     tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
     tasks_count = len(tasks)
@@ -34,6 +45,7 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
         if "execution_roadmap" not in gen_mods:
             gen_mods.append("execution_roadmap")
 
+    completeness_percentage, completeness_missing = _project_completeness(project)
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -49,6 +61,8 @@ def _format_project_response(project: Project, db: Session) -> ProjectResponse:
         tasks_count=tasks_count,
         completed_tasks_count=completed_count,
         progress_percentage=progress_percentage,
+        completeness_percentage=completeness_percentage,
+        completeness_missing=completeness_missing,
         generated_modules=gen_mods,
         created_at=project.created_at,
         updated_at=project.updated_at

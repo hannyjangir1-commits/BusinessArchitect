@@ -43,10 +43,12 @@ export const VersionToolbar: React.FC<Props> = ({
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [newName, setNewName] = useState(activeVersionName || '');
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const activeVersion = versions.find(v => v.is_active) || versions[versions.length - 1];
 
   const handleOpenRename = () => {
+    setActionError(null);
     setNewName(activeVersion?.version_name || '');
     setRenameModalOpen(true);
   };
@@ -54,8 +56,23 @@ export const VersionToolbar: React.FC<Props> = ({
   const handleSaveRename = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    await onRename(newName.trim());
-    setRenameModalOpen(false);
+    setActionError(null);
+    try {
+      await onRename(newName.trim());
+      setRenameModalOpen(false);
+    } catch (error: any) {
+      setActionError(error?.message || 'Could not rename this version. Please try again.');
+    }
+  };
+
+  const restoreVersion = async (versionId: string, closeHistory = false) => {
+    setActionError(null);
+    try {
+      await onRestore(versionId);
+      if (closeHistory) setHistoryModalOpen(false);
+    } catch (error: any) {
+      setActionError(error?.message || 'Could not restore this version. Please try again.');
+    }
   };
 
   return (
@@ -169,7 +186,7 @@ export const VersionToolbar: React.FC<Props> = ({
                 className={`module-version-menu-item ${v.is_active ? 'active' : ''}`}
                 onClick={() => {
                   setDropdownOpen(false);
-                  if (!v.is_active) onRestore(v.id);
+                  if (!v.is_active) void restoreVersion(v.id);
                 }}
               >
                 <div>
@@ -198,6 +215,7 @@ export const VersionToolbar: React.FC<Props> = ({
       <button className="btn-secondary" onClick={handleOpenRename} title="Rename current active version" aria-label="Rename current version">
         <Edit3 size={14} /> Rename
       </button>
+      {actionError && <span role="alert" style={{ color: 'var(--danger-text)', fontSize: 12, maxWidth: 240 }}>{actionError}</span>}
 
       {/* Rename Version Modal */}
       {renameModalOpen && (
@@ -273,10 +291,7 @@ export const VersionToolbar: React.FC<Props> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {!v.is_active && (
                         <button
-                          onClick={async () => {
-                            await onRestore(v.id);
-                            setHistoryModalOpen(false);
-                          }}
+                          onClick={() => { void restoreVersion(v.id, true); }}
                           className="btn-secondary"
                           style={{ padding: '4px 10px', fontSize: 12 }}
                         >

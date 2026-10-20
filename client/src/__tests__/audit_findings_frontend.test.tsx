@@ -82,7 +82,8 @@ describe('F-15: Refresh app user state after profile updates', () => {
     await waitFor(() => {
       expect(api.auth.updateProfile).toHaveBeenCalledWith({
         username: 'renamed_user',
-        email: 'renamed@example.com'
+        email: 'renamed@example.com',
+        display_name: 'original_user'
       });
       expect(onUserUpdated).toHaveBeenCalledWith(updatedUser);
     });
@@ -176,6 +177,37 @@ describe('F-16: Dashboard module shortcuts open their named modules', () => {
     const projectCardTitle = screen.getByText('Primary Project');
     fireEvent.click(projectCardTitle);
     expect(onOpenProject).toHaveBeenCalledWith('proj_first');
+  });
+});
+
+describe('Dashboard project discovery and filtered selection', () => {
+  const mockUser: User = { id: 'usr_filter', username: 'tester', email: 'tester@test.com', role: 'user', created_at: '2026-01-01' };
+  const mockProjects: Project[] = [
+    createMockProject({ id: 'idea', name: 'Zeta Idea', stage: 'Idea', industry: 'Education', updated_at: '2026-01-01T00:00:00Z', progress_percentage: 20 }),
+    createMockProject({ id: 'growth', name: 'Alpha Growth', stage: 'Growth', industry: 'Finance', updated_at: '2026-02-01T00:00:00Z', progress_percentage: 90 }),
+  ];
+
+  it('filters projects by stage and sorts alphabetically', () => {
+    render(<DashboardPage user={mockUser} projects={mockProjects} onOpenProject={vi.fn()} onCreateNewProject={vi.fn()} onDeleteProject={vi.fn()} onLogout={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('Filter projects by stage'), { target: { value: 'Idea' } });
+    expect(screen.getByText('Zeta Idea')).toBeDefined();
+    expect(screen.queryByText('Alpha Growth')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Filter projects by stage'), { target: { value: 'all' } });
+    fireEvent.change(screen.getByLabelText('Sort projects'), { target: { value: 'name' } });
+    const titles = screen.getAllByRole('heading', { level: 3 }).map(node => node.textContent);
+    expect(titles.indexOf('Alpha Growth')).toBeLessThan(titles.indexOf('Zeta Idea'));
+  });
+
+  it('selects and deselects only visible projects while retaining hidden selections', () => {
+    const onBulkDeleteProjects = vi.fn().mockResolvedValue(undefined);
+    render(<DashboardPage user={mockUser} projects={mockProjects} onOpenProject={vi.fn()} onCreateNewProject={vi.fn()} onDeleteProject={vi.fn()} onBulkDeleteProjects={onBulkDeleteProjects} onLogout={vi.fn()} />);
+    fireEvent.click(screen.getByText('Manage Projects'));
+    fireEvent.click(screen.getByText('Select All'));
+    fireEvent.change(screen.getByLabelText('Filter projects by stage'), { target: { value: 'Idea' } });
+    fireEvent.click(screen.getByText('Deselect All'));
+    fireEvent.click(screen.getByText(/Delete Selected/));
+    fireEvent.click(screen.getByText('Permanently Delete 1 Projects'));
+    return waitFor(() => expect(onBulkDeleteProjects).toHaveBeenCalledWith(['growth']));
   });
 });
 

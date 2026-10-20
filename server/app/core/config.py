@@ -49,7 +49,7 @@ class Settings:
             parsed_keys = [legacy_key]
         self.GEMINI_API_KEYS: List[str] = list(dict.fromkeys(parsed_keys))
         self.GEMINI_API_KEY: str = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
-        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
         self.GEMINI_TOTAL_TIMEOUT_SECONDS: int = max(
             10, min(int(os.getenv("GEMINI_TOTAL_TIMEOUT_SECONDS", "90")), 300)
         )

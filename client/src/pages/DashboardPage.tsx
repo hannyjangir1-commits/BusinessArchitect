@@ -12,6 +12,8 @@ import { api } from '../services/api';
 interface Props {
   user: User;
   projects: Project[];
+  projectsError?: string | null;
+  onRetryProjects?: () => void;
   onOpenProject: (projectId: string, targetModule?: string) => void;
   onCreateNewProject: () => void;
   onDeleteProject: (projectId: string) => Promise<void>;
@@ -23,6 +25,8 @@ interface Props {
 export const DashboardPage: React.FC<Props> = ({
   user,
   projects,
+  projectsError,
+  onRetryProjects,
   onOpenProject,
   onCreateNewProject,
   onDeleteProject,
@@ -31,6 +35,8 @@ export const DashboardPage: React.FC<Props> = ({
   onUserUpdated
 }) => {
   const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState<'updated' | 'name' | 'progress'>('updated');
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -45,11 +51,17 @@ export const DashboardPage: React.FC<Props> = ({
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
 
-  const filteredProjects = projects.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.industry && p.industry.toLowerCase().includes(search.toLowerCase())) ||
-    (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
-  );
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredProjects = projects
+    .filter(p => stageFilter === 'all' || p.stage === stageFilter || (stageFilter === 'Idea' && p.stage === 'Idea / MVP'))
+    .filter(p => !normalizedSearch || [p.name, p.industry, p.description, p.target_customers]
+      .some(value => value?.toLocaleLowerCase().includes(normalizedSearch)))
+    .sort((a, b) => {
+      if (sortOrder === 'name') return a.name.localeCompare(b.name);
+      if (sortOrder === 'progress') return (b.progress_percentage || 0) - (a.progress_percentage || 0);
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  const allVisibleSelected = filteredProjects.length > 0 && filteredProjects.every(p => selectedIds.includes(p.id));
 
   // Metric computations from real user data
   const totalProjects = projects.length;
@@ -78,10 +90,11 @@ export const DashboardPage: React.FC<Props> = ({
   };
 
   const handleToggleSelectAll = () => {
-    if (selectedIds.length === filteredProjects.length) {
-      setSelectedIds([]);
+    if (allVisibleSelected) {
+      const visibleIds = new Set(filteredProjects.map(p => p.id));
+      setSelectedIds(prev => prev.filter(id => !visibleIds.has(id)));
     } else {
-      setSelectedIds(filteredProjects.map(p => p.id));
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredProjects.map(p => p.id)])));
     }
   };
 
@@ -208,6 +221,12 @@ export const DashboardPage: React.FC<Props> = ({
 
       {/* Main Dashboard Area */}
       <main style={{ maxWidth: 1160, width: '100%', margin: '0 auto', padding: '36px 24px', flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {projectsError && (
+          <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: '12px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 10, color: 'var(--danger-text)', fontSize: 13 }}>
+            <span>{projectsError}</span>
+            {onRetryProjects && <button type="button" className="btn-secondary" onClick={onRetryProjects}>Retry</button>}
+          </div>
+        )}
         {/* Banner with Welcome & Create Project Button */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -393,6 +412,23 @@ export const DashboardPage: React.FC<Props> = ({
             )}
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)' }} htmlFor="project-stage-filter">Stage</label>
+            <select id="project-stage-filter" aria-label="Filter projects by stage" value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ minWidth: 130, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-color)', color: 'var(--text-main)', background: 'var(--bg-card)' }}>
+              <option value="all">All stages</option>
+              <option value="Idea">Idea</option>
+              <option value="MVP">MVP</option>
+              <option value="Post-launch">Post-launch</option>
+              <option value="Growth">Growth</option>
+            </select>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)' }} htmlFor="project-sort-order">Sort</label>
+            <select id="project-sort-order" aria-label="Sort projects" value={sortOrder} onChange={e => setSortOrder(e.target.value as typeof sortOrder)} style={{ minWidth: 150, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-color)', color: 'var(--text-main)', background: 'var(--bg-card)' }}>
+              <option value="updated">Recently updated</option>
+              <option value="name">Name A to Z</option>
+              <option value="progress">Most complete</option>
+            </select>
+          </div>
+
           {/* Manage Mode Toolbar */}
           {isManageMode ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -401,7 +437,7 @@ export const DashboardPage: React.FC<Props> = ({
                 className="btn-secondary"
                 style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                {selectedIds.length === filteredProjects.length && filteredProjects.length > 0 ? (
+                {allVisibleSelected ? (
                   <><CheckSquare size={14} color="var(--primary)" /> Deselect All</>
                 ) : (
                   <><Square size={14} /> Select All</>
@@ -451,15 +487,15 @@ export const DashboardPage: React.FC<Props> = ({
             <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 460, margin: '0 auto 22px auto', lineHeight: 1.5 }}>
               {projects.length === 0
                 ? 'Get started by creating your first business blueprint. Synthesize your Business Model Canvas, technology stack, and execution roadmap.'
-                : `No projects match "${search}". Try clearing or refining your search query.`}
+                : 'No projects match the current search and stage filters. Clear the filters or choose another stage.'}
             </p>
             {projects.length === 0 ? (
               <button onClick={onCreateNewProject} className="btn-primary" style={{ margin: '0 auto' }}>
                 <Plus size={16} /> Create Your First Project
               </button>
             ) : (
-              <button onClick={() => setSearch('')} className="btn-secondary" style={{ margin: '0 auto' }}>
-                Reset Search
+              <button onClick={() => { setSearch(''); setStageFilter('all'); }} className="btn-secondary" style={{ margin: '0 auto' }}>
+                Clear Filters
               </button>
             )}
           </div>
@@ -544,6 +580,12 @@ export const DashboardPage: React.FC<Props> = ({
                     <span style={{ fontWeight: 700, color: generatedCount > 0 ? 'var(--primary-text)' : 'var(--text-muted)' }}>
                       {generatedCount} / 6 modules
                     </span>
+                  </div>
+
+                  <div aria-label={`Project information completeness ${p.completeness_percentage ?? 0}%`} style={{ display: 'grid', gap: 5, marginTop: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-muted)' }}><span>Project information</span><strong>{p.completeness_percentage ?? 0}%</strong></div>
+                    <div style={{ height: 6, borderRadius: 999, background: 'var(--bg-subtle)', overflow: 'hidden' }}><div style={{ width: `${Math.max(0, Math.min(100, p.completeness_percentage ?? 0))}%`, height: '100%', background: 'var(--primary-text)', borderRadius: 999 }} /></div>
+                    {(p.completeness_missing || []).length > 0 && <span style={{ fontSize: 10.5, color: 'var(--text-light)' }}>Missing: {p.completeness_missing!.slice(0, 2).join(', ')}{p.completeness_missing!.length > 2 ? '…' : ''}</span>}
                   </div>
 
                   <div style={{

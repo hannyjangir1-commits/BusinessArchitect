@@ -69,7 +69,7 @@ export const AdminAnalyticsPage: React.FC = () => {
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {funnel.map((step: any, idx: number) => {
+          {funnel.map((step: any) => {
             const widthPct = Math.max(8, step.conversion_rate);
             return (
               <div key={step.step}>

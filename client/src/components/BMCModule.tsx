@@ -62,7 +62,7 @@ export const BMCModule: React.FC<Props> = ({
           {isGenerating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText}` : 'Synthesizing Canvas...'}
+              {generationProgress ? `${generationProgress.stageText} ${generationProgress.progressPercent}%` : 'Synthesizing Canvas...'}
             </>
           ) : (
             <>

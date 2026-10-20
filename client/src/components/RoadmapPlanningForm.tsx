@@ -291,8 +291,8 @@ export const RoadmapPlanningForm: React.FC<Props> = ({
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
-        <button type="submit" className="btn-primary" disabled={busy || isDisabled || !startDate}>
-          {busy ? <><Loader2 size={15} className="animate-spin" /> {progress ? `${progress.stageText}` : 'Generating roadmap...'}</> : <><Calendar size={15} /> <Sparkles size={14} /> Generate tailored roadmap</>}
+        <button type="submit" className="btn-primary" disabled={busy || isDisabled || !startDate} aria-live="polite">
+          {busy ? <><Loader2 size={15} className="animate-spin" /> {progress ? `${progress.stageText} ${progress.progressPercent}%` : 'Generating roadmap...'}</> : <><Calendar size={15} /> <Sparkles size={14} /> Generate tailored roadmap</>}
         </button>
       </div>
     </form>

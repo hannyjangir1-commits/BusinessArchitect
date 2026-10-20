@@ -116,6 +116,11 @@ def api_health(response: Response):
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     is_configured = bool(settings.GEMINI_API_KEYS)
+    try:
+        from app.ai.gemini_service import ai_service
+        available_generation_keys = len(ai_service._available_key_slots())
+    except Exception:
+        available_generation_keys = 0
 
     return {
         "status": "healthy" if db_connected else "degraded",
@@ -123,7 +128,11 @@ def api_health(response: Response):
         "environment": settings.APP_ENV,
         "database_connected": db_connected,
         "generation_configured": is_configured,
-        "gemini_configured": is_configured
+        "gemini_configured": is_configured,
+        "generation_model": settings.GEMINI_MODEL,
+        "configured_generation_keys": len(settings.GEMINI_API_KEYS),
+        "available_generation_keys": available_generation_keys,
+        "generation_provider_status": "ready" if available_generation_keys else ("unconfigured" if not is_configured else "cooling_down_or_unavailable")
     }
 
 app.mount("/api", api_v1)

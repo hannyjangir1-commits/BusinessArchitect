@@ -435,12 +435,18 @@ def test_ai_retry_protections(client, db):
     assert res2.status_code == 400
     assert "no associated project context" in res2.json()["detail"].lower()
 
-    # 3. Failed operation on non-existent project -> 400
+    # 3. A deleted project's operation must remain auditable without retaining a
+    # dangling foreign key. ON DELETE SET NULL removes retry context safely.
+    deleted_proj = Project(
+        id=gen_id("prj_"), user_id=hanny.id, name="Deleted Retry Context", stage="Idea / MVP"
+    )
+    db.add(deleted_proj)
+    db.commit()
     missing_proj_op = AIOperation(
         id=gen_id("aio_"),
         request_id="req_fail_missing_prj",
         user_id=hanny.id,
-        project_id="prj_non_existent_999",
+        project_id=deleted_proj.id,
         module_type="bmc",
         operation_type="generate",
         model_name="gemini-2.5-flash",
@@ -452,10 +458,13 @@ def test_ai_retry_protections(client, db):
     )
     db.add(missing_proj_op)
     db.commit()
+    db.delete(deleted_proj)
+    db.commit()
+    db.refresh(missing_proj_op)
 
     res_missing = client.post(f"/api/admin/ai-operations/{missing_proj_op.id}/retry", cookies=super_cookies, headers=super_headers)
     assert res_missing.status_code == 400
-    assert "project no longer exists" in res_missing.json()["detail"].lower()
+    assert "no associated project context" in res_missing.json()["detail"].lower()
 
     # 4. Failed operation marked is_retryable=False on genuine project -> 400
     valid_proj = Project(

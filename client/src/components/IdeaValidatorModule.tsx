@@ -51,7 +51,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
           {isGenerating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              {generationProgress ? `${generationProgress.stageText}` : 'Evaluating Feasibility...'}
+              {generationProgress ? `${generationProgress.stageText} ${generationProgress.progressPercent}%` : 'Evaluating Feasibility...'}
             </>
           ) : (
             <>

@@ -1,5 +1,6 @@
 """Offline unit coverage for grounded research and citation handling."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -42,7 +43,7 @@ def test_grounded_executor_requests_search_and_extracts_url_citations():
     citation = SimpleNamespace(type="url_citation", url="https://example.com/market", title="Market Source")
     content = SimpleNamespace(annotations=[citation])
     step = SimpleNamespace(type="model_output", content=[content])
-    interaction = SimpleNamespace(output_text='{"ok": true}', steps=[step])
+    interaction = SimpleNamespace(output_text=json.dumps(_market_payload()), steps=[step])
     create = Mock(return_value=interaction)
     fake_client = SimpleNamespace(interactions=SimpleNamespace(create=create))
 
@@ -51,7 +52,7 @@ def test_grounded_executor_requests_search_and_extracts_url_citations():
             "system", "research this", MarketResearchData
         )
 
-    assert parsed == {"ok": True}
+    assert parsed["competitive_positioning"] == _market_payload()["competitive_positioning"]
     assert sources == [ResearchSource(title="Market Source", url="https://example.com/market")]
     kwargs = create.call_args.kwargs
     assert kwargs["tools"] == [{"type": "google_search"}]

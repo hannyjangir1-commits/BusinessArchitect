@@ -71,6 +71,15 @@ export function buildCompleteBmcSvg(
   data: BMCData
 ): SVGSVGElement {
   const clone = sourceSvg.cloneNode(true) as SVGSVGElement;
+  const theme = getComputedStyle(sourceSvg);
+  const resolveThemeVariables = (value: string) => value.replace(/var\((--[\w-]+)(?:\s*,\s*([^)]*))?\)/g, (_match, token: string, fallback?: string) => theme.getPropertyValue(token).trim() || fallback?.trim() || '#4b5563');
+  const resolveTreeAttributes = (node: Element) => {
+    for (const attribute of Array.from(node.attributes)) {
+      if (attribute.value.includes('var(')) node.setAttribute(attribute.name, resolveThemeVariables(attribute.value));
+    }
+    for (const child of Array.from(node.children)) resolveTreeAttributes(child);
+  };
+  resolveTreeAttributes(clone);
   clone.removeAttribute('style');
   clone.setAttribute('width', '1100');
 
@@ -106,7 +115,15 @@ export function buildCompleteBmcSvg(
   appendixBackground.setAttribute('y', '750');
   appendixBackground.setAttribute('width', '1100');
   appendixBackground.setAttribute('height', String(y - 750 + 32));
-  appendixBackground.setAttribute('fill', 'var(--bg-card)');
+  appendixBackground.setAttribute('fill', resolveThemeVariables('var(--bg-card)'));
+  for (const node of Array.from(appendix.querySelectorAll('*'))) {
+    for (const attribute of Array.from(node.attributes)) {
+      if (attribute.value.includes('var(')) node.setAttribute(attribute.name, resolveThemeVariables(attribute.value));
+    }
+  }
+  for (const attribute of Array.from(appendix.attributes)) {
+    if (attribute.value.includes('var(')) appendix.setAttribute(attribute.name, resolveThemeVariables(attribute.value));
+  }
   clone.appendChild(appendixBackground);
   clone.appendChild(appendix);
   clone.setAttribute('viewBox', `0 0 1100 ${y + 32}`);
@@ -155,7 +172,7 @@ export const RadialBMCInfographic: React.FC<Props> = ({ projectName, stage, data
     a.href = url;
     a.download = `${projectName.toLowerCase().replace(/\s+/g, '_')}_radial_bmc.svg`;
     a.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const activeBlockConfig = blocksConfig.find(b => b.key === selectedKey);

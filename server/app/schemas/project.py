@@ -52,6 +52,8 @@ class ProjectResponse(BaseModel):
     tasks_count: int = 0
     completed_tasks_count: int = 0
     progress_percentage: int = 0
+    completeness_percentage: int = 0
+    completeness_missing: List[str] = Field(default_factory=list)
     generated_modules: List[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

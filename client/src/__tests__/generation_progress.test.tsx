@@ -98,7 +98,56 @@ describe('Phase 3 & 5: Module-Scoped Generation Progress', () => {
     // Must NOT contain BMC stage text, spinner, or percentage
     expect(btn.textContent).not.toContain('Synthesizing');
     expect(btn.textContent).not.toContain('%');
-    expect(btn.textContent?.trim()).toContain('Generate Technology Stack');
+    expect(btn.textContent?.trim()).toContain('Generate technology stack');
+  });
+
+  it('Tech Stack generation shows its own stage and percentage inline', () => {
+    render(
+      <TechStackModule
+        project={mockProject1}
+        moduleDetail={null}
+        onGenerate={vi.fn().mockResolvedValue(undefined)}
+        onModify={vi.fn().mockResolvedValue(undefined)}
+        onRenameVersion={vi.fn().mockResolvedValue(undefined)}
+        onDeleteVersion={vi.fn().mockResolvedValue(undefined)}
+        onRestoreVersion={vi.fn().mockResolvedValue(undefined)}
+        onExportPdf={vi.fn()}
+        isLoading={false}
+        isGenerating={true}
+        generationProgress={{ stageText: 'Checking technology compatibility…', progressPercent: 65 }}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Checking technology compatibility.*65%/i });
+    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.textContent).toContain('65%');
+  });
+
+  it('Create New Stack opens its preference form without generating before submit', () => {
+    const onGenerate = vi.fn().mockResolvedValue(undefined);
+    render(
+      <TechStackModule
+        project={mockProject1}
+        moduleDetail={{
+          module_type: 'tech_stack', active_version_id: 'v1', active_version_name: 'V1', active_version_number: 1,
+          versions: [{ id: 'v1', version_name: 'V1', version_number: 1, is_active: true }],
+          data: { summary: 'Current stack', architecture_pattern: 'Modular monolith', recommendations: [] }
+        } as any}
+        onGenerate={onGenerate}
+        onModify={vi.fn().mockResolvedValue(undefined)}
+        onRenameVersion={vi.fn().mockResolvedValue(undefined)}
+        onDeleteVersion={vi.fn().mockResolvedValue(undefined)}
+        onRestoreVersion={vi.fn().mockResolvedValue(undefined)}
+        onExportPdf={vi.fn()}
+        isLoading={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create New Stack' }));
+
+    expect(screen.getByText('Technology preferences')).toBeDefined();
+    expect(onGenerate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Generate technology stack/i })).toBeDefined();
   });
 
   it('Switching between modules isolates progress to the initiating module and restores it upon return', async () => {
@@ -212,7 +261,7 @@ describe('Phase 3 & 5: Module-Scoped Generation Progress', () => {
     // but must NEVER display BMC's stage text, percentage, or spinner!
     const techBtn = screen.getByRole('button', { name: /Generate Technology Stack/i });
     expect(techBtn.hasAttribute('disabled')).toBe(true);
-    expect(techBtn.textContent?.trim()).toContain('Generate Technology Stack');
+    expect(techBtn.textContent?.trim()).toContain('Generate technology stack');
     expect(techBtn.textContent).not.toContain('Synthesizing');
     expect(techBtn.textContent).not.toContain('35%');
 

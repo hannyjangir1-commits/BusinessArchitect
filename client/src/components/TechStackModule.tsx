@@ -5,7 +5,7 @@ import { TechStackPlanningForm } from './TechStackPlanningForm';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
 import { ArchitectureInfographic } from './ArchitectureInfographic';
-import { Cpu, Sparkles, Layers, ShieldCheck, Server, Database, Cloud, Terminal, Loader2 } from 'lucide-react';
+import { Cpu, Layers, ShieldCheck, Server, Database, Cloud, Terminal } from 'lucide-react';
 
 interface Props {
   project: Project;
@@ -15,7 +15,6 @@ interface Props {
   onRenameVersion: (newName: string) => Promise<void>;
   onDeleteVersion: (versionId: string) => Promise<void>;
   onRestoreVersion: (versionId: string) => Promise<void>;
-  onCreateNew?: () => Promise<void>;
   onDeleteModule?: () => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
@@ -32,7 +31,6 @@ export const TechStackModule: React.FC<Props> = ({
   onRenameVersion,
   onDeleteVersion,
   onRestoreVersion,
-  onCreateNew,
   onDeleteModule,
   onExportPdf,
   isLoading,
@@ -116,7 +114,7 @@ export const TechStackModule: React.FC<Props> = ({
           onRestore={onRestoreVersion}
           onExportPdf={onExportPdf}
           onExportSvg={handleDownloadSvg}
-          onCreateNew={async () => { setShowPlanner(true); await Promise.resolve(); }}
+          onCreateNew={async () => { setShowPlanner(true); }}
           onDeleteModule={onDeleteModule}
           createLabel="Create New Stack"
           isBusy={isLoading || isGenerating}

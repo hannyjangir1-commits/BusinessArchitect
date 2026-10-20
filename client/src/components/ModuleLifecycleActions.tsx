@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { VersionItem } from '../types';
 
@@ -23,20 +23,26 @@ export const ModuleLifecycleActions: React.FC<Props> = ({
   isBusy = false,
   isCreateDisabled = false
 }) => {
+  const [actionError, setActionError] = useState<string | null>(null);
   const activeVersion = versions.find(version => version.is_active) || versions[versions.length - 1];
   const deletesVersion = versions.length > 1 && !!activeVersion && !!onDeleteVersion;
 
   const confirmAndDelete = async () => {
+    setActionError(null);
     const relatedData = moduleTitle === 'Roadmap & Execution Plan' ? ' and all roadmap tasks' : '';
     const confirmationMessage = deletesVersion
       ? `Delete the current version${activeVersion?.version_name ? ` (${activeVersion.version_name})` : ''} of ${moduleTitle}? Other saved versions will remain.`
       : `Delete ${moduleTitle}${relatedData}, including its saved version? This cannot be undone. You can generate it again later.`;
     if (!window.confirm(confirmationMessage)) return;
 
-    if (deletesVersion && activeVersion && onDeleteVersion) {
-      await onDeleteVersion(activeVersion.id);
-    } else {
-      await onDeleteModule?.();
+    try {
+      if (deletesVersion && activeVersion && onDeleteVersion) {
+        await onDeleteVersion(activeVersion.id);
+      } else {
+        await onDeleteModule?.();
+      }
+    } catch (error: any) {
+      setActionError(error?.message || `Could not delete ${moduleTitle}. Please try again.`);
     }
   };
 
@@ -71,6 +77,7 @@ export const ModuleLifecycleActions: React.FC<Props> = ({
           <Trash2 size={14} /> Delete
         </button>
       )}
+      {actionError && <span role="alert" style={{ color: 'var(--danger-text)', fontSize: 12, maxWidth: 240 }}>{actionError}</span>}
     </div>
   );
 };

@@ -296,11 +296,18 @@ def test_admin_ai_retry_refuses_when_project_missing(test_admin, db):
     client = test_admin["client"]
     headers = {"X-CSRF-Token": test_admin["csrf_token"]}
 
-    # Create an AIOperation with non-existent project_id
-    ghost_project_id = "prj_nonexistent_99999"
+    # Create an operation tied to a real project, then delete that project. The
+    # foreign key uses ON DELETE SET NULL so audit history remains valid without
+    # retaining a dangling reference or creating synthetic context.
+    deleted_project = Project(
+        id=gen_id("prj_"), user_id=test_admin["admin"].id,
+        name="Deleted retry context", stage="Idea / MVP",
+    )
+    db.add(deleted_project)
+    db.commit()
     op = AIOperation(
         id=gen_id("aio_"),
-        project_id=ghost_project_id,
+        project_id=deleted_project.id,
         user_id=test_admin["admin"].id,
         module_type="bmc",
         operation_type="generation",
@@ -313,13 +320,17 @@ def test_admin_ai_retry_refuses_when_project_missing(test_admin, db):
     )
     db.add(op)
     db.commit()
+    deleted_project_id = deleted_project.id
+    db.delete(deleted_project)
+    db.commit()
+    db.refresh(op)
 
     resp = client.post(f"/api/admin/ai-operations/{op.id}/retry", headers=headers)
     assert resp.status_code == 400
-    assert "original project no longer exists" in resp.text.lower()
+    assert "no associated project context" in resp.text.lower()
 
     # Verify no project with ghost_project_id was created
-    ghost_proj = db.query(Project).filter(Project.id == ghost_project_id).first()
+    ghost_proj = db.query(Project).filter(Project.id == deleted_project_id).first()
     assert ghost_proj is None
 
 

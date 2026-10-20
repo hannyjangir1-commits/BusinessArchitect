@@ -684,12 +684,35 @@ class TestTechStack:
         client, csrf = login_identity("test_standard_owner")
         pid = get_valid_project_id(client)
 
-        # Ensure Roadmap exists
-        client.post(f"/api/projects/{pid}/modules/execution_roadmap/generate", headers={"X-CSRF-Token": csrf})
+        # Seed a valid saved roadmap without relying on a live model provider.
+        db = SessionLocal()
+        try:
+            roadmap_module = ModuleContent(project_id=pid, module_type="execution_roadmap")
+            db.add(roadmap_module)
+            db.flush()
+            roadmap_version = ModuleVersion(
+                module_content_id=roadmap_module.id,
+                version_number=1,
+                version_name="V1",
+                is_active=True,
+                data={
+                    "phases": [{"name": "Discovery", "start_date": "2026-01-01", "end_date": "2026-01-07"}],
+                    "tasks": [],
+                    "feasibility_evaluation": {"is_realistic": True, "feasibility_issues": []},
+                    "planning_inputs": {"start_date": "2026-01-01", "horizon_weeks": 12},
+                },
+            )
+            db.add(roadmap_version)
+            db.flush()
+            roadmap_module.active_version_id = roadmap_version.id
+            db.commit()
+        finally:
+            db.close()
         road_before = client.get(f"/api/projects/{pid}/modules/execution_roadmap").json()
 
         # Generate Tech Stack
-        client.post(f"/api/projects/{pid}/modules/tech_stack/generate", headers={"X-CSRF-Token": csrf})
+        stack_response = client.post(f"/api/projects/{pid}/modules/tech_stack/generate", headers={"X-CSRF-Token": csrf})
+        assert stack_response.status_code == 200, stack_response.text
 
         road_after = client.get(f"/api/projects/{pid}/modules/execution_roadmap").json()
         assert road_after["data"]["tasks"] == road_before["data"]["tasks"]
@@ -897,9 +920,12 @@ class TestUnifiedRoadmap:
         assert len(merged["versions"]) == 3
         db = SessionLocal()
         try:
-            assert db.query(ModuleContent).filter_by(id=old_module_id).first() is None
+            # Reads present both histories together without moving or deleting
+            # either source record; migration happens only on an authorized write.
+            assert db.query(ModuleContent).filter_by(id=old_module_id).one().module_type == "detailed_roadmap"
             canonical = db.query(ModuleContent).filter_by(project_id=pid, module_type="execution_roadmap").one()
-            assert len(db.query(ModuleVersion).filter_by(module_content_id=canonical.id).all()) == 3
+            assert len(db.query(ModuleVersion).filter_by(module_content_id=canonical.id).all()) == 2
+            assert len(db.query(ModuleVersion).filter_by(module_content_id=old_module_id).all()) == 1
         finally:
             db.close()
 
@@ -907,19 +933,15 @@ class TestUnifiedRoadmap:
         # keeps both histories under one canonical module without losing data.
         db = SessionLocal()
         try:
-            old_module = ModuleContent(project_id=pid, module_type="detailed_roadmap")
-            db.add(old_module)
-            db.flush()
+            old_module = db.query(ModuleContent).filter_by(id=old_module_id).one()
             old_version = ModuleVersion(
                 module_content_id=old_module.id,
-                version_number=1,
-                version_name="Older Detailed Plan",
+                version_number=2,
+                version_name="Older Detailed Plan V2",
                 data={"phases": [], "tasks": [], "feasibility_evaluation": {"is_realistic": True}},
-                is_active=True,
+                is_active=False,
             )
             db.add(old_version)
-            db.flush()
-            old_module.active_version_id = old_version.id
             db.commit()
         finally:
             db.close()
@@ -1044,6 +1066,23 @@ class TestUnifiedRoadmap:
             assigned = t.get("assigned_to")
             if assigned and assigned != "Unassigned":
                 assert assigned in ["Alice", "Bob", "Carol"]
+
+    def test_ROAD_020_provider_assignment_metadata_is_canonicalized(self):
+        """A valid named assignee keeps the department and role from the team form."""
+        result = {
+            "tasks": [{
+                "task_code": "TSK-01", "assigned_to": "Alice",
+                "assigned_role": "backend lead", "department": "Product",
+            }]
+        }
+        planning = {"team_members": [{
+            "name": "Alice", "roles": ["Backend Lead", "Architect"],
+            "department": "Engineering",
+        }]}
+        GeminiAIService._normalize_roadmap_assignments(result, planning)
+        task = result["tasks"][0]
+        assert task["assigned_role"] == "Backend Lead"
+        assert task["department"] == "Engineering"
 
     def test_ROAD_021_dependency_cycle_detection(self):
         """ROAD-021: Dependency cycles detected and broken safely."""
