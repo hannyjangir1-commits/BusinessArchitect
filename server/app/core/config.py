@@ -56,6 +56,7 @@ class Settings:
         self.GEMINI_KEY_COOLDOWN_SECONDS: int = max(
             15, min(int(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", "120")), 3600)
         )
+        self.GEMINI_FALLBACK_MODELS_ENABLED: bool = os.getenv("GEMINI_FALLBACK_MODELS_ENABLED", "true").lower() in ("true", "1", "yes")
 
 
     # CORS

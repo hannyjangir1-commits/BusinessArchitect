@@ -153,9 +153,11 @@ class GeminiAIService:
         )
 
     def _get_candidate_models(self) -> List[str]:
-        """Return the primary configured model followed by resilient fallback models."""
+        """Return the primary configured model followed by resilient fallback models if enabled."""
         self._require_provider()
         primary = settings.GEMINI_MODEL.strip() or "gemini-3.5-flash"
+        if not getattr(settings, "GEMINI_FALLBACK_MODELS_ENABLED", True):
+            return [primary]
         # Highly available, tested models first, then preview/high-tier models
         fallbacks = [
             "gemini-3.5-flash",
@@ -375,7 +377,8 @@ class GeminiAIService:
                                 return fallback_res, []
                             except Exception as fb_err:
                                 logger.warning("Ungrounded fallback also encountered error (%s). Continuing rotation.", type(fb_err).__name__)
-                                last_error = fb_err
+                                if not self._terminal_provider_error_message(model_err):
+                                    last_error = fb_err
                         if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
                             logger.warning(
                                 "Grounded interaction with model %s hit capacity/availability issue (%s). Trying fallback candidate...",

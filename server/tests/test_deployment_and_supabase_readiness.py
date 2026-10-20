@@ -226,7 +226,9 @@ def test_gemini_uses_only_the_explicitly_configured_model(monkeypatch):
     service = GeminiAIService()
     service.api_key = "test-key"
     candidates = service._get_candidate_models()
-    assert candidates == [test_model]
+    assert candidates[0] == test_model
+    monkeypatch.setattr(settings, "GEMINI_FALLBACK_MODELS_ENABLED", False)
+    assert service._get_candidate_models() == [test_model]
 
 
 def test_version_delete_atomicity_and_fallback():

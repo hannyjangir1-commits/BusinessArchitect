@@ -161,8 +161,8 @@ export const App: React.FC = () => {
   };
 
   const loadProjects = React.useCallback(async () => {
+    const epoch = sessionEpochRef.current;
     try {
-      const epoch = sessionEpochRef.current;
       const projs = await api.projects.list();
       if (sessionEpochRef.current === epoch) {
         setProjects(projs);

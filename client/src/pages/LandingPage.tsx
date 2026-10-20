@@ -230,7 +230,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
       </section>
 
       {/* Interactive Workspace Preview Showcase */}
-      <section id="architecture" style={{ padding: '0 32px 70px 32px', maxWidth: 1160, margin: '0 auto', width: '100%' }}>
+      <section id="architecture" style={{ padding: '0 clamp(16px, 4vw, 32px) 70px clamp(16px, 4vw, 32px)', maxWidth: 1160, margin: '0 auto', width: '100%' }}>
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-color)',
@@ -260,7 +260,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           </div>
 
           {/* Mock Multi-Module Dashboard Preview */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16 }}>
             {/* Box 1: BMC */}
             <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -316,7 +316,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
       </section>
 
       {/* Feature Sections: 9 Coherent Workspace Capabilities */}
-      <section id="features" style={{ padding: '60px 32px 80px 32px', maxWidth: 1160, margin: '0 auto', width: '100%' }}>
+      <section id="features" style={{ padding: '60px clamp(16px, 4vw, 32px) 80px clamp(16px, 4vw, 32px)', maxWidth: 1160, margin: '0 auto', width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <h2 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-main)', letterSpacing: -0.5, marginBottom: 12 }}>
             Complete Venture Architecture Workspace
@@ -326,7 +326,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 20 }}>
           {/* Card 1 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 24 }}>
             <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgb(69 60 55 / 0.15)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
