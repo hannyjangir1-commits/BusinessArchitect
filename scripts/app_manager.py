@@ -73,7 +73,7 @@ def check_url(url: str, timeout: float = 2.0) -> bool:
 
 def cmd_check_backend():
     """Check if backend is healthy on port 8000."""
-    if check_url(BACKEND_HEALTH_URL):
+    if check_url(BACKEND_HEALTH_URL) or check_url(f"http://localhost:{BACKEND_PORT}/api/health"):
         print("healthy")
         return 0
     else:
@@ -83,7 +83,7 @@ def cmd_check_backend():
 
 def cmd_check_frontend():
     """Check if frontend is serving on port 5173."""
-    if check_url(FRONTEND_URL):
+    if check_url(FRONTEND_URL) or check_url(f"http://localhost:{FRONTEND_PORT}"):
         print("healthy")
         return 0
     else:
@@ -172,9 +172,9 @@ def cmd_wait_ready(timeout: int = 35):
     while time.time() - start_time < timeout:
         elapsed = int(time.time() - start_time)
         if not backend_ok:
-            backend_ok = check_url(BACKEND_HEALTH_URL, timeout=1.5)
+            backend_ok = check_url(BACKEND_HEALTH_URL, timeout=1.5) or check_url(f"http://localhost:{BACKEND_PORT}/api/health", timeout=1.5)
         if not frontend_ok:
-            frontend_ok = check_url(FRONTEND_URL, timeout=1.5)
+            frontend_ok = check_url(FRONTEND_URL, timeout=1.5) or check_url(f"http://localhost:{FRONTEND_PORT}", timeout=1.5)
 
         if backend_ok and frontend_ok:
             print(f"\n[OK] Backend healthy ({BACKEND_HEALTH_URL})")
@@ -193,10 +193,10 @@ def cmd_wait_ready(timeout: int = 35):
     print("\n\n[ERROR] Application failed to become ready within the timeout period.")
     if not backend_ok:
         print(f"  - Backend did not respond on {BACKEND_HEALTH_URL}")
-        print("    Check the 'AI Business Architect - Backend' window for tracebacks.")
+        print("    Check the 'Business Architect - Backend' window for tracebacks.")
     if not frontend_ok:
         print(f"  - Frontend did not respond on {FRONTEND_URL}")
-        print("    Check the 'AI Business Architect - Frontend' window for Vite errors.")
+        print("    Check the 'Business Architect - Frontend' window for Vite errors.")
     return 1
 
 
@@ -232,10 +232,22 @@ def is_app_process(pid: int) -> bool:
 
 
 def cmd_stop():
-    """Safely terminate ONLY verified AI Business Architect processes."""
+    """Safely terminate all Business Architect processes, windows, and port holders."""
+    # 1. Close any named terminal windows first
+    for title in ["Business Architect - Backend*", "Business Architect - Frontend*"]:
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/FI", f"WINDOWTITLE eq {title}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False
+            )
+        except Exception:
+            pass
+
     stored_pids = set()
 
-    # 1. Read stored PIDs if file exists
+    # 2. Read stored PIDs if file exists
     if PID_FILE.exists():
         try:
             with open(PID_FILE, "r", encoding="utf-8") as f:
@@ -247,7 +259,7 @@ def cmd_stop():
         except Exception:
             pass
 
-    # 2. Inspect active port listeners on 8000 and 5173
+    # 3. Inspect active port listeners on 8000 and 5173
     current_backend = get_listening_pids(BACKEND_PORT)
     current_frontend = get_listening_pids(FRONTEND_PORT)
 
@@ -259,13 +271,10 @@ def cmd_stop():
 
     for pid in list(all_candidate_pids):
         pname = get_process_info(pid)
-        if not pname:
-            continue
+        is_port_holder = (pid in current_backend) or (pid in current_frontend)
+        should_stop = (pid in stored_pids) or is_port_holder or is_app_process(pid)
 
-        # Verify identity: must either be in stored PIDs or match app command line
-        is_verified = (pid in stored_pids) or is_app_process(pid)
-
-        if is_verified and pname in ("python.exe", "pythonw.exe", "node.exe", "cmd.exe"):
+        if should_stop:
             try:
                 subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", str(pid)],
@@ -273,12 +282,11 @@ def cmd_stop():
                     stderr=subprocess.DEVNULL,
                     check=False
                 )
-                print(f"[OK] Safely stopped {pname} service (PID {pid})")
+                label = f"{pname} (PID {pid})" if pname else f"PID {pid}"
+                print(f"[OK] Safely stopped service: {label}")
                 stopped_count += 1
             except Exception as e:
                 print(f"[WARNING] Could not terminate PID {pid}: {e}")
-        elif pname:
-            print(f"[SKIP] PID {pid} is '{pname}', unverified ownership. Preserving process.")
 
     # Clean up PID file
     if PID_FILE.exists():
@@ -288,21 +296,21 @@ def cmd_stop():
             pass
 
     if stopped_count == 0:
-        print("[INFO] AI Business Architect is not currently running.")
+        print("[INFO] Business Architect is not currently running.")
         print(f"       No active services found listening on port {BACKEND_PORT} or {FRONTEND_PORT}.")
     else:
-        print(f"\n[SUCCESS] Successfully stopped {stopped_count} AI Business Architect process(es).")
+        print(f"\n[SUCCESS] Successfully stopped {stopped_count} Business Architect process(es).")
     return 0
 
 
 def cmd_find_chrome():
     """Locate Google Chrome executable on Windows."""
     candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
         os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe")
     ]
 
     for path in candidates:
@@ -336,9 +344,59 @@ def cmd_find_chrome():
     return 1
 
 
+def cmd_open_browser(url: str = FRONTEND_URL):
+    """Reliably open the landing page in the default browser or Chrome every time."""
+    # 1. First attempt: PowerShell Start-Process (uses Windows default browser association and activates window)
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", f"Start-Process '{url}'"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False
+        )
+        if res.returncode == 0:
+            print(f"[OK] Opened in default browser: {url}")
+            return 0
+    except Exception:
+        pass
+
+    # 2. Second attempt: Specific Google Chrome candidate paths
+    chrome = None
+    candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe")
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            chrome = c
+            break
+
+    if chrome:
+        try:
+            subprocess.Popen([chrome, url])
+            print(f"[OK] Opened in Google Chrome: {url}")
+            return 0
+        except Exception:
+            pass
+
+    # 3. Third attempt: Python standard library webbrowser
+    try:
+        import webbrowser
+        webbrowser.open(url, new=2, autoraise=True)
+        print(f"[OK] Opened via default browser handler: {url}")
+        return 0
+    except Exception as e:
+        print(f"[ERROR] Could not open browser: {e}")
+        return 1
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python app_manager.py [check-prereqs|check-backend|check-frontend|wait-ready|save-pids|stop|find-chrome]")
+        print("Usage: python app_manager.py [check-prereqs|check-backend|check-frontend|wait-ready|save-pids|stop|find-chrome|open-browser]")
         sys.exit(1)
 
     cmd = sys.argv[1].lower()
@@ -357,6 +415,9 @@ if __name__ == "__main__":
         sys.exit(cmd_stop())
     elif cmd == "find-chrome":
         sys.exit(cmd_find_chrome())
+    elif cmd == "open-browser":
+        target = sys.argv[2] if len(sys.argv) > 2 else FRONTEND_URL
+        sys.exit(cmd_open_browser(target))
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
