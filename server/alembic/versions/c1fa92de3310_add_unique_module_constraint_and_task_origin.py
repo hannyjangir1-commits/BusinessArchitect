@@ -89,14 +89,19 @@ def upgrade() -> None:
     with op.batch_alter_table('module_contents', schema=None) as batch_op:
         batch_op.create_unique_constraint('uq_module_contents_project_module', ['project_id', 'module_type'])
 
-    # 3. Add is_ai_generated column to roadmap_tasks with default False (0) for historical tasks
+    # 3. Add is_ai_generated column to roadmap_tasks with default False for historical tasks
     with op.batch_alter_table('roadmap_tasks', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('is_ai_generated', sa.Boolean(), server_default=sa.text('0'), nullable=False))
+        batch_op.add_column(sa.Column('is_ai_generated', sa.Boolean(), server_default=sa.false(), nullable=False))
 
     # 4. Standardize any existing 'Ongoing' tasks to canonical 'In Progress' and ensure legacy tasks are False
     if not is_offline and conn is not None:
         conn.execute(text("UPDATE roadmap_tasks SET status = 'In Progress' WHERE status = 'Ongoing'"))
-        conn.execute(text("UPDATE roadmap_tasks SET is_ai_generated = 0 WHERE is_ai_generated IS NULL OR is_ai_generated = 1"))
+        roadmap_tasks_tbl = sa.table('roadmap_tasks', sa.column('is_ai_generated', sa.Boolean()))
+        conn.execute(
+            sa.update(roadmap_tasks_tbl)
+            .where(roadmap_tasks_tbl.c.is_ai_generated.is_(None))
+            .values(is_ai_generated=False)
+        )
 
 
 def downgrade() -> None:
