@@ -125,6 +125,8 @@ def test_postgresql_ddl_boolean_portability():
         assert "BOOLEAN DEFAULT true" in ddl_output
         assert "is_suspended BOOLEAN DEFAULT 0" not in ddl_output
         assert "is_active BOOLEAN DEFAULT 1" not in ddl_output
+        assert "is_ai_generated BOOLEAN DEFAULT 0" not in ddl_output
+        assert "is_ai_generated BOOLEAN DEFAULT false" in ddl_output
     finally:
         settings.DATABASE_URL = original_db_url
 
