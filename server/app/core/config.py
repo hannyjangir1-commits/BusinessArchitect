@@ -2,6 +2,7 @@ import os
 import re
 from typing import List
 from pathlib import Path
+# pyrefly: ignore[missing-import]
 from dotenv import load_dotenv
 
 # Load .env if present in current dir or repo root
