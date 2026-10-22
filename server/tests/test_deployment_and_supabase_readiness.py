@@ -47,6 +47,12 @@ def test_supabase_database_url_normalization():
     auto_ssl = test_settings.get_database_url()
     assert "sslmode=require" in auto_ssl
 
+    # Verify that passwords containing unescaped '@' characters are automatically percent-encoded
+    test_settings.DATABASE_URL = "postgresql://postgres.mcot:Hanny@9216@1234@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
+    encoded_url = test_settings.get_database_url()
+    assert "Hanny%409216%401234" in encoded_url
+    assert "aws-0-ap-south-1.pooler.supabase.com" in encoded_url
+
 
 def test_alembic_fresh_database_upgrade():
     """Verify that Alembic migrations run cleanly on an empty database without syntax or constraint errors."""
