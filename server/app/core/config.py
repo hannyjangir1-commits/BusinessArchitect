@@ -1,5 +1,6 @@
 import os
 import re
+import urllib.parse
 from typing import List
 from pathlib import Path
 # pyrefly: ignore[missing-import]
@@ -78,6 +79,20 @@ class Settings:
         url = self.DATABASE_URL
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+
+        # Automatically percent-encode passwords with special characters (e.g. unescaped '@')
+        if "://" in url and "@" in url:
+            scheme, rest = url.split("://", 1)
+            authority, *path_parts = rest.split("/", 1)
+            path = "/" + path_parts[0] if path_parts else ""
+            if authority.count("@") > 1:
+                userinfo, hostinfo = authority.rsplit("@", 1)
+                if ":" in userinfo:
+                    username, password = userinfo.split(":", 1)
+                    unquoted_pw = urllib.parse.unquote(password)
+                    encoded_pw = urllib.parse.quote_plus(unquoted_pw)
+                    url = f"{scheme}://{username}:{encoded_pw}@{hostinfo}{path}"
+
         # For remote PostgreSQL / Supabase, guarantee sslmode=require if not explicitly specified
         if (url.startswith("postgresql://") or url.startswith("postgresql+")) and "sslmode" not in url.lower() and "localhost" not in url and "127.0.0.1" not in url:
             sep = "&" if "?" in url else "?"
