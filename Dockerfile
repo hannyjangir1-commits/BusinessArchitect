@@ -57,6 +57,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Start Uvicorn pointing to app.main:app
-# Use exec to ensure Uvicorn receives Unix signals (SIGTERM/SIGINT) for graceful shutdown
+# Runs database migrations automatically on startup so deployment works even without manual Pre-Deploy commands
 WORKDIR /app/server
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
