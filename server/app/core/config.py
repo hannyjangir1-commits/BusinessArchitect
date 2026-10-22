@@ -49,7 +49,7 @@ class Settings:
             parsed_keys = [legacy_key]
         self.GEMINI_API_KEYS: List[str] = list(dict.fromkeys(parsed_keys))
         self.GEMINI_API_KEY: str = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
-        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+        self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self.GEMINI_TOTAL_TIMEOUT_SECONDS: int = max(
             10, min(int(os.getenv("GEMINI_TOTAL_TIMEOUT_SECONDS", "90")), 300)
         )
@@ -63,8 +63,14 @@ class Settings:
     @property
     def allowed_origins(self) -> List[str]:
         raw = os.getenv("ALLOWED_ORIGINS", "")
+        origins = []
         if raw:
-            return [o.strip() for o in raw.split(",") if o.strip()]
+            origins.extend([o.strip() for o in raw.split(",") if o.strip()])
+        render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+        if render_url and render_url not in origins:
+            origins.append(render_url)
+        if origins:
+            return origins
         return ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"]
 
     def get_database_url(self) -> str:
@@ -115,10 +121,10 @@ def validate_production_runtime_safety(cfg: Settings = None) -> None:
         )
 
     # 3. ALLOWED_ORIGINS
-    raw_origins = os.getenv("ALLOWED_ORIGINS", "")
-    if not raw_origins or not raw_origins.strip():
+    raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip() or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    if not raw_origins:
         raise RuntimeError(
-            "Production requires an explicit ALLOWED_ORIGINS allowlist. "
+            "Production requires an explicit ALLOWED_ORIGINS allowlist or RENDER_EXTERNAL_URL. "
             "Default localhost CORS origins are strictly rejected in production."
         )
 

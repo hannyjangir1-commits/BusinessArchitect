@@ -155,7 +155,8 @@ def test_sensitive_credentials_not_leaked_in_public_endpoints():
 
     res_api = client.get("/api/health")
     content_api = res_api.text
-    assert "gemini-2" not in content_api.lower()
+    assert all(key not in content_api for key in settings.GEMINI_API_KEYS if key)
+    assert settings.SESSION_SECRET not in content_api
     assert "postgresql://" not in content_api
     assert "postgres:" not in content_api
 
