@@ -94,6 +94,18 @@ def test_alembic_fresh_database_upgrade():
             pass
 
 
+def test_alembic_percent_encoded_url_interpolation_safety():
+    """Verify that Alembic safely loads URLs containing percent-encoded characters (%40) without configparser ValueError."""
+    cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    percent_encoded_url = "postgresql://postgres.user:Hanny%409216%401234@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
+    
+    # Must not raise ValueError: invalid interpolation syntax in ...
+    cfg.set_main_option("sqlalchemy.url", percent_encoded_url.replace("%", "%%"))
+    retrieved = cfg.get_main_option("sqlalchemy.url")
+    assert retrieved == percent_encoded_url
+
+
+
 def test_postgresql_ddl_boolean_portability():
     """Verify that Alembic generates PostgreSQL-compatible DDL (true/false) rather than integer 0/1 for booleans."""
     cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
