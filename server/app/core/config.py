@@ -79,7 +79,7 @@ class Settings:
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         # For remote PostgreSQL / Supabase, guarantee sslmode=require if not explicitly specified
-        if url.startswith("postgresql://") and "sslmode" not in url.lower() and "localhost" not in url and "127.0.0.1" not in url:
+        if (url.startswith("postgresql://") or url.startswith("postgresql+")) and "sslmode" not in url.lower() and "localhost" not in url and "127.0.0.1" not in url:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}sslmode=require"
         return url
