@@ -172,6 +172,10 @@ async def diagnostics_middleware(request: Request, call_next):
         _current_diagnostics.reset(token_diag)
         _current_request_id.reset(token_req_id)
 
+# Response compression middleware for compressible payloads (Batch 03)
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # CORS setup for local development and same-origin / cross-origin deployments
 app.add_middleware(
     CORSMiddleware,
@@ -289,10 +293,17 @@ for p in possible_dist_dirs:
         client_dist = p
         break
 
+class HashedStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
 if client_dist:
     assets_dir = client_dist / "assets"
     if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        app.mount("/assets", HashedStaticFiles(directory=str(assets_dir)), name="assets")
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
@@ -305,7 +316,17 @@ if client_dist:
         if not target_file.is_relative_to(client_dist.resolve()):
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
         if full_path and target_file.is_file():
-            return FileResponse(str(target_file))
+            headers = {}
+            if target_file.is_relative_to((client_dist / "assets").resolve()):
+                headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            elif target_file.name == "index.html":
+                headers["Cache-Control"] = "no-cache"
+            else:
+                headers["Cache-Control"] = "no-cache"
+            return FileResponse(str(target_file), headers=headers)
 
-        # Fallback to SPA index.html for React Router
-        return FileResponse(str(client_dist / "index.html"))
+        # Fallback to SPA index.html for client-side routing
+        return FileResponse(
+            str(client_dist / "index.html"),
+            headers={"Cache-Control": "no-cache"}
+        )

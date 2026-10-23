@@ -9,6 +9,7 @@ interface Props {
   currentProject: Project;
   activeModule: string;
   onSelectModule: (module: string) => void;
+  onPrefetchModule?: (module: string) => void;
   onBackToDashboard: () => void;
   onCreateNewProject: () => void;
   onExportFullPdf: () => void;
@@ -19,6 +20,7 @@ export const Sidebar: React.FC<Props> = ({
   currentProject,
   activeModule,
   onSelectModule,
+  onPrefetchModule,
   onBackToDashboard,
   onCreateNewProject,
   onExportFullPdf,
@@ -113,6 +115,8 @@ export const Sidebar: React.FC<Props> = ({
               data-module-id={item.id}
               className={`nav-item ${isActive ? 'active' : ''}`}
               onClick={() => onSelectModule(item.id)}
+              onPointerEnter={() => onPrefetchModule?.(item.id)}
+              onFocus={() => onPrefetchModule?.(item.id)}
               title={`${item.label} · ${moduleStatus}`}
               aria-label={`${item.label}, ${moduleStatus}`}
             >
