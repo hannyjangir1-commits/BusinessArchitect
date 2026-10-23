@@ -174,9 +174,9 @@ def get_module(
         )
 
     with record_stage("version_metadata_query"):
-        versions = VersionService.get_versions(db, module.id)
+        versions = VersionService.get_version_metadata(db, module.id)
         if legacy_module and legacy_module.id != module.id:
-            versions += VersionService.get_versions(db, legacy_module.id)
+            versions += VersionService.get_version_metadata(db, legacy_module.id)
         active_ver = active_version(db, module)
 
     is_stale = False

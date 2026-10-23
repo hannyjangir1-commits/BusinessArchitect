@@ -69,13 +69,25 @@ def get_current_user(
                 detail="Account has been suspended. Please contact administrative support."
             )
 
-    # Update last_active_at timestamp safely
-    with record_stage("auth_activity_write"):
-        try:
-            user.last_active_at = now
-            db.commit()
-        except Exception:
-            db.rollback()
+    # Update last_active_at timestamp safely when threshold has elapsed (Batch 02)
+    throttle_seconds = getattr(settings, "USER_ACTIVITY_THROTTLE_SECONDS", 600)
+    should_update = False
+    if user.last_active_at is None:
+        should_update = True
+    else:
+        last_active = user.last_active_at
+        if last_active.tzinfo is None:
+            last_active = last_active.replace(tzinfo=timezone.utc)
+        if (now - last_active).total_seconds() >= throttle_seconds:
+            should_update = True
+
+    if should_update:
+        with record_stage("auth_activity_write"):
+            try:
+                user.last_active_at = now
+                db.commit()
+            except Exception:
+                db.rollback()
 
     return user
 

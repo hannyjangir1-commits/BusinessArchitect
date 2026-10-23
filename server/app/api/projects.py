@@ -28,45 +28,92 @@ def _project_completeness(project: Project) -> tuple[int, list[str]]:
     missing = [label for label, value in checks.items() if not isinstance(value, str) or len(value.strip()) < 3]
     return round((len(checks) - len(missing)) / len(checks) * 100), missing
 
-def _format_project_response(project: Project, db: Session) -> ProjectResponse:
-    tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
-    tasks_count = len(tasks)
-    completed_count = sum(1 for t in tasks if t.status in ("Finished", "Completed"))
-    progress_percentage = int((completed_count / tasks_count) * 100) if tasks_count > 0 else 0
+def _format_projects_batch(projects: List[Project], db: Session) -> List[ProjectResponse]:
+    if not projects:
+        return []
 
-    # Determine genuinely generated modules for this specific project
-    modules = db.query(ModuleContent).filter(ModuleContent.project_id == project.id).all()
-    gen_mods = list(dict.fromkeys(
-        normalize_module_type(m.module_type)
-        for m in modules
-        if m.active_version_id is not None
-    ))
-    if tasks_count > 0:
-        if "execution_roadmap" not in gen_mods:
-            gen_mods.append("execution_roadmap")
+    project_ids = [p.id for p in projects]
 
-    completeness_percentage, completeness_missing = _project_completeness(project)
-    return ProjectResponse(
-        id=project.id,
-        name=project.name,
-        stage=normalize_business_stage(project.stage),
-        description=project.description,
-        industry=project.industry,
-        target_customers=project.target_customers,
-        goals=project.goals,
-        business_context=project.business_context,
-        budget=project.budget,
-        existing_stack=project.existing_stack or {},
-        active_module=normalize_module_type(project.active_module),
-        tasks_count=tasks_count,
-        completed_tasks_count=completed_count,
-        progress_percentage=progress_percentage,
-        completeness_percentage=completeness_percentage,
-        completeness_missing=completeness_missing,
-        generated_modules=gen_mods,
-        created_at=project.created_at,
-        updated_at=project.updated_at
+    # Grouped task counts: total tasks and completed tasks per project
+    from sqlalchemy import case
+    task_counts_rows = (
+        db.query(
+            RoadmapTask.project_id,
+            func.count(RoadmapTask.id).label("total_count"),
+            func.sum(
+                case(
+                    (RoadmapTask.status.in_(["Finished", "Completed"]), 1),
+                    else_=0
+                )
+            ).label("completed_count")
+        )
+        .filter(RoadmapTask.project_id.in_(project_ids))
+        .group_by(RoadmapTask.project_id)
+        .all()
     )
+    task_stats_by_project = {}
+    for pid, total_cnt, comp_cnt in task_counts_rows:
+        task_stats_by_project[pid] = (int(total_cnt or 0), int(comp_cnt or 0))
+
+    # Grouped generated modules: only fetch project_id and module_type where active_version_id is set
+    modules_rows = (
+        db.query(ModuleContent.project_id, ModuleContent.module_type)
+        .filter(
+            ModuleContent.project_id.in_(project_ids),
+            ModuleContent.active_version_id.isnot(None)
+        )
+        .all()
+    )
+    modules_by_project = {}
+    for pid, m_type in modules_rows:
+        if pid not in modules_by_project:
+            modules_by_project[pid] = []
+        norm_type = normalize_module_type(m_type)
+        if norm_type not in modules_by_project[pid]:
+            modules_by_project[pid].append(norm_type)
+
+    # Assemble responses preserving exact project ordering
+    responses = []
+    for project in projects:
+        total_tasks, completed_tasks = task_stats_by_project.get(project.id, (0, 0))
+        progress_percentage = int((completed_tasks / total_tasks) * 100) if total_tasks > 0 else 0
+
+        gen_mods = list(modules_by_project.get(project.id, []))
+        if total_tasks > 0:
+            if "execution_roadmap" not in gen_mods:
+                gen_mods.append("execution_roadmap")
+
+        completeness_percentage, completeness_missing = _project_completeness(project)
+
+        responses.append(
+            ProjectResponse(
+                id=project.id,
+                name=project.name,
+                stage=normalize_business_stage(project.stage),
+                description=project.description,
+                industry=project.industry,
+                target_customers=project.target_customers,
+                goals=project.goals,
+                business_context=project.business_context,
+                budget=project.budget,
+                existing_stack=project.existing_stack or {},
+                active_module=normalize_module_type(project.active_module),
+                tasks_count=total_tasks,
+                completed_tasks_count=completed_tasks,
+                progress_percentage=progress_percentage,
+                completeness_percentage=completeness_percentage,
+                completeness_missing=completeness_missing,
+                generated_modules=gen_mods,
+                created_at=project.created_at,
+                updated_at=project.updated_at
+            )
+        )
+
+    return responses
+
+def _format_project_response(project: Project, db: Session) -> ProjectResponse:
+    batch = _format_projects_batch([project], db)
+    return batch[0]
 
 @router.get("", response_model=List[ProjectResponse])
 def list_projects(
@@ -81,7 +128,7 @@ def list_projects(
         ).order_by(Project.updated_at.desc()).all()
 
     with record_stage("project_metadata_query"):
-        return [_format_project_response(p, db) for p in projects]
+        return _format_projects_batch(projects, db)
 
 MAX_PROJECTS_PER_USER = 10
 

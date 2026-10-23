@@ -55,6 +55,9 @@ def toggle_maintenance_mode(
     setting.updated_at = datetime.now(timezone.utc)
     db.commit()
 
+    from app.services.system_setting_service import invalidate_maintenance_mode_cache
+    invalidate_maintenance_mode_cache()
+
     record_audit_log(
         db,
         actor_id=current_admin.id,

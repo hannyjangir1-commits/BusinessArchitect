@@ -63,6 +63,15 @@ class Settings:
         # Observability & Performance Diagnostics (Batch 01)
         self.PERF_DIAGNOSTICS: bool = os.getenv("PERF_DIAGNOSTICS", "false").lower() in ("true", "1", "yes")
 
+        # Authenticated Activity Write Throttling (Batch 02)
+        # Bounded between 60 seconds (1 minute) and 86400 seconds (24 hours). Default: 600 seconds (10 minutes).
+        raw_activity_throttle = os.getenv("USER_ACTIVITY_THROTTLE_SECONDS", "600")
+        try:
+            parsed_throttle = int(raw_activity_throttle)
+        except (ValueError, TypeError):
+            parsed_throttle = 600
+        self.USER_ACTIVITY_THROTTLE_SECONDS: int = max(60, min(parsed_throttle, 86400))
+
 
     # CORS
     @property

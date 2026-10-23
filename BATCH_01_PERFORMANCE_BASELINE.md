@@ -105,7 +105,7 @@ Captured via `server/scripts/run_baseline_measurements.py` using isolated, dispo
    - 0 Projects: 6 statements (Auth + Maintenance + Project query).
    - 1 Project: 8 statements (+2 child queries for RoadmapTask and ModuleContent).
    - 10 Projects: 26 statements ($6 + 2 \times 10$ child queries).
-   - When each statement on remote Supabase incurs ~80–120ms network latency under `NullPool`, 26 queries account for ~2.5–3.5s of raw wait time, explaining the measured production latency.
+   - In the observed production probe, an endpoint that created a fresh remote database connection and executed SELECT 1 was materially slower than zero-database liveness endpoints. The measurement combines client-to-Render latency, connection establishment, TLS, pooler behavior, query execution and response transfer. It does not isolate a universal per-statement cost. However, executing 26 sequential round-trips under `NullPool` multiplies connection and round-trip overhead directly with project count.
 
 ---
 
@@ -205,3 +205,19 @@ Result: Clean (0 whitespace errors, 0 trailing blank lines).
    - Use SQLAlchemy `load_only("id", "version_number", "version_name", "is_active", "created_at")` in `VersionService.get_versions` to prevent transferring full JSON payloads when reading version history.
 5. **Release Database Session Across External Provider Calls:**
    - Read context and close or commit the DB session before calling `ai_service`, reopening a short session only to persist the generated result.
+
+---
+
+## I. Release Gate Addendum & Verified Deployment Status
+
+- **Deployment Statement:**
+  Batch 01 commit `a172572b46dc3d55feb9134f9a5e1b15cc62fee0` was pushed to `main` and manually deployed to the Singapore Render service. No production application data was modified by the baseline measurements.
+
+- **Latency Interpretation:**
+  In the observed production probe, an endpoint that created a fresh remote database connection and executed SELECT 1 was materially slower than zero-database liveness endpoints. The measurement combines client-to-Render latency, connection establishment, TLS, pooler behavior, query execution and response transfer. It does not isolate a universal per-statement cost.
+
+- **Verified Production Baseline Summary (Live Singapore Service):**
+  - `GET /health/live`: Median 480.4 ms (0 SQL, 0 commits).
+  - `GET /api/health/live`: Median 431.8 ms (0 SQL, 0 commits).
+  - `GET /api/health`: Median 1,177.2 ms (1 SQL `SELECT 1`, 0 commits).
+  - `GET /`: Median 381.1 ms (Static SPA entry point).

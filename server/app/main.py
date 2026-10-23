@@ -70,18 +70,15 @@ async def maintenance_mode_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
-    # Check maintenance mode for user-facing API routes
+    # Check maintenance mode for user-facing API routes (Batch 02: In-Process TTL Cache)
     try:
-        from app.services.system_setting_service import get_setting_bool
-        from app.core.diagnostics import record_stage
-        with record_stage("maintenance_lookup"):
-            with SessionLocal() as db:
-                is_maintenance = get_setting_bool(db, "maintenance_mode", False)
-                if is_maintenance:
-                    return JSONResponse(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        content={"detail": "System is currently under maintenance. Please try again later."}
-                    )
+        from app.services.system_setting_service import get_maintenance_mode_cached
+        is_maintenance = get_maintenance_mode_cached()
+        if is_maintenance:
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"detail": "System is currently under maintenance. Please try again later."}
+            )
     except Exception:
         pass
 

@@ -42,7 +42,30 @@ class VersionService:
         return module
 
     @staticmethod
-    def get_versions(db: Session, module_content_id: str) -> List[ModuleVersion]:
+    def get_version_metadata(db: Session, module_content_id: str) -> List[ModuleVersion]:
+        """
+        Load version list metadata without loading the heavy 'data' JSON column.
+        Reduces memory allocation, database I/O, and payload transfer during read paths.
+        """
+        from sqlalchemy.orm import load_only
+        return db.query(ModuleVersion).options(
+            load_only(
+                ModuleVersion.id,
+                ModuleVersion.module_content_id,
+                ModuleVersion.version_number,
+                ModuleVersion.version_name,
+                ModuleVersion.change_summary,
+                ModuleVersion.is_active,
+                ModuleVersion.created_at,
+            )
+        ).filter(
+            ModuleVersion.module_content_id == module_content_id
+        ).order_by(ModuleVersion.version_number.asc()).all()
+
+    @staticmethod
+    def get_versions(db: Session, module_content_id: str, include_data: bool = True) -> List[ModuleVersion]:
+        if not include_data:
+            return VersionService.get_version_metadata(db, module_content_id)
         return db.query(ModuleVersion).filter(
             ModuleVersion.module_content_id == module_content_id
         ).order_by(ModuleVersion.version_number.asc()).all()

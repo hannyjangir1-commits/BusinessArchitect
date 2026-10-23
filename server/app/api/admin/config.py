@@ -131,6 +131,10 @@ def update_system_configuration(
 
     db.commit()
 
+    if "maintenance_mode" in updated:
+        from app.services.system_setting_service import invalidate_maintenance_mode_cache
+        invalidate_maintenance_mode_cache()
+
     record_audit_log(
         db,
         actor_id=current_admin.id,

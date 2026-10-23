@@ -84,4 +84,69 @@ def set_setting(db: Session, key: str, value: Any, value_type: str = "string", u
         setting.updated_by = updated_by
     db.commit()
     db.refresh(setting)
+
+    if key == "maintenance_mode":
+        invalidate_maintenance_mode_cache()
+
     return setting
+
+# --- In-Process Thread-Safe Maintenance Mode TTL Cache (Batch 02) ---
+import time
+import threading
+
+MAINTENANCE_CACHE_TTL_SECONDS: float = 30.0
+_maintenance_cache_lock = threading.Lock()
+_cached_maintenance_value: Optional[bool] = None
+_cached_maintenance_expiry: float = 0.0
+
+def get_maintenance_mode_cached(
+    db: Optional[Session] = None,
+    ttl_seconds: float = MAINTENANCE_CACHE_TTL_SECONDS
+) -> bool:
+    """
+    Thread-safe, bounded in-process TTL cache for the global maintenance_mode setting.
+    Eliminates redundant database round-trips on high-frequency request paths.
+
+    Note: In multi-worker deployments, this is a per-process cache with a maximum
+    consistency delay equal to ttl_seconds.
+    """
+    global _cached_maintenance_value, _cached_maintenance_expiry
+
+    now_mono = time.monotonic()
+    if _cached_maintenance_value is not None and now_mono < _cached_maintenance_expiry:
+        return _cached_maintenance_value
+
+    with _maintenance_cache_lock:
+        now_mono = time.monotonic()
+        if _cached_maintenance_value is not None and now_mono < _cached_maintenance_expiry:
+            return _cached_maintenance_value
+
+        val = False
+        try:
+            from app.core.diagnostics import record_stage
+            with record_stage("maintenance_lookup"):
+                if db is not None:
+                    val = get_setting_bool(db, "maintenance_mode", False)
+                else:
+                    from app.db.session import SessionLocal
+                    with SessionLocal() as local_db:
+                        val = get_setting_bool(local_db, "maintenance_mode", False)
+            _cached_maintenance_value = val
+            _cached_maintenance_expiry = time.monotonic() + max(0.01, float(ttl_seconds))
+            return val
+        except Exception as e:
+            logger.warning("Failed to refresh cached maintenance mode from database: %s", str(e))
+            if _cached_maintenance_value is not None:
+                return _cached_maintenance_value
+            return False
+
+def invalidate_maintenance_mode_cache() -> None:
+    """Immediately invalidate the local in-process maintenance-mode cache."""
+    global _cached_maintenance_value, _cached_maintenance_expiry
+    with _maintenance_cache_lock:
+        _cached_maintenance_value = None
+        _cached_maintenance_expiry = 0.0
+
+def reset_maintenance_mode_cache() -> None:
+    """Reset the maintenance-mode cache state (for test isolation)."""
+    invalidate_maintenance_mode_cache()

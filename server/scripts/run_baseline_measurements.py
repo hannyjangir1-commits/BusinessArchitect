@@ -119,7 +119,7 @@ def seed_harness_data() -> Dict[str, Any]:
         )
         db.add(proj_1)
 
-        # Add BMC module with 3 versions
+        # Add BMC module with 5 versions
         bmc_module = ModuleContent(
             id=gen_id("mod_"),
             project_id=proj_1.id,
@@ -130,36 +130,47 @@ def seed_harness_data() -> Dict[str, Any]:
         db.add(bmc_module)
         db.flush()
 
-        v1 = ModuleVersion(
+        for v_num in range(1, 6):
+            is_active = (v_num == 5)
+            v = ModuleVersion(
+                id=gen_id("ver_"),
+                module_content_id=bmc_module.id,
+                version_number=v_num,
+                version_name=f"BMC Iteration {v_num}",
+                is_active=is_active,
+                change_summary=f"Changelog summary for version {v_num}",
+                data={"value_propositions": [f"Value Proposition {v_num}.A", f"Value Proposition {v_num}.B"]},
+                created_at=now - timedelta(days=6 - v_num),
+            )
+            db.add(v)
+            if is_active:
+                db.flush()
+                bmc_module.active_version_id = v.id
+
+        # Add Tech Stack module with exactly 1 version
+        ts_module = ModuleContent(
+            id=gen_id("mod_"),
+            project_id=proj_1.id,
+            module_type="tech_stack",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(ts_module)
+        db.flush()
+
+        ts_v1 = ModuleVersion(
             id=gen_id("ver_"),
-            module_content_id=bmc_module.id,
+            module_content_id=ts_module.id,
             version_number=1,
-            version_name="Initial Seed Draft",
-            is_active=False,
-            data={"value_propositions": ["Lower downtime", "Autonomous dispatch"]},
-            created_at=now - timedelta(days=2),
-        )
-        v2 = ModuleVersion(
-            id=gen_id("ver_"),
-            module_content_id=bmc_module.id,
-            version_number=2,
-            version_name="Revised Pricing Model",
-            is_active=False,
-            data={"value_propositions": ["Hardware-as-a-service lease", "24/7 SLA"]},
-            created_at=now - timedelta(days=1),
-        )
-        v3 = ModuleVersion(
-            id=gen_id("ver_"),
-            module_content_id=bmc_module.id,
-            version_number=3,
-            version_name="Production Go-to-Market",
+            version_name="Production Stack Baseline",
             is_active=True,
-            data={"value_propositions": ["Turnkey enterprise automation", "Fleet analytics"]},
+            change_summary="Initial stack architecture",
+            data={"summary": "Enterprise FastAPI stack", "recommendations": []},
             created_at=now,
         )
-        db.add_all([v1, v2, v3])
+        db.add(ts_v1)
         db.flush()
-        bmc_module.active_version_id = v3.id
+        ts_module.active_version_id = ts_v1.id
 
         # Add 5 roadmap tasks
         for idx in range(1, 6):
@@ -289,13 +300,15 @@ def main():
 
     test_plan = [
         ("Process Liveness", "GET", "/health/live", "", "Zero auth, zero DB process health probe"),
-        ("Session / Auth Check", "GET", "/api/auth/me", seeds["token_1"], "Authentication & user resolution"),
-        ("Project Listing (0 Projects)", "GET", "/api/projects", seeds["token_0"], "Empty portfolio listing"),
-        ("Project Listing (1 Project)", "GET", "/api/projects", seeds["token_1"], "Single project response formatting"),
-        ("Project Listing (10 Projects)", "GET", "/api/projects", seeds["token_10"], "Full user portfolio listing"),
-        ("Module Detail (3 Versions)", "GET", f"/api/projects/{seeds['proj_1_id']}/modules/bmc", seeds["token_1"], "Module JSON and version history"),
-        ("Task Summary", "GET", f"/api/projects/{seeds['proj_1_id']}/tasks/summary", seeds["token_1"], "Roadmap milestone progress aggregates"),
-        ("Copilot History", "GET", f"/api/projects/{seeds['proj_1_id']}/copilot", seeds["token_1"], "Bounded synthetic LLM history read"),
+        ("Session / Auth Check (Initial)", "GET", "/api/auth/me", seeds["token_1"], "Initial authentication (activity write)"),
+        ("Session / Auth Check (Warm)", "GET", "/api/auth/me", seeds["token_1"], "Throttled activity read (0 commits expected)"),
+        ("Project Listing (0 Projects)", "GET", "/api/projects", seeds["token_0"], "Empty portfolio listing (0 child queries)"),
+        ("Project Listing (1 Project)", "GET", "/api/projects", seeds["token_1"], "Single project with batched metadata"),
+        ("Project Listing (10 Projects)", "GET", "/api/projects", seeds["token_10"], "Full user portfolio (batched O(1) queries)"),
+        ("Module Detail (1 Version)", "GET", f"/api/projects/{seeds['proj_1_id']}/modules/tech_stack", seeds["token_1"], "Single version module read"),
+        ("Module Detail (5 Versions)", "GET", f"/api/projects/{seeds['proj_1_id']}/modules/bmc", seeds["token_1"], "Multi-version module (inactive data deferred)"),
+        ("Task Summary", "GET", f"/api/projects/{seeds['proj_1_id']}/tasks/summary", seeds["token_1"], "Roadmap milestone progress aggregates (regression control)"),
+        ("Copilot History", "GET", f"/api/projects/{seeds['proj_1_id']}/copilot", seeds["token_1"], "Bounded synthetic LLM history read (regression control)"),
     ]
 
     print("\nExecuting baseline benchmarks with PERF_DIAGNOSTICS=true...\n")
