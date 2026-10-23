@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Layers, Compass, Cpu, Calendar, CheckCircle2, TrendingUp, ListTodo,
   FileSpreadsheet, ArrowRight, AlertCircle, Loader2, ShieldCheck,
@@ -18,6 +18,68 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onO
   const [isLoginTab, setIsLoginTab] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const openerRef = useRef<HTMLElement | null>(null);
+  const modalCardRef = useRef<HTMLDivElement | null>(null);
+
+  const openAuthModal = (isLogin: boolean) => {
+    openerRef.current = document.activeElement as HTMLElement | null;
+    setIsLoginTab(isLogin);
+    setErrorMsg(null);
+    setAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setAuthModalOpen(false);
+    setErrorMsg(null);
+    openerRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!authModalOpen) return;
+
+    const focusTimer = setTimeout(() => {
+      if (modalCardRef.current) {
+        const firstInput = modalCardRef.current.querySelector<HTMLElement>('input, button[type="button"]');
+        firstInput?.focus();
+      }
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeAuthModal();
+        return;
+      }
+      if (e.key === 'Tab' && modalCardRef.current) {
+        const focusableElements = modalCardRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length === 0) return;
+        const first = focusableElements[0];
+        const last = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [authModalOpen]);
 
   // Form Fields
   const [username, setUsername] = useState('');
@@ -147,7 +209,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onO
           ) : (
             <>
               <button
-                onClick={() => { setIsLoginTab(true); setErrorMsg(null); setAuthModalOpen(true); }}
+                onClick={() => openAuthModal(true)}
                 style={{
                   background: 'transparent',
                   border: '1px solid var(--border-color)',
@@ -165,7 +227,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onO
                 Sign In
               </button>
               <button
-                onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
+                onClick={() => openAuthModal(false)}
                 className="btn-primary"
                 style={{ padding: '8px 18px', fontSize: 13 }}
               >
@@ -230,7 +292,7 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onO
             </button>
           ) : (
             <button
-              onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
+              onClick={() => openAuthModal(false)}
               className="btn-primary"
               style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgb(69 60 55 / 0.4)' }}
             >
@@ -510,8 +572,9 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onO
 
       {/* Authentication Modal */}
       {authModalOpen && (
-        <div className="modal-overlay" onClick={() => setAuthModalOpen(false)}>
+        <div className="modal-overlay" onClick={closeAuthModal}>
           <div
+            ref={modalCardRef}
             className="modal-card"
             style={{ maxWidth: 460 }}
             onClick={(e) => e.stopPropagation()}
@@ -540,7 +603,8 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onO
                 </div>
               </div>
               <button
-                onClick={() => setAuthModalOpen(false)}
+                type="button"
+                onClick={closeAuthModal}
                 className="modal-close-btn"
                 aria-label="Close modal"
               >

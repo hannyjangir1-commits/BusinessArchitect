@@ -207,9 +207,9 @@ Respond with ONLY valid JSON matching this schema:
   "differentiation_factors": ["Core differentiator 1", "Differentiator 2"],
   "late_entry_differentiation": "Specific playbook for entering the market after established incumbents",
   "budget_fit_analysis": "Assessment of marketing/R&D budget requirements against competitive landscape",
-  "opportunities": ["Market opening or tailwind 1", "Opportunity 2"],
-  "threats": ["Market risk or competitor reaction 1"],
-  "research_gaps": ["Information that requires direct user interviews or primary market verification"]
+  "opportunities": ["Concrete market opening or workflow tailwind", "Ecosystem expansion or integration demand"],
+  "threats": ["Incumbent feature response or platform risk", "Customer switching friction or margin pressure"],
+  "research_gaps": ["Specific qualitative or quantitative data points requiring primary-source validation"]
   ,"source_references": [{"title": "Source title", "url": "https://..."}]
 }"""
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Project, ModuleDetail, MarketResearchData } from '../types';
 import { TrendingUp, Sparkles, Shield, Info, Download, Loader2 } from 'lucide-react';
 import { ModuleLifecycleActions } from './ModuleLifecycleActions';
+import { isMeaninglessPlaceholder } from '../utils/researchPlaceholders';
 
 interface Props {
   project: Project;
@@ -29,6 +30,9 @@ export const MarketResearchModule: React.FC<Props> = ({
   isGenerateDisabled = false
 }) => {
   const data = moduleDetail?.data;
+  const meaningfulOpportunities = (data?.opportunities || []).filter(o => !isMeaninglessPlaceholder(o));
+  const meaningfulThreats = (data?.threats || []).filter(t => !isMeaninglessPlaceholder(t));
+  const meaningfulGaps = (data?.research_gaps || []).filter(g => !isMeaninglessPlaceholder(g));
 
   if (!data) {
     return (
@@ -178,18 +182,30 @@ export const MarketResearchModule: React.FC<Props> = ({
           <div className="card-title" style={{ color: 'var(--primary-text)' }}>
             Market Opportunities & Tailwinds
           </div>
-          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {(data.opportunities || []).map((o, idx) => <li key={idx}>{o}</li>)}
-          </ul>
+          {meaningfulOpportunities.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 10, marginBottom: 0 }}>
+              No supported opportunities were identified in this result.
+            </p>
+          ) : (
+            <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {meaningfulOpportunities.map((o, idx) => <li key={idx}>{o}</li>)}
+            </ul>
+          )}
         </div>
 
         <div className="card" style={{ borderLeft: '4px solid var(--danger-text)' }}>
           <div className="card-title" style={{ color: 'var(--danger-text)' }}>
             Competitive Threats & Headwinds
           </div>
-          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {(data.threats || []).map((t, idx) => <li key={idx}>{t}</li>)}
-          </ul>
+          {meaningfulThreats.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 10, marginBottom: 0 }}>
+              No supported threats were identified in this result.
+            </p>
+          ) : (
+            <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {meaningfulThreats.map((t, idx) => <li key={idx}>{t}</li>)}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -212,9 +228,15 @@ export const MarketResearchModule: React.FC<Props> = ({
         </section>
         <section className="card" aria-labelledby="market-gaps-title">
           <div className="card-title" id="market-gaps-title">Research gaps to resolve</div>
-          <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', margin: '10px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {(data.research_gaps || []).map((gap, idx) => <li key={idx}>{gap}</li>)}
-          </ul>
+          {meaningfulGaps.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', fontStyle: 'italic', margin: '10px 0 0' }}>
+              No specific research gaps were provided.
+            </p>
+          ) : (
+            <ul style={{ paddingLeft: 18, fontSize: 12.5, color: 'var(--text-main)', margin: '10px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {meaningfulGaps.map((gap, idx) => <li key={idx}>{gap}</li>)}
+            </ul>
+          )}
         </section>
       </div>
     </div>

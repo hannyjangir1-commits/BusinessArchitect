@@ -1,0 +1,636 @@
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
+import { App } from '../App';
+import { api } from '../services/api';
+import { queryCache } from '../services/queryCache';
+import {
+  saveNavDestination,
+  getNavDestination,
+  clearNavDestination,
+  clearAllNavDestinations
+} from '../services/navigationStorage';
+import { LandingPage } from '../pages/LandingPage';
+import { Sidebar, ModuleBadgeStatus } from '../components/Sidebar';
+import { BlueprintCopilotModule } from '../components/BlueprintCopilotModule';
+import { MarketResearchModule } from '../components/MarketResearchModule';
+import { isMeaninglessPlaceholder } from '../utils/researchPlaceholders';
+import { DashboardPage } from '../pages/DashboardPage';
+import { User, Project, BusinessStage } from '../types';
+
+const createMockProject = (id: string, name: string, stage: BusinessStage = 'Idea', generated_modules: string[] = []): Project => ({
+  id,
+  name,
+  stage,
+  description: 'Test project description',
+  industry: 'Technology',
+  active_module: 'execution_roadmap',
+  tasks_count: 0,
+  completed_tasks_count: 0,
+  progress_percentage: 0,
+  generated_modules,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z'
+});
+
+describe('Batch 03.1 — Live Validation Fixes Regression Suite', () => {
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryCache.clearAll();
+    clearAllNavDestinations();
+    localStorage.clear();
+    sessionStorage.clear();
+    window.history.replaceState({}, '', '/');
+  });
+
+  afterEach(() => {
+    queryCache.clearAll();
+    clearAllNavDestinations();
+  });
+
+  // =========================================================================
+  // 1. Module Restoration & Portfolio Flash Prevention
+  // =========================================================================
+  describe('1. Module Restoration & Portfolio Flash Prevention', () => {
+    it('renders neutral workspace shell with skeleton immediately on project URL while authentication is pending', async () => {
+      window.history.replaceState({}, '', '/?project=proj-live&module=market_research');
+
+      // Keep getMe unresolved to test pending state
+      let resolveAuth: any;
+      const authPromise = new Promise<{ user: User }>((resolve) => {
+        resolveAuth = resolve;
+      });
+      vi.spyOn(api.auth, 'getMe').mockImplementation(() => authPromise as any);
+
+      render(<App />);
+
+      // Workspace shell must appear immediately
+      expect(screen.getByText('Venture Atlas')).toBeDefined();
+      // Skeleton for market_research must be displayed
+      expect(screen.getByRole('status', { name: /loading market_research/i })).toBeDefined();
+
+      // Portfolio flash must NOT occur:
+      expect(screen.queryByText(/your venture portfolio/i)).toBeNull();
+      expect(screen.queryByText(/welcome back, loading/i)).toBeNull();
+      expect(screen.queryByText(/0 active ventures/i)).toBeNull();
+      expect(screen.queryByText(/no tasks assigned yet/i)).toBeNull();
+
+      // Resolve auth to clean up
+      await act(async () => {
+        resolveAuth({ user: { id: 'u1', username: 'alice', email: 'alice@example.com', created_at: '' } });
+      });
+    });
+
+    it('does not reveal protected cached content before current-session validation', async () => {
+      window.history.replaceState({}, '', '/?project=proj-secret&module=bmc');
+
+      // Prepopulate cache with secret project data
+      queryCache.setCached('project:proj-secret', {
+        id: 'proj-secret',
+        name: 'CLASSIFIED_PROJECT_NAME',
+        description: 'Super secret confidential blueprint',
+        stage: 'Growth'
+      }, 60000);
+
+      // Keep auth pending
+      vi.spyOn(api.auth, 'getMe').mockImplementation(() => new Promise(() => {}));
+
+      render(<App />);
+
+      // Neutral shell is shown, but classified name is NOT revealed before session validation
+      expect(screen.queryByText('CLASSIFIED_PROJECT_NAME')).toBeNull();
+      expect(screen.queryByText('Super secret confidential blueprint')).toBeNull();
+      expect(screen.getByRole('status', { name: /loading bmc/i })).toBeDefined();
+    });
+
+    it('restores valid URL destination after validation and populates content', async () => {
+      window.history.replaceState({}, '', '/?project=proj-1&module=bmc');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const mockProject = createMockProject('proj-1', 'Valid Venture', 'MVP', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([mockProject] as any);
+      vi.spyOn(api.projects, 'get').mockResolvedValue(mockProject as any);
+      vi.spyOn(api.modules, 'get').mockResolvedValue({
+        id: 'mod-bmc-1',
+        project_id: 'proj-1',
+        module_type: 'bmc',
+        data: { value_propositions: ['Real Value Proposition'] }
+      } as any);
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Valid Venture').length).toBeGreaterThan(0);
+      });
+
+      expect(api.modules.get).toHaveBeenCalledWith('proj-1', 'bmc');
+    });
+
+    it('explicit URL destination takes precedence over saved preference', async () => {
+      window.history.replaceState({}, '', '/?project=proj-explicit&module=idea_validator');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      // User has a different saved destination in storage
+      saveNavDestination('user-1', 'proj-saved', 'execution_roadmap');
+
+      const projExplicit = createMockProject('proj-explicit', 'Explicit Project', 'Idea', ['idea_validator']);
+      const projSaved = createMockProject('proj-saved', 'Saved Project', 'Growth', ['execution_roadmap']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([projExplicit, projSaved] as any);
+      vi.spyOn(api.projects, 'get').mockImplementation(async (id) => (id === 'proj-explicit' ? projExplicit : projSaved) as any);
+      vi.spyOn(api.modules, 'get').mockResolvedValue({
+        id: 'mod-1',
+        project_id: 'proj-explicit',
+        module_type: 'idea_validator',
+        data: { score: 85 }
+      } as any);
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Explicit Project').length).toBeGreaterThan(0);
+      });
+
+      // Explicit URL module was loaded, not the saved execution_roadmap
+      expect(api.modules.get).toHaveBeenCalledWith('proj-explicit', 'idea_validator');
+      expect(screen.queryByText('Saved Project')).toBeNull();
+    });
+
+    it('falls back safely to dashboard when project is invalid or deleted', async () => {
+      window.history.replaceState({}, '', '/?project=deleted-project&module=bmc');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const realProject = createMockProject('proj-real', 'Real Venture');
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      // projects.list does NOT include deleted-project
+      vi.spyOn(api.projects, 'list').mockResolvedValue([realProject] as any);
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/your venture portfolio/i)).toBeDefined();
+        expect(screen.getAllByText('Real Venture').length).toBeGreaterThan(0);
+      });
+
+      expect(window.location.search).toBe('?workspace=true');
+    });
+
+    it('returns to public landing page if session check is rejected', async () => {
+      window.history.replaceState({}, '', '/?project=proj-1&module=bmc');
+
+      vi.spyOn(api.auth, 'getMe').mockRejectedValue(new Error('Unauthorized'));
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
+      });
+
+      expect(screen.queryByText(/your venture portfolio/i)).toBeNull();
+    });
+
+    it('does not allow slow old requests to overwrite restored destination', async () => {
+      window.history.replaceState({}, '', '/?project=proj-2&module=tech_stack');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const proj2 = createMockProject('proj-2', 'Fast Project', 'Growth', ['tech_stack']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([proj2] as any);
+      vi.spyOn(api.projects, 'get').mockResolvedValue(proj2 as any);
+
+      let resolveSlowModule: any;
+      const slowPromise = new Promise((resolve) => { resolveSlowModule = resolve; });
+      vi.spyOn(api.modules, 'get').mockImplementation(async (pId, mod) => {
+        if (pId === 'old-proj') {
+          return slowPromise as any;
+        }
+        return { id: 'mod-tech', project_id: 'proj-2', module_type: 'tech_stack', data: { frontend: ['React'] } } as any;
+      });
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Fast Project').length).toBeGreaterThan(0);
+      });
+
+      // Even if old slow request resolves later, active workspace is proj-2
+      resolveSlowModule({ id: 'mod-old', project_id: 'old-proj', module_type: 'bmc', data: { stale: true } });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getAllByText('Fast Project').length).toBeGreaterThan(0);
+    });
+  });
+
+  // =========================================================================
+  // 2. Dashboard Stats & Placeholders
+  // =========================================================================
+  describe('2. Dashboard Stats & Placeholders', () => {
+    it('renders dashes (—) instead of 0s while dashboard projects are loading', () => {
+      const pendingUser: User = { id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '' };
+
+      render(
+        <DashboardPage
+          user={pendingUser}
+          projects={[]}
+          projectsStatus="loading"
+          projectsError={null}
+          onRetryProjects={() => {}}
+          onOpenProject={() => {}}
+          onCreateNewProject={() => {}}
+          onDeleteProject={async () => {}}
+          onBulkDeleteProjects={async () => {}}
+          onLogout={async () => {}}
+        />
+      );
+
+      // Must not say "Welcome back, Loading..."
+      expect(screen.queryByText(/welcome back, loading/i)).toBeNull();
+      expect(screen.getByText(/welcome to your enterprise business blueprints/i)).toBeDefined();
+
+      // Stats should show dashes, NOT "0 Active Ventures" or "0 Generated Modules"
+      const dashes = screen.getAllByText('—');
+      expect(dashes.length).toBeGreaterThanOrEqual(2);
+      expect(screen.queryByText('0 Active Ventures')).toBeNull();
+      expect(screen.queryByText('0 Generated Modules')).toBeNull();
+      expect(screen.queryByText('No tasks assigned yet')).toBeNull();
+    });
+
+    it('renders real 0 counts only when projectsStatus is confirmed success-empty', () => {
+      const realUser: User = { id: 'u1', username: 'sarah', email: 'sarah@test.com', created_at: '' };
+
+      render(
+        <DashboardPage
+          user={realUser}
+          projects={[]}
+          projectsStatus="success-empty"
+          projectsError={null}
+          onRetryProjects={() => {}}
+          onOpenProject={() => {}}
+          onCreateNewProject={() => {}}
+          onDeleteProject={async () => {}}
+          onBulkDeleteProjects={async () => {}}
+          onLogout={async () => {}}
+        />
+      );
+
+      // Now real 0 values are legitimately confirmed
+      expect(screen.getByText(/Welcome back,/)).toBeDefined();
+      expect(screen.getAllByText('sarah').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('0').length).toBeGreaterThan(0);
+    });
+  });
+
+  // =========================================================================
+  // 3. Sidebar Generation Badges
+  // =========================================================================
+  describe('3. Sidebar Generation Badges', () => {
+    it('omits badge and does not display "Not generated" while metadata status is unknown or loading', () => {
+      const project = createMockProject('p1', 'Alpha Venture');
+      const badges: Record<string, { version?: string; isGenerated?: boolean; status?: ModuleBadgeStatus }> = {
+        overview: { version: 'V1', status: 'generated' },
+        bmc: { version: 'V1', status: 'unknown' },
+        tech_stack: { version: 'V1', status: 'loading' },
+        idea_validator: { version: 'V1', status: 'not-generated' }
+      };
+
+      const { container } = render(
+        <Sidebar
+          currentProject={project}
+          activeModule="overview"
+          onSelectModule={() => {}}
+          onBackToDashboard={() => {}}
+          onCreateNewProject={() => {}}
+          onExportFullPdf={() => {}}
+          moduleVersionBadges={badges}
+        />
+      );
+
+      const bmcBtn = container.querySelector('[data-module-id="bmc"]');
+      const techBtn = container.querySelector('[data-module-id="tech_stack"]');
+      const ideaBtn = container.querySelector('[data-module-id="idea_validator"]');
+
+      // bmc and tech_stack should have NO status dot (omitted while unknown/loading)
+      expect(bmcBtn?.querySelector('.status-dot-gray')).toBeNull();
+      expect(bmcBtn?.querySelector('.status-dot-green')).toBeNull();
+      expect(techBtn?.querySelector('.status-dot-gray')).toBeNull();
+
+      // Confirmed not-generated module DOES have gray dot
+      expect(ideaBtn?.querySelector('.status-dot-gray')).not.toBeNull();
+    });
+
+    it('describes Blueprint Copilot as interactive assistant, never "Not generated"', () => {
+      const project = createMockProject('p1', 'Alpha Venture');
+
+      const { container } = render(
+        <Sidebar
+          currentProject={project}
+          activeModule="overview"
+          onSelectModule={() => {}}
+          onBackToDashboard={() => {}}
+          onCreateNewProject={() => {}}
+          onExportFullPdf={() => {}}
+          moduleVersionBadges={{}}
+        />
+      );
+
+      const copilotBtn = container.querySelector('[data-module-id="blueprint_copilot"]');
+      expect(copilotBtn?.getAttribute('aria-label')).toContain('Interactive assistant');
+      expect(copilotBtn?.getAttribute('aria-label')).not.toContain('Not generated');
+      expect(copilotBtn?.querySelector('.status-dot-gray')).toBeNull();
+    });
+
+    it('preserves confirmed generated status even if metadata refresh fails', () => {
+      const project = createMockProject('p1', 'Alpha Venture');
+      // When status is 'error', it should not display as 'not-generated'
+      const badges: Record<string, { version?: string; status?: ModuleBadgeStatus }> = {
+        bmc: { version: 'V1', status: 'generated' },
+        tech_stack: { version: 'V1', status: 'error' }
+      };
+
+      const { container } = render(
+        <Sidebar
+          currentProject={project}
+          activeModule="overview"
+          onSelectModule={() => {}}
+          onBackToDashboard={() => {}}
+          onCreateNewProject={() => {}}
+          onExportFullPdf={() => {}}
+          moduleVersionBadges={badges}
+        />
+      );
+
+      const bmcBtn = container.querySelector('[data-module-id="bmc"]');
+      const techBtn = container.querySelector('[data-module-id="tech_stack"]');
+
+      expect(bmcBtn?.querySelector('.status-dot-green')).not.toBeNull();
+      // Error status must NOT show a gray dot (not-generated)
+      expect(techBtn?.querySelector('.status-dot-gray')).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // 4. Authentication Dialog Escape & Focus Trap
+  // =========================================================================
+  describe('4. Authentication Dialog Escape & Focus Trap', () => {
+    it('closes on Escape key press in sign-in mode and restores focus to opener', () => {
+      render(<LandingPage onAuthenticated={() => {}} />);
+
+      const signInBtn = screen.getByRole('button', { name: /^sign in$/i });
+      signInBtn.focus();
+      expect(document.activeElement).toBe(signInBtn);
+
+      fireEvent.click(signInBtn);
+      expect(screen.getByRole('dialog')).toBeDefined();
+
+      // Press Escape
+      fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+
+      // Dialog is dismissed
+      expect(screen.queryByRole('dialog')).toBeNull();
+      // Focus restored to opener
+      expect(document.activeElement).toBe(signInBtn);
+    });
+
+    it('closes on Escape key press in registration mode and restores focus to opener', () => {
+      render(<LandingPage onAuthenticated={() => {}} />);
+
+      const getStartedBtn = screen.getByRole('button', { name: /^get started$/i });
+      getStartedBtn.focus();
+
+      fireEvent.click(getStartedBtn);
+      expect(screen.getByRole('dialog')).toBeDefined();
+      expect(screen.getByRole('heading', { name: /create free account/i })).toBeDefined();
+
+      // Press Escape
+      fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(getStartedBtn);
+    });
+
+    it('clicking inside modal card does not dismiss dialog, clicking overlay dismisses', () => {
+      const { container } = render(<LandingPage onAuthenticated={() => {}} />);
+
+      const signInBtn = screen.getByRole('button', { name: /^sign in$/i });
+      fireEvent.click(signInBtn);
+
+      const modalCard = screen.getByRole('dialog');
+      fireEvent.click(modalCard);
+
+      expect(screen.getByRole('dialog')).toBeDefined();
+
+      // Clicking backdrop/overlay dismisses dialog
+      const overlay = container.querySelector('.modal-overlay')!;
+      fireEvent.click(overlay);
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // 5. Copilot Markdown Rendering
+  // =========================================================================
+  describe('5. Copilot Markdown Rendering', () => {
+    const fixtureText = `## Actions for tomorrow
+1. Set up the booking profile.
+   - Add the service menu.
+   - Add opening hours.
+2. Print local flyers.
+3. Visit two customer locations.
+---
+## Missing evidence
+- Customer willingness to pay
+- Actual travel time`;
+
+    it('renders horizontal rule, contiguous ordered list, sub-bullets, and headings semantically', () => {
+      const messages = [
+        {
+          id: 'msg-1',
+          project_id: 'p1',
+          role: 'assistant' as const,
+          content: fixtureText,
+          created_at: '2026-01-01T00:00:00Z'
+        }
+      ];
+
+      const { container } = render(
+        <BlueprintCopilotModule
+          project={createMockProject('p1', 'Alpha')}
+          messages={messages}
+          onSendMessage={async () => {}}
+        />
+      );
+
+      // Verify horizontal rule <hr>
+      expect(container.querySelector('hr')).not.toBeNull();
+      expect(container.innerHTML).not.toContain('<p>---</p>');
+
+      // Verify contiguous ordered list <ol>
+      const olElements = container.querySelectorAll('ol');
+      expect(olElements.length).toBe(1); // exactly one contiguous <ol>, not split into multiple lists!
+
+      // Three list items in the ordered list
+      const olListItems = olElements[0].querySelectorAll(':scope > li');
+      expect(olListItems.length).toBe(3);
+      expect(olListItems[0].textContent).toContain('Set up the booking profile.');
+      expect(olListItems[1].textContent).toContain('Print local flyers.');
+      expect(olListItems[2].textContent).toContain('Visit two customer locations.');
+
+      // Sub-bullets inside the first <li>
+      const subUl = olListItems[0].querySelector('ul');
+      expect(subUl).not.toBeNull();
+      const subItems = subUl!.querySelectorAll('li');
+      expect(subItems.length).toBe(2);
+      expect(subItems[0].textContent).toContain('Add the service menu.');
+      expect(subItems[1].textContent).toContain('Add opening hours.');
+
+      // Headings
+      expect(screen.getByRole('heading', { name: 'Actions for tomorrow' })).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Missing evidence' })).toBeDefined();
+    });
+
+    it('rejects unsafe javascript: links and prevents raw HTML execution', () => {
+      const maliciousText = `Check [Unsafe Link](javascript:alert('pwned')) and [Safe Link](https://example.com) and <script>alert('xss')</script>`;
+
+      const messages = [
+        {
+          id: 'msg-sec',
+          project_id: 'p1',
+          role: 'assistant' as const,
+          content: maliciousText,
+          created_at: '2026-01-01T00:00:00Z'
+        }
+      ];
+
+      const { container } = render(
+        <BlueprintCopilotModule
+          project={createMockProject('p1', 'Alpha')}
+          messages={messages}
+          onSendMessage={async () => {}}
+        />
+      );
+
+      // javascript: link should NOT be an <a> with href javascript:
+      const unsafeLinks = container.querySelectorAll('a[href^="javascript:"]');
+      expect(unsafeLinks.length).toBe(0);
+
+      // Safe link is preserved
+      const safeLink = container.querySelector('a[href="https://example.com"]');
+      expect(safeLink).not.toBeNull();
+      expect(safeLink?.getAttribute('rel')).toBe('noopener noreferrer');
+
+      // Script tag is escaped and not executed
+      expect(container.querySelector('script')).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // 6. Market Research Meaningless Placeholder Detection
+  // =========================================================================
+  describe('6. Market Research Meaningless Placeholder Detection', () => {
+    it('correctly classifies exact known placeholders and preserves real entries', () => {
+      expect(isMeaninglessPlaceholder('Opportunity 1')).toBe(true);
+      expect(isMeaninglessPlaceholder('opportunity 2')).toBe(true);
+      expect(isMeaninglessPlaceholder('Threat 1')).toBe(true);
+      expect(isMeaninglessPlaceholder('gap 1')).toBe(true);
+      expect(isMeaninglessPlaceholder('Core Differentiator 1')).toBe(true);
+
+      // Real entries with numbers must NOT be suppressed
+      expect(isMeaninglessPlaceholder('Tier 1 enterprise cloud migration opportunity')).toBe(false);
+      expect(isMeaninglessPlaceholder('High threat of competitor reaction in Q3')).toBe(false);
+      expect(isMeaninglessPlaceholder('50% cost advantage in manufacturing')).toBe(false);
+      expect(isMeaninglessPlaceholder('1 opportunity in European expansion')).toBe(false);
+    });
+
+    it('replaces placeholder-only lists with honest empty states while preserving real entries and warnings', () => {
+      const placeholderData = {
+        opportunities: ['Opportunity 1', 'Opportunity 2'],
+        threats: ['Threat 1'],
+        research_gaps: ['Gap 1'],
+        competitor_profiles: [
+          { name: 'Acme Corp', market_share_estimate: '10%', strengths: ['Core Differentiator 1'], weaknesses: [], pricing_model: 'Fixed' }
+        ]
+      };
+
+      const detail = {
+        id: 'mr-1',
+        project_id: 'p1',
+        module_type: 'market_research',
+        data: {
+          ...placeholderData,
+          provenance_note: 'Limited data available in secondary tier research'
+        }
+      };
+
+      render(
+        <MarketResearchModule
+          project={createMockProject('p1', 'Alpha')}
+          moduleDetail={detail as any}
+          onGenerate={async () => {}}
+          onExportPdf={() => {}}
+          isLoading={false}
+        />
+      );
+
+      // Honest empty states must be displayed
+      expect(screen.getByText('No supported opportunities were identified in this result.')).toBeDefined();
+      expect(screen.getByText('No supported threats were identified in this result.')).toBeDefined();
+      expect(screen.getByText('No specific research gaps were provided.')).toBeDefined();
+
+      // Literal placeholders must NOT be presented as substantive research
+      expect(screen.queryByText('Opportunity 1')).toBeNull();
+      expect(screen.queryByText('Threat 1')).toBeNull();
+      expect(screen.queryByText('Gap 1')).toBeNull();
+
+      // Evidence warnings remain visible
+      expect(screen.getByText(/Limited data available in secondary tier research/i)).toBeDefined();
+    });
+
+    it('renders real, substantive entries alongside evidence notes', () => {
+      const realData = {
+        opportunities: ['High demand for AI-driven logistics optimization in Southeast Asia'],
+        threats: ['Incumbent vendors possess established enterprise sales distribution'],
+        research_gaps: ['Willingness to pay in tier-2 regional hubs remains unverified'],
+        competitor_profiles: [
+          {
+            name: 'LogiGlobal',
+            market_share_estimate: '15%',
+            strengths: ['Proprietary route engine with sub-second recalculation'],
+            weaknesses: ['High enterprise pricing'],
+            pricing_model: 'Subscription'
+          }
+        ]
+      };
+
+      const detail = {
+        id: 'mr-2',
+        project_id: 'p1',
+        module_type: 'market_research',
+        data: realData
+      };
+
+      render(
+        <MarketResearchModule
+          project={createMockProject('p1', 'Alpha')}
+          moduleDetail={detail as any}
+          onGenerate={async () => {}}
+          onExportPdf={() => {}}
+          isLoading={false}
+        />
+      );
+
+      expect(screen.getByText('High demand for AI-driven logistics optimization in Southeast Asia')).toBeDefined();
+      expect(screen.getByText('Incumbent vendors possess established enterprise sales distribution')).toBeDefined();
+      expect(screen.getByText('Willingness to pay in tier-2 regional hubs remains unverified')).toBeDefined();
+      expect(screen.getByText(/Proprietary route engine with sub-second recalculation/)).toBeDefined();
+    });
+  });
+});

@@ -718,6 +718,10 @@ class GeminiAIService:
             gaps.append("No source citations were returned; market size, growth, competitor claims and pricing require primary-source research.")
         else:
             result["provenance_note"] = "Search returned the linked sources. Competitor profiles retain matching source URLs; strategic conclusions and projections remain analytical hypotheses. Source presence does not independently verify every claim."
+        placeholder_re = re.compile(r"^(opportunity|threat|gap)\s*\d*$", re.IGNORECASE)
+        result["opportunities"] = [o for o in (result.get("opportunities") or []) if not placeholder_re.match(str(o).strip())]
+        result["threats"] = [t for t in (result.get("threats") or []) if not placeholder_re.match(str(t).strip())]
+        gaps = [g for g in gaps if not placeholder_re.match(str(g).strip())]
         result["research_gaps"] = gaps
         return MarketResearchData.model_validate(result)
 
