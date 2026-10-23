@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, CopilotMessage } from '../types';
 import { Bot, Send, User, Sparkles, Loader2 } from 'lucide-react';
+import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
 
 interface Props {
   project: Project;
   messages: CopilotMessage[];
   onSendMessage: (message: string) => Promise<void>;
   isLoading: boolean;
+  userScope?: string;
 }
 
 // Clean, lightweight Markdown component for Planning Copilot
@@ -204,20 +206,33 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   project,
   messages,
   onSendMessage,
-  isLoading
+  isLoading,
+  userScope
 }) => {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => (userScope ? getDraft<string>(userScope, 'copilot_input', project.id) || '' : ''));
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  // Persist unsent draft input
+  useEffect(() => {
+    if (userScope) {
+      if (input.trim()) {
+        saveDraft(userScope, 'copilot_input', input, project.id);
+      } else {
+        clearDraft(userScope, 'copilot_input', project.id);
+      }
+    }
+  }, [userScope, input, project.id]);
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
     const msg = input.trim();
     setInput('');
+    if (userScope) clearDraft(userScope, 'copilot_input', project.id);
     await onSendMessage(msg);
   };
 

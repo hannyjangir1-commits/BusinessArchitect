@@ -7,14 +7,19 @@ import {
 } from 'lucide-react';
 import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
 import { ProfileModal } from '../components/ProfileModal';
+import { ProjectGridSkeleton } from '../components/Skeletons';
 import { api } from '../services/api';
+
+export type RequestStatus = 'idle' | 'loading' | 'success-empty' | 'success-with-data' | 'error';
 
 interface Props {
   user: User;
   projects: Project[];
+  projectsStatus?: RequestStatus;
   projectsError?: string | null;
   onRetryProjects?: () => void;
   onOpenProject: (projectId: string, targetModule?: string) => void;
+  onPrefetchProject?: (projectId: string) => void;
   onCreateNewProject: () => void;
   onDeleteProject: (projectId: string) => Promise<void>;
   onBulkDeleteProjects?: (projectIds: string[]) => Promise<void>;
@@ -25,9 +30,11 @@ interface Props {
 export const DashboardPage: React.FC<Props> = ({
   user,
   projects,
+  projectsStatus,
   projectsError,
   onRetryProjects,
   onOpenProject,
+  onPrefetchProject,
   onCreateNewProject,
   onDeleteProject,
   onBulkDeleteProjects,
@@ -466,7 +473,36 @@ export const DashboardPage: React.FC<Props> = ({
         </div>
 
         {/* Projects Grid */}
-        {filteredProjects.length === 0 ? (
+        {projectsStatus === 'loading' ? (
+          <ProjectGridSkeleton count={3} />
+        ) : projectsStatus === 'error' || projectsError ? (
+          <div className="card" role="alert" style={{ textAlign: 'center', padding: '56px 20px', marginTop: 12 }}>
+            <div style={{
+              width: 58,
+              height: 58,
+              borderRadius: '50%',
+              background: 'rgb(161 57 48 / 0.12)',
+              color: 'var(--danger-text)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px auto'
+            }}>
+              <AlertTriangle size={28} />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
+              Unable to Load Venture Blueprints
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 460, margin: '0 auto 22px auto', lineHeight: 1.5 }}>
+              {projectsError || 'Your projects could not be loaded at this time. Please check your connection and retry.'}
+            </p>
+            {onRetryProjects && (
+              <button onClick={onRetryProjects} className="btn-primary" style={{ margin: '0 auto' }}>
+                Retry Loading
+              </button>
+            )}
+          </div>
+        ) : filteredProjects.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '64px 20px', marginTop: 12 }}>
             <div style={{
               width: 58,
@@ -508,6 +544,9 @@ export const DashboardPage: React.FC<Props> = ({
               return (
                 <div
                   key={p.id}
+                  onPointerEnter={() => onPrefetchProject?.(p.id)}
+                  onFocus={() => onPrefetchProject?.(p.id)}
+                  tabIndex={0}
                   onClick={() => {
                     if (isManageMode) {
                       handleToggleSelectProject(p.id);

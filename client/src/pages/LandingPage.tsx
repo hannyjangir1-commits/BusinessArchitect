@@ -5,13 +5,15 @@ import {
   Eye, EyeOff, Bot
 } from 'lucide-react';
 import { api } from '../services/api';
-import { SessionData } from '../types';
+import { SessionData, User } from '../types';
 
 interface Props {
   onAuthenticated: (session: SessionData) => void;
+  currentUser?: User | null;
+  onOpenWorkspace?: () => void;
 }
 
-export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
+export const LandingPage: React.FC<Props> = ({ onAuthenticated, currentUser, onOpenWorkspace }) => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [isLoginTab, setIsLoginTab] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -129,31 +131,48 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
 
         {/* Right CTA */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            onClick={() => { setIsLoginTab(true); setErrorMsg(null); setAuthModalOpen(true); }}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border-color)',
-              color: 'var(--text-muted)',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary-text)'; e.currentTarget.style.color = 'var(--text-main)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--text-main)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-          >
-            Sign In
-          </button>
-          <button
-            onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
-            className="btn-primary"
-            style={{ padding: '8px 18px', fontSize: 13 }}
-          >
-            Get Started
-          </button>
+          {currentUser ? (
+            <>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+                {currentUser.username || currentUser.email}
+              </span>
+              <button
+                onClick={onOpenWorkspace}
+                className="btn-primary"
+                style={{ padding: '8px 18px', fontSize: 13 }}
+              >
+                Open workspace &rarr;
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => { setIsLoginTab(true); setErrorMsg(null); setAuthModalOpen(true); }}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-muted)',
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary-text)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
+                className="btn-primary"
+                style={{ padding: '8px 18px', fontSize: 13 }}
+              >
+                Get Started
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -201,13 +220,23 @@ export const LandingPage: React.FC<Props> = ({ onAuthenticated }) => {
         </p>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
-            className="btn-primary"
-            style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgb(69 60 55 / 0.4)' }}
-          >
-            Create Your Blueprint <ArrowRight size={17} />
-          </button>
+          {currentUser ? (
+            <button
+              onClick={onOpenWorkspace}
+              className="btn-primary"
+              style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgb(69 60 55 / 0.4)' }}
+            >
+              Open workspace <ArrowRight size={17} />
+            </button>
+          ) : (
+            <button
+              onClick={() => { setIsLoginTab(false); setErrorMsg(null); setAuthModalOpen(true); }}
+              className="btn-primary"
+              style={{ fontSize: 14.5, padding: '13px 28px', borderRadius: 10, boxShadow: '0 4px 16px rgb(69 60 55 / 0.4)' }}
+            >
+              Create Your Blueprint <ArrowRight size={17} />
+            </button>
+          )}
           <button
             onClick={() => scrollToSection('features')}
             style={{

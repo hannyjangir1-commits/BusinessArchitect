@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BusinessStage } from '../types';
 import { Sparkles, ArrowRight, ArrowLeft, Check, Layers, AlertCircle, Loader2 } from 'lucide-react';
 import { buildNewProjectPayload } from '../utils/projectPayload';
+import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
 
 interface Props {
   onProjectCreated: (project: any) => Promise<void>;
   onCancel: () => void;
+  userScope?: string;
 }
 
 const STACK_CATEGORIES: Record<string, string[]> = {
@@ -19,22 +21,41 @@ const STACK_CATEGORIES: Record<string, string[]> = {
   'Services & APIs': ['Stripe Payments', 'SendGrid Email', 'PostHog Analytics', 'Sentry Monitoring']
 };
 
-export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }) => {
-  const [currentStep, setCurrentStep] = useState<number>(1);
+export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, userScope }) => {
+  const initialDraft = userScope ? getDraft<any>(userScope, 'wizard') : null;
+
+  const [currentStep, setCurrentStep] = useState<number>(initialDraft?.currentStep || 1);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Form State
-  const [name, setName] = useState('');
-  const [stage, setStage] = useState<BusinessStage>('Idea');
-  const [industry, setIndustry] = useState('Enterprise SaaS');
-  const [description, setDescription] = useState('');
-  const [targetCustomers, setTargetCustomers] = useState('');
-  const [goals, setGoals] = useState('');
-  const [budget, setBudget] = useState('');
-  const [existingStack, setExistingStack] = useState<Record<string, string[]>>({});
+  const [name, setName] = useState(initialDraft?.name || '');
+  const [stage, setStage] = useState<BusinessStage>(initialDraft?.stage || 'Idea');
+  const [industry, setIndustry] = useState(initialDraft?.industry || 'Enterprise SaaS');
+  const [description, setDescription] = useState(initialDraft?.description || '');
+  const [targetCustomers, setTargetCustomers] = useState(initialDraft?.targetCustomers || '');
+  const [goals, setGoals] = useState(initialDraft?.goals || '');
+  const [budget, setBudget] = useState(initialDraft?.budget || '');
+  const [existingStack, setExistingStack] = useState<Record<string, string[]>>(initialDraft?.existingStack || {});
   const [customTechInput, setCustomTechInput] = useState('');
   const [customCategory, setCustomCategory] = useState('Backend');
+
+  // Save draft on edit
+  useEffect(() => {
+    if (userScope && (name || description || targetCustomers || goals || budget || Object.keys(existingStack).length > 0)) {
+      saveDraft(userScope, 'wizard', {
+        currentStep,
+        name,
+        stage,
+        industry,
+        description,
+        targetCustomers,
+        goals,
+        budget,
+        existingStack
+      });
+    }
+  }, [userScope, currentStep, name, stage, industry, description, targetCustomers, goals, budget, existingStack]);
 
   const toggleTech = (category: string, tech: string) => {
     setExistingStack(prev => {
@@ -88,6 +109,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel }
       });
 
       await onProjectCreated(payload);
+      if (userScope) clearDraft(userScope, 'wizard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to create project');
     } finally {

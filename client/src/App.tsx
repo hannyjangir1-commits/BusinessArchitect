@@ -1,21 +1,29 @@
-import React, { useState, useEffect, lazy } from 'react';
+import React, { useState, useEffect, lazy, useRef, useCallback } from 'react';
 import { User, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs, TechStackPlanningInputs } from './types';
 import { api } from './services/api';
+import { queryCache } from './services/queryCache';
+import { saveNavDestination, getNavDestination, clearNavDestination } from './services/navigationStorage';
+import { prefetchModule, prefetchProjectData } from './services/prefetch';
+import { clearAllDrafts } from './services/draftStorage';
+import { ModuleSkeleton } from './components/Skeletons';
 import { LandingPage } from './pages/LandingPage';
-import { DashboardPage } from './pages/DashboardPage';
+import { DashboardPage, RequestStatus } from './pages/DashboardPage';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { OverviewModule } from './components/OverviewModule';
+
+// Route-level lazy features with local suspense
 const BMCModule = lazy(() => import('./components/BMCModule').then(module => ({ default: module.BMCModule })));
 const TechStackModule = lazy(() => import('./components/TechStackModule').then(module => ({ default: module.TechStackModule })));
 const IdeaValidatorModule = lazy(() => import('./components/IdeaValidatorModule').then(module => ({ default: module.IdeaValidatorModule })));
 const MarketResearchModule = lazy(() => import('./components/MarketResearchModule').then(module => ({ default: module.MarketResearchModule })));
 const ExecutionRoadmapModule = lazy(() => import('./components/ExecutionRoadmapModule').then(module => ({ default: module.ExecutionRoadmapModule })));
 const BlueprintCopilotModule = lazy(() => import('./components/BlueprintCopilotModule').then(module => ({ default: module.BlueprintCopilotModule })));
-import { NewProjectWizard } from './components/NewProjectWizard';
-import { VersionConflictModal } from './components/VersionConflictModal';
+const NewProjectWizard = lazy(() => import('./components/NewProjectWizard').then(module => ({ default: module.NewProjectWizard })));
+const VersionConflictModal = lazy(() => import('./components/VersionConflictModal').then(module => ({ default: module.VersionConflictModal })));
 const AdminApp = lazy(() => import('./admin/AdminApp').then(module => ({ default: module.AdminApp })));
 const AdminLoginPage = lazy(() => import('./admin/pages/AdminLoginPage').then(module => ({ default: module.AdminLoginPage })));
+
 import { Loader2, AlertCircle, X } from 'lucide-react';
 import './styles/index.css';
 
@@ -35,6 +43,12 @@ export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
 
+  // Track explicit user intent to view workspace vs public landing page
+  const [userIntendsWorkspace, setUserIntendsWorkspace] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return Boolean(params.get('project')) || params.get('workspace') === 'true';
+  });
+
   // Admin Portal State
   const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => window.location.pathname.startsWith('/admin'));
   const [adminUser, setAdminUser] = useState<any | null>(null);
@@ -42,6 +56,7 @@ export const App: React.FC = () => {
 
   // Projects & Navigation
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsStatus, setProjectsStatus] = useState<RequestStatus>('idle');
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [activeModule, setActiveModule] = useState<string>('execution_roadmap');
@@ -49,14 +64,40 @@ export const App: React.FC = () => {
 
   // Active Module State
   const [moduleDetail, setModuleDetail] = useState<ModuleDetail | null>(null);
+  const [moduleStatus, setModuleStatus] = useState<RequestStatus>('idle');
   const [tasks, setTasks] = useState<RoadmapTask[]>([]);
   const [summary, setSummary] = useState<RoadmapSummary>(EMPTY_SUMMARY);
   const [copilotMessages, setCopilotMessages] = useState<CopilotMessage[]>([]);
   const [moduleLoading, setModuleLoading] = useState<boolean>(false);
   const [moduleError, setModuleError] = useState<string | null>(null);
-  const navigationRef = React.useRef(0);
-  const sessionEpochRef = React.useRef(0);
-  const mutationKeysRef = React.useRef(new Set<string>());
+
+  const navigationRef = useRef(0);
+  const sessionEpochRef = useRef(0);
+  const mutationKeysRef = useRef(new Set<string>());
+
+  // Asynchronous Debounced Navigation Persistence (Section 12)
+  const navPersistTimerRef = useRef<any>(null);
+  const lastPersistedModuleRef = useRef<{ projectId: string; module: string } | null>(null);
+
+  const persistNavigationToServer = useCallback((projectId: string, moduleId: string) => {
+    if (navPersistTimerRef.current) {
+      clearTimeout(navPersistTimerRef.current);
+    }
+    navPersistTimerRef.current = setTimeout(async () => {
+      if (
+        lastPersistedModuleRef.current?.projectId === projectId &&
+        lastPersistedModuleRef.current?.module === moduleId
+      ) {
+        return;
+      }
+      try {
+        await api.projects.updateActiveModule(projectId, moduleId);
+        lastPersistedModuleRef.current = { projectId, module: moduleId };
+      } catch (e) {
+        console.warn('Asynchronous navigation persistence skipped:', e);
+      }
+    }, 700);
+  }, []);
 
   // 5-Version Conflict State
   const [conflictModalOpen, setConflictModalOpen] = useState<boolean>(false);
@@ -82,20 +123,21 @@ export const App: React.FC = () => {
     progressPercent: number;
   }>>({});
 
-  const generationTimersRef = React.useRef<Record<string, any>>({});
+  const generationTimersRef = useRef<Record<string, any>>({});
 
   // Cleanup all timers on unmount
   useEffect(() => {
     return () => {
       Object.values(generationTimersRef.current).forEach(t => clearInterval(t));
       generationTimersRef.current = {};
+      if (navPersistTimerRef.current) clearTimeout(navPersistTimerRef.current);
     };
   }, []);
 
   // Dynamic Badges & Race-Condition Guard Refs
-  const activeProjectIdRef = React.useRef<string | null>(null);
-  const activeModuleTypeRef = React.useRef<string>('execution_roadmap');
-  const openProjectRef = React.useRef<(projectId: string, targetModuleOverride?: string, writeHistory?: boolean) => Promise<void>>(async () => {});
+  const activeProjectIdRef = useRef<string | null>(null);
+  const activeModuleTypeRef = useRef<string>('execution_roadmap');
+  const openProjectRef = useRef<(projectId: string, targetModuleOverride?: string, writeHistory?: boolean) => Promise<void>>(async () => {});
 
   const isViewing = (projectId: string, moduleType?: string, navigation?: number) =>
     activeProjectIdRef.current === projectId &&
@@ -107,6 +149,7 @@ export const App: React.FC = () => {
     navigationRef.current++;
     setCurrentProject(null);
     setModuleDetail(null);
+    setModuleStatus('idle');
     setTasks([]);
     setSummary(EMPTY_SUMMARY);
     setCopilotMessages([]);
@@ -123,18 +166,25 @@ export const App: React.FC = () => {
     setCurrentUser(null);
     setAdminUser(null);
     setProjects([]);
+    setProjectsStatus('idle');
     setProjectsError(null);
     setIsWizardOpen(false);
     Object.values(generationTimersRef.current).forEach(timer => clearInterval(timer));
     generationTimersRef.current = {};
+    if (navPersistTimerRef.current) clearTimeout(navPersistTimerRef.current);
     setGeneratingProgress({});
     mutationKeysRef.current.clear();
     document.body.style.removeProperty('font-family');
   };
 
   const logout = async () => {
-    await api.auth.logout();
+    try {
+      await api.auth.logout();
+    } catch {}
+    queryCache.clearAll();
+    clearAllDrafts();
     clearSession();
+    setUserIntendsWorkspace(false);
     window.history.replaceState({}, '', '/');
   };
 
@@ -160,37 +210,81 @@ export const App: React.FC = () => {
     }));
   };
 
-  const loadProjects = React.useCallback(async () => {
+  // Cached, Deduplicated Project Loading (Section 6 & 7)
+  const loadProjects = useCallback(async (userScope?: string, forceFresh = false): Promise<Project[] | null> => {
     const epoch = sessionEpochRef.current;
+    const cached = queryCache.getCached<Project[]>('projects:list');
+
+    if (cached && !forceFresh) {
+      setProjects(cached);
+      setProjectsStatus(cached.length === 0 ? 'success-empty' : 'success-with-data');
+      setProjectsError(null);
+    } else if (!cached) {
+      setProjectsStatus('loading');
+    }
+
     try {
-      const projs = await api.projects.list();
+      const projs = await queryCache.fetchWithCache(
+        'projects:list',
+        () => api.projects.list(),
+        { staleTimeMs: 60000, userScope, forceFresh }
+      );
       if (sessionEpochRef.current === epoch) {
         setProjects(projs);
+        setProjectsStatus(projs.length === 0 ? 'success-empty' : 'success-with-data');
         setProjectsError(null);
       }
+      return projs;
     } catch (error: any) {
       if (sessionEpochRef.current === epoch) {
+        if (!queryCache.getCached('projects:list')) {
+          setProjectsStatus('error');
+        }
         setProjectsError(error?.message || 'Your projects could not be loaded. Please retry.');
       }
+      return null;
     }
   }, []);
 
-  // 1. Initial Authentication Check
+  // 1. Initial Authentication Check in Background (Section 3)
   useEffect(() => {
+    let isCancelled = false;
+
     const checkAuth = async () => {
       try {
         const session = await api.auth.getMe();
+        if (isCancelled) return;
         if (session && session.user) {
           setCurrentUser(session.user);
-          loadProjects();
+          const userScope = session.user.id;
+
+          // Background preloading of projects
+          const projs = await loadProjects(userScope);
+          if (isCancelled) return;
+
+          // Destination Restoration Sequence (Section 5)
           const route = new URLSearchParams(window.location.search);
-          const projectId = route.get("project");
-          if (projectId && !window.location.pathname.startsWith("/admin")) await openProjectRef.current(projectId, route.get("module") || undefined, false);
+          const deepProjectId = route.get('project');
+          const onAdmin = window.location.pathname.startsWith('/admin');
+
+          if (deepProjectId && !onAdmin) {
+            setUserIntendsWorkspace(true);
+            await openProjectRef.current(deepProjectId, route.get('module') || undefined, false);
+          } else if (!onAdmin && route.get('workspace') === 'true') {
+            setUserIntendsWorkspace(true);
+            // Restore last valid saved destination
+            const savedDest = getNavDestination(userScope);
+            if (savedDest && projs && projs.some(p => p.id === savedDest.projectId)) {
+              await openProjectRef.current(savedDest.projectId, savedDest.module, true);
+            } else if (savedDest) {
+              clearNavDestination(userScope);
+            }
+          }
         }
       } catch {
-        setCurrentUser(null);
+        if (!isCancelled) setCurrentUser(null);
       } finally {
-        setAuthChecking(false);
+        if (!isCancelled) setAuthChecking(false);
       }
     };
     checkAuth();
@@ -218,7 +312,13 @@ export const App: React.FC = () => {
     };
     checkAdminAuth();
 
-    const handleAuthExpired = () => { clearSession(); };
+    const handleAuthExpired = () => {
+      queryCache.clearAll();
+      clearAllDrafts();
+      clearSession();
+      setUserIntendsWorkspace(false);
+      window.history.replaceState({}, '', '/');
+    };
     window.addEventListener('auth:expired', handleAuthExpired);
 
     const handlePopState = () => {
@@ -229,33 +329,50 @@ export const App: React.FC = () => {
       } else {
         const route = new URLSearchParams(window.location.search);
         const projectId = route.get('project');
-        if (projectId) void openProjectRef.current(projectId, route.get('module') || undefined, false);
-        else clearWorkspace();
+        if (projectId) {
+          setUserIntendsWorkspace(true);
+          void openProjectRef.current(projectId, route.get('module') || undefined, false);
+        } else {
+          clearWorkspace();
+          if (route.get('workspace') !== 'true') {
+            // If navigating back to root without workspace param
+            setUserIntendsWorkspace(false);
+          }
+        }
       }
     };
     window.addEventListener('popstate', handlePopState);
 
     return () => {
+      isCancelled = true;
       window.removeEventListener('auth:expired', handleAuthExpired);
       window.removeEventListener('popstate', handlePopState);
     };
   }, [loadProjects]);
 
-  // 2. Open Project & Restore Navigation Memory (Part 25 & F-16)
+  // 2. Open Project & Restore Navigation Memory (Section 4 & 5)
   const handleOpenProject = async (projectId: string, targetModuleOverride?: string, writeHistory = true) => {
     clearWorkspace();
     activeProjectIdRef.current = projectId;
-    // Clear stale state immediately
-    setModuleDetail(null);
-    setTasks([]);
-    setCopilotMessages([]);
+    setModuleLoading(true);
+
+    // Optimistically use cached project metadata if available
+    const cachedProj = queryCache.getCached<Project>(`project:${projectId}`) ||
+      projects.find(p => p.id === projectId);
+
+    if (cachedProj) {
+      setCurrentProject(cachedProj);
+    }
 
     try {
-      const proj = await api.projects.get(projectId);
-      if (activeProjectIdRef.current !== projectId) return; // Prevent late race condition
+      const proj = await queryCache.fetchWithCache(
+        `project:${projectId}`,
+        () => api.projects.get(projectId),
+        { staleTimeMs: 60000, userScope: currentUser?.id }
+      );
+      if (activeProjectIdRef.current !== projectId) return;
       setCurrentProject(proj);
 
-      // Initialize module badges strictly scoped to this project
       const genModules = new Set(proj.generated_modules || []);
       setModuleBadges({
         overview: { version: 'V1', isGenerated: true },
@@ -267,78 +384,142 @@ export const App: React.FC = () => {
         blueprint_copilot: { version: 'V1', isGenerated: false }
       });
 
-      // Restore the project's saved navigation module or use shortcut override (F-16)
       const targetModule = normalizeModuleType(targetModuleOverride || proj.active_module || 'execution_roadmap');
       activeModuleTypeRef.current = targetModule;
       setActiveModule(targetModule);
-      if (writeHistory) window.history.pushState({}, '', `/?project=${encodeURIComponent(proj.id)}&module=${encodeURIComponent(targetModule)}`);
-      loadModuleContent(proj.id, targetModule);
+
+      // Save harmless navigation preference to localStorage
+      if (currentUser?.id) {
+        saveNavDestination(currentUser.id, proj.id, targetModule);
+      }
+
+      if (writeHistory) {
+        window.history.pushState({}, '', `/?project=${encodeURIComponent(proj.id)}&module=${encodeURIComponent(targetModule)}`);
+      }
+
+      loadModuleContent(proj.id, targetModule, currentUser?.id);
 
       if (targetModuleOverride && targetModule !== proj.active_module) {
-        api.projects.updateActiveModule(proj.id, targetModule).catch(console.error);
+        persistNavigationToServer(proj.id, targetModule);
       }
     } catch (err: any) {
-      if (isViewing(projectId)) { clearWorkspace(); alert(err.message || 'Failed to open project'); }
+      if (isViewing(projectId)) {
+        clearWorkspace();
+        alert(err.message || 'Failed to open project');
+      }
     }
   };
+
   useEffect(() => {
     openProjectRef.current = handleOpenProject;
   });
 
-  // 3. Switch Module and Persist Per-Project Navigation Memory
-  const handleSelectModule = async (moduleId: string) => {
+  // 3. Switch Module and Persist Navigation Memory Asynchronously (Section 12)
+  const handleSelectModule = (moduleId: string) => {
     if (!currentProject) return;
     const canonicalModuleId = normalizeModuleType(moduleId);
     activeModuleTypeRef.current = canonicalModuleId;
     setActiveModule(canonicalModuleId);
+
     window.history.pushState({}, '', `/?project=${encodeURIComponent(currentProject.id)}&module=${encodeURIComponent(canonicalModuleId)}`);
-    setModuleDetail(null); // Clear stale module data immediately
+
+    // Immediately save harmless preference to localStorage
+    if (currentUser?.id) {
+      saveNavDestination(currentUser.id, currentProject.id, canonicalModuleId);
+    }
+
     setReadinessError(null);
     setConflictModalOpen(false);
     setConflictData(null);
-    loadModuleContent(currentProject.id, canonicalModuleId);
 
-    // Save navigation memory to backend
-    try {
-      await api.projects.updateActiveModule(currentProject.id, canonicalModuleId);
-      setCurrentProject(prev => prev?.id === currentProject.id && activeModuleTypeRef.current === canonicalModuleId ? { ...prev, active_module: canonicalModuleId } : prev);
-    } catch (e) {
-      console.error('Failed to persist navigation memory', e);
-    }
+    loadModuleContent(currentProject.id, canonicalModuleId, currentUser?.id);
+
+    // Asynchronous debounced server persistence
+    persistNavigationToServer(currentProject.id, canonicalModuleId);
   };
 
-  // Keep every response scoped to the navigation that requested it.
-  async function loadModuleContent(projectId: string, moduleType: string) {
+  // 4. Stable Module Content Loading with Explicit States & Cache (Section 4 & 7)
+  async function loadModuleContent(projectId: string, moduleType: string, userScope?: string, forceFresh = false) {
     moduleType = normalizeModuleType(moduleType);
     const navigation = ++navigationRef.current;
     const viewing = () => isViewing(projectId, moduleType, navigation);
-    setModuleLoading(true);
+
+    const cacheKey = `module:${projectId}:${moduleType}`;
+    const cachedDetail = queryCache.getCached<ModuleDetail>(cacheKey);
+
+    // If cached content exists in memory, keep/show it immediately without destroying layout
+    if (cachedDetail && !forceFresh) {
+      setModuleDetail(cachedDetail);
+      updateBadgeForModule(moduleType, cachedDetail);
+      setModuleStatus(cachedDetail.data ? 'success-with-data' : 'success-empty');
+      setModuleLoading(false);
+    } else {
+      // No cached data for this module: show module skeleton while loading fresh data
+      setModuleStatus('loading');
+      setModuleLoading(true);
+      setModuleDetail(null);
+    }
+
     setModuleError(null);
+
     try {
       if (!['overview', 'blueprint_copilot'].includes(moduleType)) {
-        const detail = await api.modules.get(projectId, moduleType);
+        const detail = await queryCache.fetchWithCache(
+          cacheKey,
+          () => api.modules.get(projectId, moduleType),
+          { staleTimeMs: 30000, userScope, forceFresh }
+        );
         if (!viewing()) return;
         setModuleDetail(detail);
         updateBadgeForModule(moduleType, detail);
+        setModuleStatus(detail.data ? 'success-with-data' : 'success-empty');
+      } else {
+        if (!viewing()) return;
+        setModuleStatus('success-with-data');
       }
+
       if (moduleType === 'execution_roadmap') {
-        const [taskList, sum] = await Promise.all([api.tasks.list(projectId), api.tasks.getSummary(projectId)]);
+        const [taskList, sum] = await Promise.all([
+          queryCache.fetchWithCache(`tasks:list:${projectId}`, () => api.tasks.list(projectId), {
+            staleTimeMs: 30000,
+            userScope,
+            forceFresh
+          }),
+          queryCache.fetchWithCache(`tasks:summary:${projectId}`, () => api.tasks.getSummary(projectId), {
+            staleTimeMs: 30000,
+            userScope,
+            forceFresh
+          })
+        ]);
         if (!viewing()) return;
         setTasks(taskList);
         setSummary(sum);
       }
+
       if (moduleType === 'blueprint_copilot') {
-        const history = await api.copilot.getHistory(projectId);
-        if (viewing()) setCopilotMessages(history);
+        const history = await queryCache.fetchWithCache(
+          `copilot:history:${projectId}`,
+          () => api.copilot.getHistory(projectId),
+          { staleTimeMs: 30000, userScope, forceFresh }
+        );
+        if (!viewing()) return;
+        setCopilotMessages(history);
       }
     } catch (error: any) {
-      if (viewing()) setModuleError(error.message || 'Could not load this section. Please retry.');
+      if (viewing()) {
+        setModuleError(error.message || 'Could not load this section. Please retry.');
+        if (!cachedDetail) {
+          setModuleStatus('error');
+        }
+      }
     } finally {
-      if (viewing()) setModuleLoading(false);
+      if (viewing()) {
+        setModuleLoading(false);
+      }
     }
   }
 
-  // 5. Generate Module with Readiness Validation and Module-Scoped Progress
+  // 5. Generate Module with Readiness Validation
   const handleGenerateModule = async (moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs) => {
     if (!currentProject) return;
     const targetProjectId = currentProject.id;
@@ -346,7 +527,6 @@ export const App: React.FC = () => {
     const genKey = `${targetProjectId}:${targetModuleType}`;
     const epoch = sessionEpochRef.current;
 
-    // Prevent duplicate submissions if this module or another generation is already in flight
     if (Object.keys(generationTimersRef.current).length > 0 || mutationKeysRef.current.size > 0) {
       return;
     }
@@ -357,27 +537,26 @@ export const App: React.FC = () => {
       ...prev,
       [genKey]: { stageText: 'Generating and validating your project output...', progressPercent: 0 }
     }));
-    // This is an activity indicator. Only the server can report real pipeline progress.
     const progressTimer = setInterval(() => {}, 60000);
-
     generationTimersRef.current[genKey] = progressTimer;
 
     try {
       const updated = await api.modules.generate(targetProjectId, targetModuleType, planningInputs);
       if (sessionEpochRef.current !== epoch) return;
-      
-      // If the user is still viewing this exact project and module, update the live view
+
+      // Invalidate module cache
+      queryCache.invalidate(`module:${targetProjectId}:${targetModuleType}`);
+
       if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
         setModuleDetail(updated);
+        setModuleStatus(updated.data ? 'success-with-data' : 'success-empty');
         updateBadgeForModule(targetModuleType, updated);
       } else if (activeProjectIdRef.current === targetProjectId) {
-        // User switched module within the same project; update badge without corrupting active module view
         updateBadgeForModule(targetModuleType, updated);
       }
 
       setCurrentProject(prev => prev?.id === targetProjectId ? { ...prev, generated_modules: Array.from(new Set([...(prev.generated_modules || []), targetModuleType])) } : prev);
 
-      // Also update project list generated_modules so dashboard/sidebar stay accurate
       setProjects(prev => prev.map(p => {
         if (p.id === targetProjectId) {
           const set = new Set(p.generated_modules || []);
@@ -388,6 +567,8 @@ export const App: React.FC = () => {
       }));
 
       if (targetModuleType === 'execution_roadmap') {
+        queryCache.invalidate(`tasks:list:${targetProjectId}`);
+        queryCache.invalidate(`tasks:summary:${targetProjectId}`);
         const taskList = await api.tasks.list(targetProjectId);
         if (activeProjectIdRef.current === targetProjectId) {
           setTasks(taskList);
@@ -429,7 +610,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // A mutation captures its destination before awaiting; later navigation never changes it.
   const runModuleMutation = async (work: (projectId: string, moduleType: string) => Promise<void>) => {
     if (!currentProject) return;
     const projectId = currentProject.id;
@@ -456,7 +636,8 @@ export const App: React.FC = () => {
     await runModuleMutation(async (projectId, moduleType) => {
       try {
         await api.modules.modify(projectId, moduleType, instruction);
-        if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType);
+        queryCache.invalidate(`module:${projectId}:${moduleType}`);
+        if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType, currentUser?.id, true);
       } catch (err: any) {
         const details = typeof err.data === 'object' ? err.data : {};
         if (err.status === 409 && (details.error === 'VERSION_LIMIT_EXCEEDED' || err.message?.includes('5 saved versions') || err.message?.includes('VERSION_LIMIT_EXCEEDED'))) {
@@ -475,9 +656,10 @@ export const App: React.FC = () => {
     if (!conflictData || !isViewing(conflictData.projectId, conflictData.moduleType)) return;
     await runModuleMutation(async (projectId, moduleType) => {
       await api.modules.resolveConflict(projectId, moduleType, replaceVersionId, conflictData.pendingInstruction);
+      queryCache.invalidate(`module:${projectId}:${moduleType}`);
       setConflictModalOpen(false);
       setConflictData(null);
-      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType);
+      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType, currentUser?.id, true);
     });
   };
 
@@ -486,14 +668,16 @@ export const App: React.FC = () => {
     const versionId = moduleDetail.active_version_id;
     await runModuleMutation(async (projectId, moduleType) => {
       await api.modules.renameVersion(projectId, moduleType, versionId, newName);
-      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType);
+      queryCache.invalidate(`module:${projectId}:${moduleType}`);
+      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType, currentUser?.id, true);
     });
   };
 
   const handleDeleteVersion = async (versionId: string) => {
     await runModuleMutation(async (projectId, moduleType) => {
       await api.modules.deleteVersion(projectId, moduleType, versionId);
-      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType);
+      queryCache.invalidate(`module:${projectId}:${moduleType}`);
+      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType, currentUser?.id, true);
     });
   };
 
@@ -501,12 +685,16 @@ export const App: React.FC = () => {
     if (normalizeModuleType(moduleType) !== activeModule) return;
     await runModuleMutation(async (projectId, targetModuleType) => {
       await api.modules.delete(projectId, targetModuleType);
+      queryCache.invalidate(`module:${projectId}:${targetModuleType}`);
       const removeGenerated = (project: Project) => ({ ...project, generated_modules: (project.generated_modules || []).filter(type => normalizeModuleType(type) !== targetModuleType) });
       setProjects(prev => prev.map(project => project.id === projectId ? removeGenerated(project) : project));
       setCurrentProject(prev => prev?.id === projectId ? removeGenerated(prev) : prev);
       if (isViewing(projectId)) {
         setModuleBadges(prev => ({ ...prev, [targetModuleType]: { version: 'V1', isGenerated: false } }));
-        if (isViewing(projectId, targetModuleType)) setModuleDetail(null);
+        if (isViewing(projectId, targetModuleType)) {
+          setModuleDetail(null);
+          setModuleStatus('success-empty');
+        }
         if (targetModuleType === 'execution_roadmap') { setTasks([]); setSummary(EMPTY_SUMMARY); }
       }
     });
@@ -515,15 +703,18 @@ export const App: React.FC = () => {
   const handleRestoreVersion = async (versionId: string) => {
     await runModuleMutation(async (projectId, moduleType) => {
       await api.modules.restoreVersion(projectId, moduleType, versionId);
-      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType);
+      queryCache.invalidate(`module:${projectId}:${moduleType}`);
+      if (isViewing(projectId, moduleType)) await loadModuleContent(projectId, moduleType, currentUser?.id, true);
     });
   };
 
-  // Manual task edits are refreshed from the server so all derived roadmap views agree.
   const refreshTasks = async (projectId: string) => {
+    queryCache.invalidate(`tasks:list:${projectId}`);
+    queryCache.invalidate(`tasks:summary:${projectId}`);
     const [taskList, sum] = await Promise.all([api.tasks.list(projectId), api.tasks.getSummary(projectId)]);
     if (isViewing(projectId)) { setTasks(taskList); setSummary(sum); }
   };
+
   const handleAddTask = async (taskData: any) => {
     if (!currentProject) return;
     const projectId = currentProject.id;
@@ -543,40 +734,49 @@ export const App: React.FC = () => {
     await refreshTasks(projectId);
   };
 
-  // 10. Project Update / Fork
+  // Project Update / Fork
   const handleUpdateProject = async (data: any, createCopy: boolean) => {
     if (!currentProject) return;
     const projectId = currentProject.id;
     const updated = await api.projects.update(projectId, { ...data, create_copy: createCopy });
-    await loadProjects();
+    queryCache.invalidate('projects:list');
+    queryCache.invalidate(`project:${projectId}`);
+    await loadProjects(currentUser?.id, true);
     if (!isViewing(projectId)) return;
     if (createCopy) await handleOpenProject(updated.id, 'overview');
     else setCurrentProject(updated);
   };
 
-  // 11. Project Creation Wizard
+  // Project Creation Wizard
   const handleProjectCreated = async (payload: any) => {
     const epoch = sessionEpochRef.current;
     const newProj = await api.projects.create(payload);
     if (sessionEpochRef.current !== epoch) return;
     setIsWizardOpen(false);
-    await loadProjects();
+    queryCache.invalidate('projects:list');
+    await loadProjects(currentUser?.id, true);
     await handleOpenProject(newProj.id);
   };
 
-  // 12. Delete Project
+  // Delete Project
   const handleDeleteProject = async (projectId: string) => {
     await api.projects.delete(projectId);
-    await loadProjects();
+    queryCache.invalidate('projects:list');
+    queryCache.invalidate(`project:${projectId}`);
+    if (currentUser?.id) clearNavDestination(currentUser.id);
+    await loadProjects(currentUser?.id, true);
     if (currentProject?.id === projectId) {
       clearWorkspace();
     }
   };
 
-  // 13. Bulk Delete Projects (Part B4 & F-07)
+  // Bulk Delete Projects
   const handleBulkDeleteProjects = async (projectIds: string[]) => {
     await api.projects.bulkDelete(projectIds);
-    await loadProjects();
+    queryCache.invalidate('projects:list');
+    projectIds.forEach(id => queryCache.invalidate(`project:${id}`));
+    if (currentUser?.id) clearNavDestination(currentUser.id);
+    await loadProjects(currentUser?.id, true);
     if (currentProject && projectIds.includes(currentProject.id)) {
       clearWorkspace();
     }
@@ -596,59 +796,92 @@ export const App: React.FC = () => {
     if (!adminUser || window.location.pathname === '/admin/login') {
       return (
         <React.Suspense fallback={<div style={{ padding: 24 }} role="status">Loading admin panel…</div>}>
-        <AdminLoginPage
-          onLoginSuccess={(session) => {
-            setAdminUser(session.user);
-            window.history.pushState({}, '', '/admin');
-            setIsAdminRoute(true);
-          }}
-        />
+          <AdminLoginPage
+            onLoginSuccess={(session) => {
+              setAdminUser(session.user);
+              window.history.pushState({}, '', '/admin');
+              setIsAdminRoute(true);
+            }}
+          />
         </React.Suspense>
       );
     }
 
     return (
       <React.Suspense fallback={<div style={{ padding: 24 }} role="status">Loading admin panel…</div>}>
-      <AdminApp
-        adminUser={adminUser}
-        initialPath={window.location.pathname}
-        onLogout={async () => {
-          try {
-            await api.admin.auth.logout();
-          } catch {}
-          setAdminUser(null);
-          window.history.pushState({}, '', '/admin/login');
-        }}
-      />
+        <AdminApp
+          adminUser={adminUser}
+          initialPath={window.location.pathname}
+          onLogout={async () => {
+            try {
+              await api.admin.auth.logout();
+            } catch {}
+            setAdminUser(null);
+            window.history.pushState({}, '', '/admin/login');
+          }}
+        />
       </React.Suspense>
     );
   }
 
-  // Loading Screen
-  if (authChecking) {
+  // Section 3: Instant Landing Page
+  // Public landing page renders immediately without waiting for /api/auth/me or any API response.
+  // If the user arrived directly with ?project= or ?workspace=, show the workspace frame while validating.
+  if (!userIntendsWorkspace) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sidebar-bg)', color: 'var(--text-main)', gap: 12 }}>
-        <Loader2 size={24} className="animate-spin" color="var(--primary-text)" />
-        <span>Loading Venture Atlas...</span>
-      </div>
+      <LandingPage
+        currentUser={currentUser}
+        onOpenWorkspace={() => {
+          setUserIntendsWorkspace(true);
+          if (currentUser?.id) {
+            loadProjects(currentUser.id);
+            const savedDest = getNavDestination(currentUser.id);
+            if (savedDest) {
+              const cached = queryCache.getCached<Project[]>('projects:list');
+              if (cached && cached.some(p => p.id === savedDest.projectId)) {
+                handleOpenProject(savedDest.projectId, savedDest.module, true);
+              }
+            }
+          }
+        }}
+        onAuthenticated={(sess) => {
+          setCurrentUser(sess.user);
+          setUserIntendsWorkspace(true);
+          loadProjects(sess.user.id);
+        }}
+      />
     );
   }
 
-  // If not logged in -> Landing Page
-  if (!currentUser) {
-    return <LandingPage onAuthenticated={(sess) => { setCurrentUser(sess.user); loadProjects(); }} />;
+  // If user intends workspace but session validation is still pending, or unauthenticated:
+  if (!currentUser && !authChecking) {
+    // Session check completed and confirmed unauthenticated -> return to LandingPage
+    return (
+      <LandingPage
+        currentUser={null}
+        onOpenWorkspace={() => setUserIntendsWorkspace(true)}
+        onAuthenticated={(sess) => {
+          setCurrentUser(sess.user);
+          setUserIntendsWorkspace(true);
+          loadProjects(sess.user.id);
+        }}
+      />
+    );
   }
 
-  // If no project selected -> Dashboard
+  // Section 4: Immediate Workspace Shell
+  // When no project is open: render the portfolio dashboard with stable skeletons
   if (!currentProject) {
     return (
       <>
         <DashboardPage
-          user={currentUser}
+          user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
           projects={projects}
+          projectsStatus={authChecking && !currentUser ? 'loading' : projectsStatus}
           projectsError={projectsError}
-          onRetryProjects={() => void loadProjects()}
+          onRetryProjects={() => void loadProjects(currentUser?.id, true)}
           onOpenProject={handleOpenProject}
+          onPrefetchProject={(pId) => prefetchProjectData(pId, currentUser?.id)}
           onCreateNewProject={() => setIsWizardOpen(true)}
           onDeleteProject={handleDeleteProject}
           onBulkDeleteProjects={handleBulkDeleteProjects}
@@ -656,24 +889,28 @@ export const App: React.FC = () => {
           onUserUpdated={(updated) => setCurrentUser(updated)}
         />
         {isWizardOpen && (
-          <NewProjectWizard
-            onProjectCreated={handleProjectCreated}
-            onCancel={() => setIsWizardOpen(false)}
-          />
+          <React.Suspense fallback={null}>
+            <NewProjectWizard
+              onProjectCreated={handleProjectCreated}
+              onCancel={() => setIsWizardOpen(false)}
+              userScope={currentUser?.id}
+            />
+          </React.Suspense>
         )}
       </>
     );
   }
 
-  // Main Application Workspace
+  // Active Project Workspace Shell
   return (
     <div className="app-layout">
-      {/* Sidebar with Navigation Memory */}
+      {/* Sidebar with Navigation Memory and Speculative Prefetch */}
       <Sidebar
         currentProject={currentProject}
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
-        onBackToDashboard={() => { clearWorkspace(); window.history.pushState({}, '', '/'); }}
+        onPrefetchModule={(mod) => prefetchModule(currentProject.id, mod, currentUser?.id)}
+        onBackToDashboard={() => { clearWorkspace(); window.history.pushState({}, '', '/?workspace=true'); }}
         onCreateNewProject={() => setIsWizardOpen(true)}
         onExportFullPdf={() => api.exports.downloadFullProjectPdf(currentProject.id, currentProject.name)}
         moduleVersionBadges={moduleBadges}
@@ -683,7 +920,7 @@ export const App: React.FC = () => {
         {/* Top Header */}
         <Header
           project={currentProject}
-          user={currentUser}
+          user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
           onLogout={logout}
           onEditProject={() => handleSelectModule('overview')}
           onSelectModule={handleSelectModule}
@@ -692,7 +929,19 @@ export const App: React.FC = () => {
 
         {/* Scrollable Workspace Body */}
         <div className="workspace-scroll-area">
-          {moduleError && <div className="card" role="alert"><p>{moduleError}</p><button type="button" className="btn-secondary" onClick={() => loadModuleContent(currentProject.id, activeModule)}>Retry loading</button></div>}
+          {moduleError && !moduleDetail && (
+            <div className="card" role="alert" style={{ marginBottom: 20 }}>
+              <p>{moduleError}</p>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => loadModuleContent(currentProject.id, activeModule, currentUser?.id, true)}
+              >
+                Retry loading
+              </button>
+            </div>
+          )}
+
           {/* Readiness Validation Failure Notification Banner */}
           {readinessError && (
             <div
@@ -747,147 +996,162 @@ export const App: React.FC = () => {
             </div>
           )}
 
-          <React.Suspense fallback={<div className="card" role="status" style={{ margin: 20 }}>Loading module…</div>}>
-          {activeModule === 'overview' && (
-            <OverviewModule
-              key={currentProject.id}
-              project={currentProject}
-              onUpdateProject={handleUpdateProject}
-              isLoading={moduleLoading}
-            />
-          )}
+          <React.Suspense fallback={<ModuleSkeleton moduleType={activeModule} />}>
+            {/* Stable loading design: Show skeleton when module is loading without cached data (Section 10) */}
+            {moduleStatus === 'loading' && !moduleDetail ? (
+              <ModuleSkeleton moduleType={activeModule} />
+            ) : (
+              <>
+                {activeModule === 'overview' && (
+                  <OverviewModule
+                    key={currentProject.id}
+                    project={currentProject}
+                    onUpdateProject={handleUpdateProject}
+                    isLoading={moduleLoading}
+                  />
+                )}
 
-          {activeModule === 'bmc' && (
-            <BMCModule
-              project={currentProject}
-              moduleDetail={moduleDetail as any}
-              onGenerate={() => handleGenerateModule('bmc')}
-              onModify={handleModifyModule}
-              onRenameVersion={handleRenameVersion}
-              onDeleteVersion={handleDeleteVersion}
-              onRestoreVersion={handleRestoreVersion}
-              onCreateNew={() => handleGenerateModule('bmc')}
-              onDeleteModule={() => handleDeleteModule('bmc')}
-              onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'bmc', currentProject.name)}
-              isLoading={moduleLoading}
-              isGenerating={Boolean(generatingProgress[`${currentProject.id}:bmc`])}
-              generationProgress={generatingProgress[`${currentProject.id}:bmc`] || null}
-              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:bmc`]}
-            />
-          )}
+                {activeModule === 'bmc' && (
+                  <BMCModule
+                    project={currentProject}
+                    moduleDetail={moduleDetail as any}
+                    onGenerate={() => handleGenerateModule('bmc')}
+                    onModify={handleModifyModule}
+                    onRenameVersion={handleRenameVersion}
+                    onDeleteVersion={handleDeleteVersion}
+                    onRestoreVersion={handleRestoreVersion}
+                    onCreateNew={() => handleGenerateModule('bmc')}
+                    onDeleteModule={() => handleDeleteModule('bmc')}
+                    onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'bmc', currentProject.name)}
+                    isLoading={moduleLoading}
+                    isGenerating={Boolean(generatingProgress[`${currentProject.id}:bmc`])}
+                    generationProgress={generatingProgress[`${currentProject.id}:bmc`] || null}
+                    isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:bmc`]}
+                  />
+                )}
 
-          {activeModule === 'tech_stack' && (
-            <TechStackModule
-              project={currentProject}
-              moduleDetail={moduleDetail as any}
-              onGenerate={(inputs) => handleGenerateModule('tech_stack', inputs)}
-              onModify={handleModifyModule}
-              onRenameVersion={handleRenameVersion}
-              onDeleteVersion={handleDeleteVersion}
-              onRestoreVersion={handleRestoreVersion}
-              onDeleteModule={() => handleDeleteModule('tech_stack')}
-              onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'tech_stack', currentProject.name)}
-              isLoading={moduleLoading}
-              isGenerating={Boolean(generatingProgress[`${currentProject.id}:tech_stack`])}
-              generationProgress={generatingProgress[`${currentProject.id}:tech_stack`] || null}
-              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:tech_stack`]}
-            />
-          )}
+                {activeModule === 'tech_stack' && (
+                  <TechStackModule
+                    project={currentProject}
+                    moduleDetail={moduleDetail as any}
+                    onGenerate={(inputs) => handleGenerateModule('tech_stack', inputs)}
+                    onModify={handleModifyModule}
+                    onRenameVersion={handleRenameVersion}
+                    onDeleteVersion={handleDeleteVersion}
+                    onRestoreVersion={handleRestoreVersion}
+                    onDeleteModule={() => handleDeleteModule('tech_stack')}
+                    onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'tech_stack', currentProject.name)}
+                    isLoading={moduleLoading}
+                    isGenerating={Boolean(generatingProgress[`${currentProject.id}:tech_stack`])}
+                    generationProgress={generatingProgress[`${currentProject.id}:tech_stack`] || null}
+                    isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:tech_stack`]}
+                  />
+                )}
 
-          {activeModule === 'idea_validator' && (
-            <IdeaValidatorModule
-              project={currentProject}
-              moduleDetail={moduleDetail as any}
-              onGenerate={() => handleGenerateModule('idea_validator')}
-              onDeleteModule={() => handleDeleteModule('idea_validator')}
-              onDeleteVersion={handleDeleteVersion}
-              onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'idea_validator', currentProject.name)}
-              isLoading={moduleLoading}
-              isGenerating={Boolean(generatingProgress[`${currentProject.id}:idea_validator`])}
-              generationProgress={generatingProgress[`${currentProject.id}:idea_validator`] || null}
-              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:idea_validator`]}
-            />
-          )}
+                {activeModule === 'idea_validator' && (
+                  <IdeaValidatorModule
+                    project={currentProject}
+                    moduleDetail={moduleDetail as any}
+                    onGenerate={() => handleGenerateModule('idea_validator')}
+                    onDeleteModule={() => handleDeleteModule('idea_validator')}
+                    onDeleteVersion={handleDeleteVersion}
+                    onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'idea_validator', currentProject.name)}
+                    isLoading={moduleLoading}
+                    isGenerating={Boolean(generatingProgress[`${currentProject.id}:idea_validator`])}
+                    generationProgress={generatingProgress[`${currentProject.id}:idea_validator`] || null}
+                    isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:idea_validator`]}
+                  />
+                )}
 
-          {activeModule === 'market_research' && (
-            <MarketResearchModule
-              project={currentProject}
-              moduleDetail={moduleDetail as any}
-              onGenerate={() => handleGenerateModule('market_research')}
-              onDeleteModule={() => handleDeleteModule('market_research')}
-              onDeleteVersion={handleDeleteVersion}
-              onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'market_research', currentProject.name)}
-              isLoading={moduleLoading}
-              isGenerating={Boolean(generatingProgress[`${currentProject.id}:market_research`])}
-              generationProgress={generatingProgress[`${currentProject.id}:market_research`] || null}
-              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:market_research`]}
-            />
-          )}
+                {activeModule === 'market_research' && (
+                  <MarketResearchModule
+                    project={currentProject}
+                    moduleDetail={moduleDetail as any}
+                    onGenerate={() => handleGenerateModule('market_research')}
+                    onDeleteModule={() => handleDeleteModule('market_research')}
+                    onDeleteVersion={handleDeleteVersion}
+                    onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'market_research', currentProject.name)}
+                    isLoading={moduleLoading}
+                    isGenerating={Boolean(generatingProgress[`${currentProject.id}:market_research`])}
+                    generationProgress={generatingProgress[`${currentProject.id}:market_research`] || null}
+                    isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:market_research`]}
+                  />
+                )}
 
-          {activeModule === 'execution_roadmap' && (
-            <ExecutionRoadmapModule
-              project={currentProject}
-              moduleDetail={moduleDetail}
-              tasks={tasks}
-              summary={summary}
-              onGenerate={(inputs) => handleGenerateModule('execution_roadmap', inputs)}
-              onModify={handleModifyModule}
-              onAddTask={handleAddTask}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onRenameVersion={handleRenameVersion}
-              onDeleteVersion={handleDeleteVersion}
-              onRestoreVersion={handleRestoreVersion}
-              onDeleteModule={() => handleDeleteModule('execution_roadmap')}
-              onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'execution_roadmap', currentProject.name)}
-              isLoading={moduleLoading}
-              isGenerating={Boolean(generatingProgress[`${currentProject.id}:execution_roadmap`])}
-              generationProgress={generatingProgress[`${currentProject.id}:execution_roadmap`] || null}
-              isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:execution_roadmap`]}
-            />
-          )}
+                {activeModule === 'execution_roadmap' && (
+                  <ExecutionRoadmapModule
+                    project={currentProject}
+                    moduleDetail={moduleDetail}
+                    tasks={tasks}
+                    summary={summary}
+                    onGenerate={(inputs) => handleGenerateModule('execution_roadmap', inputs)}
+                    onModify={handleModifyModule}
+                    onAddTask={handleAddTask}
+                    onUpdateTask={handleUpdateTask}
+                    onDeleteTask={handleDeleteTask}
+                    onRenameVersion={handleRenameVersion}
+                    onDeleteVersion={handleDeleteVersion}
+                    onRestoreVersion={handleRestoreVersion}
+                    onDeleteModule={() => handleDeleteModule('execution_roadmap')}
+                    onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'execution_roadmap', currentProject.name)}
+                    isLoading={moduleLoading}
+                    isGenerating={Boolean(generatingProgress[`${currentProject.id}:execution_roadmap`])}
+                    generationProgress={generatingProgress[`${currentProject.id}:execution_roadmap`] || null}
+                    isGenerateDisabled={Object.keys(generatingProgress).length > 0 && !generatingProgress[`${currentProject.id}:execution_roadmap`]}
+                  />
+                )}
 
-          {activeModule === 'blueprint_copilot' && (
-            <BlueprintCopilotModule
-              project={currentProject}
-              messages={copilotMessages}
-              onSendMessage={async (msg) => {
-                const projectId = currentProject.id;
-                await runModuleMutation(async () => {
-                  await api.copilot.sendMessage(projectId, msg);
-                  if (isViewing(projectId, 'blueprint_copilot')) {
-                    const history = await api.copilot.getHistory(projectId);
-                    if (isViewing(projectId, 'blueprint_copilot')) setCopilotMessages(history);
-                  }
-                });
-              }}
-              isLoading={moduleLoading}
-            />
-          )}
+                {activeModule === 'blueprint_copilot' && (
+                  <BlueprintCopilotModule
+                    project={currentProject}
+                    messages={copilotMessages}
+                    userScope={currentUser?.id}
+                    onSendMessage={async (msg) => {
+                      const projectId = currentProject.id;
+                      await runModuleMutation(async () => {
+                        await api.copilot.sendMessage(projectId, msg);
+                        queryCache.invalidate(`copilot:history:${projectId}`);
+                        if (isViewing(projectId, 'blueprint_copilot')) {
+                          const history = await api.copilot.getHistory(projectId);
+                          if (isViewing(projectId, 'blueprint_copilot')) setCopilotMessages(history);
+                        }
+                      });
+                    }}
+                    isLoading={moduleLoading}
+                  />
+                )}
+              </>
+            )}
           </React.Suspense>
         </div>
       </div>
 
-      {/* New Project Wizard Modal */}
+      {/* New Project Wizard Modal - Lazy Loaded */}
       {isWizardOpen && (
-        <NewProjectWizard
-          onProjectCreated={handleProjectCreated}
-          onCancel={() => setIsWizardOpen(false)}
-        />
+        <React.Suspense fallback={null}>
+          <NewProjectWizard
+            onProjectCreated={handleProjectCreated}
+            onCancel={() => setIsWizardOpen(false)}
+            userScope={currentUser?.id}
+          />
+        </React.Suspense>
       )}
 
-      {/* 5-Version Conflict Resolution Modal */}
+      {/* 5-Version Conflict Resolution Modal - Lazy Loaded */}
       {conflictModalOpen && conflictData && (
-        <VersionConflictModal
-          moduleTitle={conflictData.moduleTitle}
-          existingVersions={conflictData.existingVersions}
-          pendingInstruction={conflictData.pendingInstruction}
-          onResolveReplace={handleResolveReplace}
-          onCancel={() => setConflictModalOpen(false)}
-          isLoading={moduleLoading}
-        />
+        <React.Suspense fallback={null}>
+          <VersionConflictModal
+            moduleTitle={conflictData.moduleTitle}
+            existingVersions={conflictData.existingVersions}
+            pendingInstruction={conflictData.pendingInstruction}
+            onResolveReplace={handleResolveReplace}
+            onCancel={() => setConflictModalOpen(false)}
+            isLoading={moduleLoading}
+          />
+        </React.Suspense>
       )}
     </div>
   );
 };
+
 export default App;

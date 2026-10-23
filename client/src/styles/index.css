@@ -1601,3 +1601,28 @@ th, td { vertical-align: top; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .project-card:hover { transform: none; } }
 
 @media (max-width: 640px) { .overview-fields { grid-template-columns: minmax(0,1fr) !important; } }
+
+/* Accessible skeleton loading styles (Batch 03) */
+.skeleton {
+  background: color-mix(in srgb, var(--linen) 40%, var(--paper));
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes skeleton-pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.5; }
+}
+
+.skeleton-pulse {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-pulse {
+    animation: none !important;
+    opacity: 0.75 !important;
+  }
+}
