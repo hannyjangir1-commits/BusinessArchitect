@@ -5,15 +5,17 @@ import {
   TrendingUp, Calendar, Bot, ArrowRight, Plus, Check
 } from 'lucide-react';
 
+export type ModuleBadgeStatus = 'unknown' | 'loading' | 'generated' | 'not-generated' | 'error';
+
 interface Props {
-  currentProject: Project;
+  currentProject: Project | null;
   activeModule: string;
   onSelectModule: (module: string) => void;
   onPrefetchModule?: (module: string) => void;
   onBackToDashboard: () => void;
   onCreateNewProject: () => void;
   onExportFullPdf: () => void;
-  moduleVersionBadges?: Record<string, { version: string; isGenerated: boolean }>;
+  moduleVersionBadges?: Record<string, { version?: string; isGenerated?: boolean; status?: ModuleBadgeStatus }>;
 }
 
 export const Sidebar: React.FC<Props> = ({
@@ -90,12 +92,14 @@ export const Sidebar: React.FC<Props> = ({
           <div className="project-summary-header" style={{ marginBottom: 0 }}>
             <div className="project-name-edit">
               <span style={{ maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                {currentProject.name}
+                {currentProject?.id ? currentProject.name : 'Loading project…'}
               </span>
             </div>
-            <span className="stage-pill-small">
-              {currentProject.stage.includes('Growth') ? 'Growth' : currentProject.stage}
-            </span>
+            {currentProject?.stage ? (
+              <span className="stage-pill-small">
+                {currentProject.stage.includes('Growth') ? 'Growth' : currentProject.stage}
+              </span>
+            ) : null}
           </div>
         </div>
       )}
@@ -105,9 +109,38 @@ export const Sidebar: React.FC<Props> = ({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeModule === item.id || (item.id === 'execution_roadmap' && activeModule === 'detailed_roadmap');
-          // Only overview is default true, all other blueprints are strictly driven by persisted active version
-          const badge = moduleVersionBadges[item.id] || { version: 'V1', isGenerated: item.id === 'overview' };
-          const moduleStatus = isActive ? 'Currently open' : badge.isGenerated ? 'Generated' : 'Not generated';
+          const badge = moduleVersionBadges[item.id];
+          const isCopilot = item.id === 'blueprint_copilot';
+          const isOverview = item.id === 'overview';
+
+          let status: ModuleBadgeStatus = 'unknown';
+          if (isOverview) {
+            status = 'generated';
+          } else if (badge?.status) {
+            status = badge.status;
+          } else if (badge?.isGenerated === true) {
+            status = 'generated';
+          } else if (badge?.isGenerated === false) {
+            status = 'not-generated';
+          }
+
+          let statusLabel = '';
+          if (isActive) {
+            statusLabel = 'Currently open';
+          } else if (isCopilot) {
+            statusLabel = 'Interactive assistant';
+          } else if (status === 'generated') {
+            statusLabel = 'Generated';
+          } else if (status === 'not-generated') {
+            statusLabel = 'Not generated';
+          } else if (status === 'error') {
+            statusLabel = 'Status check failed';
+          } else if (status === 'loading') {
+            statusLabel = 'Checking status';
+          }
+
+          const accessibilityTitle = statusLabel ? `${item.label} · ${statusLabel}` : item.label;
+          const accessibilityLabel = statusLabel ? `${item.label}, ${statusLabel}` : item.label;
 
           return (
             <button
@@ -117,8 +150,8 @@ export const Sidebar: React.FC<Props> = ({
               onClick={() => onSelectModule(item.id)}
               onPointerEnter={() => onPrefetchModule?.(item.id)}
               onFocus={() => onPrefetchModule?.(item.id)}
-              title={`${item.label} · ${moduleStatus}`}
-              aria-label={`${item.label}, ${moduleStatus}`}
+              title={accessibilityTitle}
+              aria-label={accessibilityLabel}
             >
               <div className="nav-item-left">
                 <Icon size={17} />
@@ -128,11 +161,13 @@ export const Sidebar: React.FC<Props> = ({
                 <div className="nav-item-right">
                   {isActive ? (
                     <span className="status-dot-active" aria-hidden="true" />
-                  ) : badge.isGenerated ? (
+                  ) : isCopilot ? (
+                    <span style={{ display: 'inline-flex', opacity: 0.7 }} aria-hidden="true"><Bot size={12} /></span>
+                  ) : status === 'generated' ? (
                     <span className="status-dot-green" aria-hidden="true"><Check size={10} strokeWidth={3} /></span>
-                  ) : (
+                  ) : status === 'not-generated' ? (
                     <span className="status-dot-gray" aria-hidden="true" />
-                  )}
+                  ) : null}
                 </div>
               )}
             </button>
@@ -143,7 +178,8 @@ export const Sidebar: React.FC<Props> = ({
       {/* Sidebar Footer with Export PDF directly above Create New Project */}
       <div className="sidebar-footer">
         <button
-          onClick={onExportFullPdf}
+          onClick={currentProject?.id ? onExportFullPdf : undefined}
+          disabled={!currentProject?.id}
           className="export-project-btn"
           title="Export Project (PDF)"
         >

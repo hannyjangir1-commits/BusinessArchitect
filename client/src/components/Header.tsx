@@ -22,7 +22,7 @@ interface ProjectSearchResult {
 }
 
 interface Props {
-  project: Project;
+  project: Project | null;
   user: User;
   onLogout: () => Promise<void>;
   onEditProject?: () => void;
@@ -44,7 +44,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
 
   useEffect(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (query.length < 2) return;
+    if (!project?.id || query.length < 2) return;
 
     let cancelled = false;
     const timer = window.setTimeout(async () => {
@@ -94,7 +94,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [searchQuery, project.id, project.name, project.description, project.industry, project.target_customers, project.goals, project.business_context, project.budget, project.generated_modules, project.active_module]);
+  }, [searchQuery, project?.id, project?.name, project?.description, project?.industry, project?.target_customers, project?.goals, project?.business_context, project?.budget, project?.generated_modules, project?.active_module]);
 
   const checkServiceHealth = async () => {
     setHealthOpen(true);
@@ -129,18 +129,29 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
     <header className="top-header">
       {/* Left: Project title and details */}
       <div className="header-left">
-        <div className="header-title-row">
-          <h2>{project.name}</h2>
-          <button type="button" title="Edit project details" aria-label="Edit project details" style={{ display: 'inline-flex', cursor: 'pointer', border: 0, padding: 3, background: 'transparent', color: 'var(--text-muted)' }} onClick={onEditProject}>
-            <Edit3 size={14} color="var(--text-muted)" />
-          </button>
-          <span className="stage-badge-purple">
-            {project.stage === 'Idea / MVP' ? 'MVP' : project.stage}
-          </span>
-        </div>
-        <p className="header-subtitle">
-          {project.description || `${project.industry || 'Technology'} venture blueprint`}
-        </p>
+        {project?.id ? (
+          <>
+            <div className="header-title-row">
+              <h2>{project.name}</h2>
+              <button type="button" title="Edit project details" aria-label="Edit project details" style={{ display: 'inline-flex', cursor: 'pointer', border: 0, padding: 3, background: 'transparent', color: 'var(--text-muted)' }} onClick={onEditProject}>
+                <Edit3 size={14} color="var(--text-muted)" />
+              </button>
+              {project.stage && (
+                <span className="stage-badge-purple">
+                  {project.stage === 'Idea / MVP' ? 'MVP' : project.stage}
+                </span>
+              )}
+            </div>
+            <p className="header-subtitle">
+              {project.description || `${project.industry || 'Technology'} venture blueprint`}
+            </p>
+          </>
+        ) : (
+          <div className="header-skeleton" style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 200 }}>
+            <div className="skeleton-line" style={{ width: 140, height: 20, borderRadius: 4, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+            <div className="skeleton-line" style={{ width: 220, height: 12, borderRadius: 4, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+          </div>
+        )}
       </div>
 
       {/* Right: Search, tools, and user account */}

@@ -241,7 +241,11 @@ export const DashboardPage: React.FC<Props> = ({
               Your venture portfolio
             </h1>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-              Welcome back, <b>{user.username}</b>. Manage your enterprise business blueprints, technology stacks, and execution roadmaps.
+              {user.id === 'pending' || !user.username || user.username === 'Loading...' ? (
+                <>Welcome to your enterprise business blueprints, technology stacks, and execution roadmaps.</>
+              ) : (
+                <>Welcome back, <b>{user.username}</b>. Manage your enterprise business blueprints, technology stacks, and execution roadmaps.</>
+              )}
             </p>
           </div>
 
@@ -277,67 +281,72 @@ export const DashboardPage: React.FC<Props> = ({
         </div>
 
         {/* Section B: Portfolio Overview Statistics */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-          {/* Projects Meter */}
-          <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Project Allocation</span>
-              <span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: 12,
-                background: isLimitReached ? 'var(--bg-subtle)' : 'rgb(69 60 55 / 0.1)',
-                color: isLimitReached ? 'var(--danger-text)' : 'var(--primary)'
-              }}>
-                {totalProjects} / {maxProjects} Limit
-              </span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
-              {totalProjects} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Active {totalProjects === 1 ? 'Venture' : 'Ventures'}</span>
-            </div>
-            <div style={{ width: '100%', height: 6, background: 'var(--border-color)', borderRadius: 9999, overflow: 'hidden', marginTop: 4 }}>
-              <div style={{
-                width: `${Math.min(100, (totalProjects / maxProjects) * 100)}%`,
-                height: '100%',
-                background: isLimitReached ? 'var(--danger-text)' : 'var(--primary-text)',
-                borderRadius: 9999,
-                transition: 'width 0.3s ease'
-              }} />
-            </div>
-            {isLimitReached && (
-              <span style={{ fontSize: 11, color: 'var(--danger-text)', fontWeight: 600 }}>10 / 10 projects used. Delete a project to free a slot.</span>
-            )}
-          </div>
+        {(() => {
+          const isDataLoading = projectsStatus === 'loading' || projectsStatus === 'idle' || user.id === 'pending';
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+              {/* Projects Meter */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Project Allocation</span>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    background: isLimitReached ? 'var(--bg-subtle)' : 'rgb(69 60 55 / 0.1)',
+                    color: isLimitReached ? 'var(--danger-text)' : 'var(--primary)'
+                  }}>
+                    {isDataLoading ? '— / 10 Limit' : `${totalProjects} / ${maxProjects} Limit`}
+                  </span>
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
+                  {isDataLoading ? '—' : totalProjects} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Active {isDataLoading ? 'Ventures' : totalProjects === 1 ? 'Venture' : 'Ventures'}</span>
+                </div>
+                <div style={{ width: '100%', height: 6, background: 'var(--border-color)', borderRadius: 9999, overflow: 'hidden', marginTop: 4 }}>
+                  <div style={{
+                    width: isDataLoading ? '0%' : `${Math.min(100, (totalProjects / maxProjects) * 100)}%`,
+                    height: '100%',
+                    background: isLimitReached ? 'var(--danger-text)' : 'var(--primary-text)',
+                    borderRadius: 9999,
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                {isLimitReached && (
+                  <span style={{ fontSize: 11, color: 'var(--danger-text)', fontWeight: 600 }}>10 / 10 projects used. Delete a project to free a slot.</span>
+                )}
+              </div>
 
-          {/* Synthesized Modules */}
-          <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Synthesized Modules</span>
-              <CheckCircle size={16} color="var(--primary-text)" />
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
-              {totalCompletedModules} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Generated Modules</span>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-              Across BMC, Tech Stack, Validator, Market Research, and Roadmaps.
-            </p>
-          </div>
+              {/* Synthesized Modules */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Synthesized Modules</span>
+                  <CheckCircle size={16} color="var(--primary-text)" />
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
+                  {isDataLoading ? '—' : totalCompletedModules} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Generated Modules</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                  {isDataLoading ? 'Loading module synthesis…' : 'Across BMC, Tech Stack, Validator, Market Research, and Roadmaps.'}
+                </p>
+              </div>
 
-          {/* Execution Tasks */}
-          <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Execution Roadmap Progress</span>
-              <Clock size={16} color="var(--primary)" />
+              {/* Execution Tasks */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Execution Roadmap Progress</span>
+                  <Clock size={16} color="var(--primary)" />
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
+                  {isDataLoading ? '— / —' : `${totalCompletedTasks} / ${totalTasksCount}`} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Tasks Done</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                  {isDataLoading ? 'Loading execution progress…' : totalTasksCount > 0 ? `${Math.round((totalCompletedTasks / totalTasksCount) * 100)}% overall completion rate` : 'No tasks assigned yet'}
+                </p>
+              </div>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
-              {totalCompletedTasks} / {totalTasksCount} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Tasks Done</span>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-              {totalTasksCount > 0 ? `${Math.round((totalCompletedTasks / totalTasksCount) * 100)}% overall completion rate` : 'No tasks assigned yet'}
-            </p>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Section F: Quick Module Shortcuts */}
         {totalProjects > 0 && (

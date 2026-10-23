@@ -40,11 +40,64 @@ const EMPTY_SUMMARY: RoadmapSummary = {
   total_tasks: 0, completed_tasks: 0, overall_progress: 0
 };
 
+export type AuthState = 'pending' | 'authenticated' | 'rejected';
+export type DestinationState = 'idle' | 'pending' | 'valid' | 'invalid';
+export type ModuleLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
+export type ModuleBadgeStatus = 'unknown' | 'loading' | 'generated' | 'not-generated' | 'error';
+
+export interface ModuleBadgeState {
+  version: string;
+  isGenerated?: boolean;
+  status: ModuleBadgeStatus;
+}
+
+const INITIAL_MODULE_BADGES: Record<string, ModuleBadgeState> = {
+  overview: { version: 'V1', isGenerated: true, status: 'generated' },
+  bmc: { version: 'V1', status: 'unknown' },
+  tech_stack: { version: 'V1', status: 'unknown' },
+  idea_validator: { version: 'V1', status: 'unknown' },
+  market_research: { version: 'V1', status: 'unknown' },
+  execution_roadmap: { version: 'V1', status: 'unknown' },
+  blueprint_copilot: { version: 'V1', status: 'generated' }
+};
+
+const NEUTRAL_PROJECT_SHELL: Project = {
+  id: '',
+  name: 'Workspace',
+  stage: 'Idea',
+  description: '',
+  industry: '',
+  target_customers: '',
+  goals: '',
+  business_context: '',
+  budget: '',
+  active_module: 'execution_roadmap',
+  tasks_count: 0,
+  completed_tasks_count: 0,
+  progress_percentage: 0,
+  generated_modules: [],
+  created_at: '',
+  updated_at: '',
+};
+
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const currentUserRef = useRef<User | null>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [_authState, setAuthState] = useState<AuthState>('pending');
 
+  const [destinationState, setDestinationState] = useState<DestinationState>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('project') ? 'pending' : 'idle';
+  });
+  const [requestedDestination, setRequestedDestination] = useState<{ projectId: string; module: string } | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pId = params.get('project');
+    if (pId) {
+      return { projectId: pId, module: normalizeModuleType(params.get('module') || 'execution_roadmap') };
+    }
+    return null;
+  });
 
   // Track explicit user intent to view workspace vs public landing page
   const [userIntendsWorkspace, setUserIntendsWorkspace] = useState<boolean>(() => {
@@ -161,6 +214,7 @@ export const App: React.FC = () => {
     setConflictModalOpen(false);
     setConflictData(null);
     setModuleLoading(false);
+    setModuleBadges(INITIAL_MODULE_BADGES);
   };
 
   const clearSession = () => {
@@ -177,6 +231,10 @@ export const App: React.FC = () => {
     if (navPersistTimerRef.current) clearTimeout(navPersistTimerRef.current);
     setGeneratingProgress({});
     mutationKeysRef.current.clear();
+    setModuleBadges(INITIAL_MODULE_BADGES);
+    setAuthState('rejected');
+    setDestinationState('idle');
+    setRequestedDestination(null);
     document.body.style.removeProperty('font-family');
   };
 
@@ -195,26 +253,24 @@ export const App: React.FC = () => {
   };
 
 
-  const [moduleBadges, setModuleBadges] = useState<Record<string, { version: string; isGenerated: boolean }>>({
-    overview: { version: 'V1', isGenerated: true },
-    bmc: { version: 'V1', isGenerated: false },
-    tech_stack: { version: 'V1', isGenerated: false },
-    idea_validator: { version: 'V1', isGenerated: false },
-    market_research: { version: 'V1', isGenerated: false },
-    execution_roadmap: { version: 'V1', isGenerated: false },
-    blueprint_copilot: { version: 'V1', isGenerated: false }
-  });
+  const [moduleBadges, setModuleBadges] = useState<Record<string, ModuleBadgeState>>(INITIAL_MODULE_BADGES);
 
   const updateBadgeForModule = (moduleType: string, detail: ModuleDetail | null) => {
     if (!detail) return;
     const vStr = detail.active_version_name || (detail.active_version_number ? `V${detail.active_version_number}` : 'V1');
-    setModuleBadges(prev => ({
-      ...prev,
-      [moduleType]: {
-        version: vStr,
-        isGenerated: !!detail.data
-      }
-    }));
+    const isGen = !!detail.data;
+    setModuleBadges(prev => {
+      const prevMod = prev[moduleType];
+      const isConfirmedGenerated = prevMod?.status === 'generated' || isGen;
+      return {
+        ...prev,
+        [moduleType]: {
+          version: vStr,
+          isGenerated: isConfirmedGenerated,
+          status: isConfirmedGenerated ? 'generated' : 'not-generated'
+        }
+      };
+    });
   };
 
   // Cached, Deduplicated Project Loading (Section 6 & 7)
@@ -263,6 +319,7 @@ export const App: React.FC = () => {
         const session = await api.auth.getMe();
         if (isCancelled) return;
         if (session && session.user) {
+          setAuthState('authenticated');
           const newUserId = session.user.id;
           if (currentUserRef.current && currentUserRef.current.id !== newUserId) {
             queryCache.clearAll();
@@ -270,6 +327,7 @@ export const App: React.FC = () => {
             clearAllNavDestinations();
             cancelPrefetchQueue();
             clearWorkspace();
+            setModuleBadges(INITIAL_MODULE_BADGES);
           } else {
             queryCache.enforceUserScope(newUserId);
             clearOtherUserNavDestinations(newUserId);
@@ -290,10 +348,21 @@ export const App: React.FC = () => {
           const onAdmin = window.location.pathname.startsWith('/admin');
 
           if (deepProjectId && !onAdmin) {
-            setUserIntendsWorkspace(true);
-            await openProjectRef.current(deepProjectId, route.get('module') || undefined, false);
+            const projectExists = projs && projs.some(p => p.id === deepProjectId);
+            if (projectExists) {
+              setDestinationState('valid');
+              setUserIntendsWorkspace(true);
+              await openProjectRef.current(deepProjectId, route.get('module') || undefined, false);
+            } else {
+              setDestinationState('invalid');
+              setRequestedDestination(null);
+              setUserIntendsWorkspace(true);
+              window.history.replaceState({}, '', '/?workspace=true');
+            }
           } else if (!onAdmin && route.get('workspace') === 'true') {
             setUserIntendsWorkspace(true);
+            setDestinationState('idle');
+            setRequestedDestination(null);
             // Restore last valid saved destination
             const savedDest = getNavDestination(userScope);
             if (savedDest && projs && projs.some(p => p.id === savedDest.projectId)) {
@@ -301,10 +370,23 @@ export const App: React.FC = () => {
             } else if (savedDest) {
               clearNavDestination(userScope);
             }
+          } else {
+            setDestinationState('idle');
+            setRequestedDestination(null);
           }
+        } else {
+          setAuthState('rejected');
+          setCurrentUser(null);
+          setRequestedDestination(null);
+          setDestinationState('invalid');
         }
       } catch {
-        if (!isCancelled) setCurrentUser(null);
+        if (!isCancelled) {
+          setAuthState('rejected');
+          setCurrentUser(null);
+          setRequestedDestination(null);
+          setDestinationState('invalid');
+        }
       } finally {
         if (!isCancelled) setAuthChecking(false);
       }
@@ -351,11 +433,20 @@ export const App: React.FC = () => {
       } else {
         const route = new URLSearchParams(window.location.search);
         const projectId = route.get('project');
+        const moduleId = route.get('module') || undefined;
         if (projectId) {
           setUserIntendsWorkspace(true);
-          void openProjectRef.current(projectId, route.get('module') || undefined, false);
+          const canonical = normalizeModuleType(moduleId || 'execution_roadmap');
+          setRequestedDestination({
+            projectId,
+            module: canonical
+          });
+          setDestinationState('pending');
+          void openProjectRef.current(projectId, moduleId, false);
         } else {
           clearWorkspace();
+          setRequestedDestination(null);
+          setDestinationState('idle');
           if (route.get('workspace') !== 'true') {
             // If navigating back to root without workspace param
             setUserIntendsWorkspace(false);
@@ -378,13 +469,28 @@ export const App: React.FC = () => {
     activeProjectIdRef.current = projectId;
     setModuleLoading(true);
 
-    // Optimistically use cached project metadata if available
+    // Optimistically use cached project metadata if available for the same project
     const cachedProj = queryCache.getCached<Project>(`project:${projectId}`, currentUser?.id) ||
       projects.find(p => p.id === projectId);
 
-
     if (cachedProj) {
       setCurrentProject(cachedProj);
+      if (cachedProj.generated_modules) {
+        const genSet = new Set(cachedProj.generated_modules);
+        setModuleBadges({
+          overview: { version: 'V1', isGenerated: true, status: 'generated' },
+          bmc: { version: 'V1', isGenerated: genSet.has('bmc'), status: genSet.has('bmc') ? 'generated' : 'not-generated' },
+          tech_stack: { version: 'V1', isGenerated: genSet.has('tech_stack'), status: genSet.has('tech_stack') ? 'generated' : 'not-generated' },
+          idea_validator: { version: 'V1', isGenerated: genSet.has('idea_validator'), status: genSet.has('idea_validator') ? 'generated' : 'not-generated' },
+          market_research: { version: 'V1', isGenerated: genSet.has('market_research'), status: genSet.has('market_research') ? 'generated' : 'not-generated' },
+          execution_roadmap: { version: 'V1', isGenerated: genSet.has('execution_roadmap'), status: genSet.has('execution_roadmap') ? 'generated' : 'not-generated' },
+          blueprint_copilot: { version: 'V1', isGenerated: true, status: 'generated' }
+        });
+      } else {
+        setModuleBadges(INITIAL_MODULE_BADGES);
+      }
+    } else {
+      setModuleBadges(INITIAL_MODULE_BADGES);
     }
 
     try {
@@ -398,13 +504,13 @@ export const App: React.FC = () => {
 
       const genModules = new Set(proj.generated_modules || []);
       setModuleBadges({
-        overview: { version: 'V1', isGenerated: true },
-        bmc: { version: 'V1', isGenerated: genModules.has('bmc') },
-        tech_stack: { version: 'V1', isGenerated: genModules.has('tech_stack') },
-        idea_validator: { version: 'V1', isGenerated: genModules.has('idea_validator') },
-        market_research: { version: 'V1', isGenerated: genModules.has('market_research') },
-        execution_roadmap: { version: 'V1', isGenerated: genModules.has('execution_roadmap') },
-        blueprint_copilot: { version: 'V1', isGenerated: false }
+        overview: { version: 'V1', isGenerated: true, status: 'generated' },
+        bmc: { version: 'V1', isGenerated: genModules.has('bmc'), status: genModules.has('bmc') ? 'generated' : 'not-generated' },
+        tech_stack: { version: 'V1', isGenerated: genModules.has('tech_stack'), status: genModules.has('tech_stack') ? 'generated' : 'not-generated' },
+        idea_validator: { version: 'V1', isGenerated: genModules.has('idea_validator'), status: genModules.has('idea_validator') ? 'generated' : 'not-generated' },
+        market_research: { version: 'V1', isGenerated: genModules.has('market_research'), status: genModules.has('market_research') ? 'generated' : 'not-generated' },
+        execution_roadmap: { version: 'V1', isGenerated: genModules.has('execution_roadmap'), status: genModules.has('execution_roadmap') ? 'generated' : 'not-generated' },
+        blueprint_copilot: { version: 'V1', isGenerated: true, status: 'generated' }
       });
 
       const targetModule = normalizeModuleType(targetModuleOverride || proj.active_module || 'execution_roadmap');
@@ -427,6 +533,16 @@ export const App: React.FC = () => {
       }
     } catch (err: any) {
       if (isViewing(projectId)) {
+        // Failed metadata refresh must not turn generated modules into "Not generated"
+        setModuleBadges(prev => {
+          const next = { ...prev };
+          for (const key of Object.keys(next)) {
+            if (next[key].status !== 'generated') {
+              next[key] = { ...next[key], status: 'error' };
+            }
+          }
+          return next;
+        });
         clearWorkspace();
         alert(err.message || 'Failed to open project');
       }
@@ -714,7 +830,7 @@ export const App: React.FC = () => {
       setProjects(prev => prev.map(project => project.id === projectId ? removeGenerated(project) : project));
       setCurrentProject(prev => prev?.id === projectId ? removeGenerated(prev) : prev);
       if (isViewing(projectId)) {
-        setModuleBadges(prev => ({ ...prev, [targetModuleType]: { version: 'V1', isGenerated: false } }));
+        setModuleBadges(prev => ({ ...prev, [targetModuleType]: { version: 'V1', isGenerated: false, status: 'not-generated' } }));
         if (isViewing(projectId, targetModuleType)) {
           setModuleDetail(null);
           setModuleStatus('success-empty');
@@ -890,6 +1006,45 @@ export const App: React.FC = () => {
           loadProjects(sess.user.id);
         }}
       />
+    );
+  }
+
+  // Section 4: Immediate Neutral Workspace Shell during restoration
+  // If user requested a project/module URL destination, render neutral workspace shell immediately
+  // while auth or destination validation is pending, avoiding the portfolio flash!
+  if (requestedDestination && destinationState !== 'invalid' && (!currentProject || !currentUser)) {
+    const targetModule = requestedDestination.module || activeModule || 'execution_roadmap';
+    return (
+      <div className="app-layout">
+        <Sidebar
+          currentProject={NEUTRAL_PROJECT_SHELL}
+          activeModule={targetModule}
+          onSelectModule={(mod) => {
+            const canonical = normalizeModuleType(mod);
+            setRequestedDestination(prev => prev ? { ...prev, module: canonical } : null);
+            setActiveModule(canonical);
+          }}
+          onBackToDashboard={() => {
+            setRequestedDestination(null);
+            setDestinationState('idle');
+            clearWorkspace();
+            window.history.pushState({}, '', '/?workspace=true');
+          }}
+          onCreateNewProject={() => {}}
+          onExportFullPdf={() => {}}
+          moduleVersionBadges={INITIAL_MODULE_BADGES}
+        />
+        <div className="main-wrapper">
+          <Header
+            project={NEUTRAL_PROJECT_SHELL}
+            user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
+            onLogout={logout}
+          />
+          <main className="content-area">
+            <ModuleSkeleton moduleType={targetModule} />
+          </main>
+        </div>
+      </div>
     );
   }
 
