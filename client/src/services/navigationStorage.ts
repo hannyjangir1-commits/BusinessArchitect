@@ -122,3 +122,20 @@ export function clearAllNavDestinations(): void {
     // Ignore
   }
 }
+
+export function clearOtherUserNavDestinations(currentUserScope: string): void {
+  if (!currentUserScope) return;
+  const currentKey = getStorageKey(currentUserScope);
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(STORAGE_PREFIX) && k !== currentKey) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch {
+    // Ignore
+  }
+}

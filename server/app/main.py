@@ -173,8 +173,117 @@ async def diagnostics_middleware(request: Request, call_next):
         _current_request_id.reset(token_req_id)
 
 # Response compression middleware for compressible payloads (Batch 03)
-from starlette.middleware.gzip import GZipMiddleware
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# Reliably respects minimum_size threshold and excludes already-compressed media types
+import gzip as gzip_module
+import zlib
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from starlette.datastructures import Headers as StarletteHeaders, MutableHeaders as StarletteMutableHeaders
+
+class SmartGZipMiddleware:
+    """
+    ASGI response compression middleware that reliably respects the minimum_size threshold
+    and prevents compressing already-compressed file types.
+    """
+    def __init__(self, app: ASGIApp, minimum_size: int = 1000):
+        self.app = app
+        self.minimum_size = minimum_size
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = StarletteHeaders(scope=scope)
+        accept_encoding = headers.get("Accept-Encoding", "")
+        if "gzip" not in accept_encoding:
+            await self.app(scope, receive, send)
+            return
+
+        initial_message = None
+        started = False
+        buffer = []
+        buffer_size = 0
+        compressor = None
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal initial_message, started, buffer, buffer_size, compressor
+            if message["type"] == "http.response.start":
+                initial_message = message
+                return
+
+            if message["type"] == "http.response.body":
+                body = message.get("body", b"")
+                more_body = message.get("more_body", False)
+
+                if not started:
+                    buffer.append(body)
+                    buffer_size += len(body)
+
+                    if not more_body:
+                        # Full response received
+                        full_body = b"".join(buffer)
+                        raw_headers = StarletteMutableHeaders(raw=initial_message["headers"])
+                        content_type = raw_headers.get("content-type", "").partition(";")[0].strip().lower()
+                        is_excluded = any(
+                            content_type.startswith(ex.rstrip("*"))
+                            for ex in ("image/", "video/", "audio/", "font/", "application/zip", "application/gzip", "text/event-stream")
+                        ) or "content-encoding" in raw_headers
+
+                        if buffer_size < self.minimum_size or is_excluded:
+                            # Send original uncompressed response
+                            await send(initial_message)
+                            await send({"type": "http.response.body", "body": full_body, "more_body": False})
+                        else:
+                            # Compress with gzip
+                            compressed = gzip_module.compress(full_body, compresslevel=6)
+                            raw_headers.add_vary_header("Accept-Encoding")
+                            raw_headers["Content-Encoding"] = "gzip"
+                            raw_headers["Content-Length"] = str(len(compressed))
+                            await send(initial_message)
+                            await send({"type": "http.response.body", "body": compressed, "more_body": False})
+                        started = True
+                        return
+                    else:
+                        if buffer_size < self.minimum_size:
+                            # Keep buffering until threshold reached
+                            return
+                        else:
+                            started = True
+                            full_buf = b"".join(buffer)
+                            raw_headers = StarletteMutableHeaders(raw=initial_message["headers"])
+                            content_type = raw_headers.get("content-type", "").partition(";")[0].strip().lower()
+                            is_excluded = any(
+                                content_type.startswith(ex.rstrip("*"))
+                                for ex in ("image/", "video/", "audio/", "font/", "application/zip", "application/gzip", "text/event-stream")
+                            ) or "content-encoding" in raw_headers
+
+                            if is_excluded:
+                                await send(initial_message)
+                                await send({"type": "http.response.body", "body": full_buf, "more_body": True})
+                            else:
+                                compressor = zlib.compressobj(6, zlib.DEFLATED, 16 + zlib.MAX_WBITS)
+                                compressed = compressor.compress(full_buf) + compressor.flush(zlib.Z_SYNC_FLUSH)
+                                raw_headers.add_vary_header("Accept-Encoding")
+                                raw_headers["Content-Encoding"] = "gzip"
+                                if "content-length" in raw_headers:
+                                    del raw_headers["content-length"]
+                                await send(initial_message)
+                                await send({"type": "http.response.body", "body": compressed, "more_body": True})
+                            return
+                else:
+                    if compressor is not None:
+                        if more_body:
+                            compressed = compressor.compress(body) + compressor.flush(zlib.Z_SYNC_FLUSH)
+                        else:
+                            compressed = compressor.compress(body) + compressor.flush()
+                        await send({"type": "http.response.body", "body": compressed, "more_body": more_body})
+                    else:
+                        await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+app.add_middleware(SmartGZipMiddleware, minimum_size=1000)
+
 
 # CORS setup for local development and same-origin / cross-origin deployments
 app.add_middleware(

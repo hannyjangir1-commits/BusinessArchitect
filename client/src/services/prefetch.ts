@@ -51,6 +51,12 @@ function schedulePrefetch(task: () => Promise<void>) {
 // Prefetched cache keys tracker to avoid redundant attempts
 const prefetchedChunks = new Set<string>();
 
+export function cancelPrefetchQueue(): void {
+  prefetchQueue.length = 0;
+  prefetchedChunks.clear();
+}
+
+
 /**
  * Prefetches the code chunk for a module.
  */

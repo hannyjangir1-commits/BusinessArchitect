@@ -100,3 +100,26 @@ def test_gzip_compression_on_static_asset(test_client):
     res = test_client.get(f"/assets/{sample_js}", headers={"Accept-Encoding": "gzip"})
     assert res.status_code == 200
     assert res.headers.get("content-encoding") == "gzip"
+    assert "Accept-Encoding" in res.headers.get("vary", "")
+
+def test_small_response_below_threshold_not_compressed(test_client):
+    """Small responses below 1000-byte threshold are not compressed even if client accepts gzip."""
+    res = test_client.get("/health/live", headers={"Accept-Encoding": "gzip"})
+    assert res.status_code == 200
+    assert len(res.content) < 1000
+    assert res.headers.get("content-encoding") is None
+
+def test_uncompressed_when_client_does_not_send_gzip_accept_encoding(test_client):
+    """Responses are returned uncompressed when client sends Accept-Encoding: identity or omits gzip."""
+    if not client_dist:
+        pytest.skip("client_dist not present")
+    assets_dir = client_dist / "assets"
+    js_files = [f for f in assets_dir.glob("*.js") if f.stat().st_size > 2000]
+    if not js_files:
+        pytest.skip("No JS files found")
+
+    sample_js = js_files[0].name
+    res = test_client.get(f"/assets/{sample_js}", headers={"Accept-Encoding": "identity"})
+    assert res.status_code == 200
+    assert res.headers.get("content-encoding") is None
+    assert "javascript" in res.headers.get("content-type", "")

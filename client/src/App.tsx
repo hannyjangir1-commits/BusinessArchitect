@@ -2,9 +2,10 @@ import React, { useState, useEffect, lazy, useRef, useCallback } from 'react';
 import { User, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs, TechStackPlanningInputs } from './types';
 import { api } from './services/api';
 import { queryCache } from './services/queryCache';
-import { saveNavDestination, getNavDestination, clearNavDestination } from './services/navigationStorage';
-import { prefetchModule, prefetchProjectData } from './services/prefetch';
-import { clearAllDrafts } from './services/draftStorage';
+import { saveNavDestination, getNavDestination, clearNavDestination, clearAllNavDestinations, clearOtherUserNavDestinations } from './services/navigationStorage';
+import { prefetchModule, prefetchProjectData, cancelPrefetchQueue } from './services/prefetch';
+import { clearAllDrafts, clearOtherUserDrafts } from './services/draftStorage';
+
 import { ModuleSkeleton } from './components/Skeletons';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage, RequestStatus } from './pages/DashboardPage';
@@ -41,7 +42,9 @@ const EMPTY_SUMMARY: RoadmapSummary = {
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const currentUserRef = useRef<User | null>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
+
 
   // Track explicit user intent to view workspace vs public landing page
   const [userIntendsWorkspace, setUserIntendsWorkspace] = useState<boolean>(() => {
@@ -183,10 +186,14 @@ export const App: React.FC = () => {
     } catch {}
     queryCache.clearAll();
     clearAllDrafts();
+    clearAllNavDestinations();
+    cancelPrefetchQueue();
+    currentUserRef.current = null;
     clearSession();
     setUserIntendsWorkspace(false);
     window.history.replaceState({}, '', '/');
   };
+
 
   const [moduleBadges, setModuleBadges] = useState<Record<string, { version: string; isGenerated: boolean }>>({
     overview: { version: 'V1', isGenerated: true },
@@ -213,7 +220,7 @@ export const App: React.FC = () => {
   // Cached, Deduplicated Project Loading (Section 6 & 7)
   const loadProjects = useCallback(async (userScope?: string, forceFresh = false): Promise<Project[] | null> => {
     const epoch = sessionEpochRef.current;
-    const cached = queryCache.getCached<Project[]>('projects:list');
+    const cached = queryCache.getCached<Project[]>('projects:list', userScope);
 
     if (cached && !forceFresh) {
       setProjects(cached);
@@ -237,7 +244,7 @@ export const App: React.FC = () => {
       return projs;
     } catch (error: any) {
       if (sessionEpochRef.current === epoch) {
-        if (!queryCache.getCached('projects:list')) {
+        if (!queryCache.getCached('projects:list', userScope)) {
           setProjectsStatus('error');
         }
         setProjectsError(error?.message || 'Your projects could not be loaded. Please retry.');
@@ -245,6 +252,7 @@ export const App: React.FC = () => {
       return null;
     }
   }, []);
+
 
   // 1. Initial Authentication Check in Background (Section 3)
   useEffect(() => {
@@ -255,12 +263,26 @@ export const App: React.FC = () => {
         const session = await api.auth.getMe();
         if (isCancelled) return;
         if (session && session.user) {
+          const newUserId = session.user.id;
+          if (currentUserRef.current && currentUserRef.current.id !== newUserId) {
+            queryCache.clearAll();
+            clearAllDrafts();
+            clearAllNavDestinations();
+            cancelPrefetchQueue();
+            clearWorkspace();
+          } else {
+            queryCache.enforceUserScope(newUserId);
+            clearOtherUserNavDestinations(newUserId);
+            clearOtherUserDrafts(newUserId);
+          }
+          currentUserRef.current = session.user;
           setCurrentUser(session.user);
           const userScope = session.user.id;
 
           // Background preloading of projects
           const projs = await loadProjects(userScope);
           if (isCancelled) return;
+
 
           // Destination Restoration Sequence (Section 5)
           const route = new URLSearchParams(window.location.search);
@@ -357,8 +379,9 @@ export const App: React.FC = () => {
     setModuleLoading(true);
 
     // Optimistically use cached project metadata if available
-    const cachedProj = queryCache.getCached<Project>(`project:${projectId}`) ||
+    const cachedProj = queryCache.getCached<Project>(`project:${projectId}`, currentUser?.id) ||
       projects.find(p => p.id === projectId);
+
 
     if (cachedProj) {
       setCurrentProject(cachedProj);
@@ -445,7 +468,8 @@ export const App: React.FC = () => {
     const viewing = () => isViewing(projectId, moduleType, navigation);
 
     const cacheKey = `module:${projectId}:${moduleType}`;
-    const cachedDetail = queryCache.getCached<ModuleDetail>(cacheKey);
+    const cachedDetail = queryCache.getCached<ModuleDetail>(cacheKey, userScope);
+
 
     // If cached content exists in memory, keep/show it immediately without destroying layout
     if (cachedDetail && !forceFresh) {
@@ -870,25 +894,25 @@ export const App: React.FC = () => {
   }
 
   // Section 4: Immediate Workspace Shell
-  // When no project is open: render the portfolio dashboard with stable skeletons
-  if (!currentProject) {
+  // When no project is open or session is unvalidated: render the portfolio dashboard with stable skeletons
+  if (!currentProject || !currentUser) {
     return (
       <>
         <DashboardPage
           user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
-          projects={projects}
-          projectsStatus={authChecking && !currentUser ? 'loading' : projectsStatus}
-          projectsError={projectsError}
+          projects={currentUser ? projects : []}
+          projectsStatus={!currentUser ? 'loading' : projectsStatus}
+          projectsError={currentUser ? projectsError : null}
           onRetryProjects={() => void loadProjects(currentUser?.id, true)}
-          onOpenProject={handleOpenProject}
-          onPrefetchProject={(pId) => prefetchProjectData(pId, currentUser?.id)}
+          onOpenProject={currentUser ? handleOpenProject : (() => {})}
+          onPrefetchProject={(pId) => currentUser?.id && prefetchProjectData(pId, currentUser.id)}
           onCreateNewProject={() => setIsWizardOpen(true)}
           onDeleteProject={handleDeleteProject}
           onBulkDeleteProjects={handleBulkDeleteProjects}
           onLogout={logout}
           onUserUpdated={(updated) => setCurrentUser(updated)}
         />
-        {isWizardOpen && (
+        {isWizardOpen && currentUser && (
           <React.Suspense fallback={null}>
             <NewProjectWizard
               onProjectCreated={handleProjectCreated}
@@ -900,6 +924,7 @@ export const App: React.FC = () => {
       </>
     );
   }
+
 
   // Active Project Workspace Shell
   return (

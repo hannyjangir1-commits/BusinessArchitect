@@ -133,3 +133,20 @@ export function clearAllDrafts(): void {
     // Ignore
   }
 }
+
+export function clearOtherUserDrafts(currentUserScope: string): void {
+  if (!currentUserScope) return;
+  const userPrefix = `${STORAGE_PREFIX}${encodeURIComponent(currentUserScope.trim())}_`;
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(STORAGE_PREFIX) && !k.startsWith(userPrefix)) {
+        toRemove.push(k);
+      }
+    }
+    toRemove.forEach(k => sessionStorage.removeItem(k));
+  } catch {
+    // Ignore
+  }
+}
