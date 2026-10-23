@@ -60,6 +60,9 @@ class Settings:
         )
         self.GEMINI_FALLBACK_MODELS_ENABLED: bool = os.getenv("GEMINI_FALLBACK_MODELS_ENABLED", "true").lower() in ("true", "1", "yes")
 
+        # Observability & Performance Diagnostics (Batch 01)
+        self.PERF_DIAGNOSTICS: bool = os.getenv("PERF_DIAGNOSTICS", "false").lower() in ("true", "1", "yes")
+
 
     # CORS
     @property

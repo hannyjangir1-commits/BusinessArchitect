@@ -58,9 +58,12 @@ app = FastAPI(
 @app.middleware("http")
 async def maintenance_mode_middleware(request: Request, call_next):
     path = request.url.path
-    # Allow health checks, admin APIs, static assets, and SPA fallback routes
+    clean_path = path.rstrip("/")
+    # Strictly bypass maintenance checks for all liveness and health probes, admin APIs, static assets, and SPA routes
     if (
-        path in ("/health", "/health/live", "/api/health") or
+        clean_path in ("/health", "/health/live", "/api/health", "/api/health/live") or
+        path.startswith("/health/live") or
+        path.startswith("/api/health/live") or
         path.startswith("/api/admin") or
         path.startswith("/assets") or
         not path.startswith("/api/")
@@ -70,17 +73,99 @@ async def maintenance_mode_middleware(request: Request, call_next):
     # Check maintenance mode for user-facing API routes
     try:
         from app.services.system_setting_service import get_setting_bool
-        with SessionLocal() as db:
-            is_maintenance = get_setting_bool(db, "maintenance_mode", False)
-            if is_maintenance:
-                return JSONResponse(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"detail": "System is currently under maintenance. Please try again later."}
-                )
+        from app.core.diagnostics import record_stage
+        with record_stage("maintenance_lookup"):
+            with SessionLocal() as db:
+                is_maintenance = get_setting_bool(db, "maintenance_mode", False)
+                if is_maintenance:
+                    return JSONResponse(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        content={"detail": "System is currently under maintenance. Please try again later."}
+                    )
     except Exception:
         pass
 
     return await call_next(request)
+
+# Observability & Request Correlation Diagnostics Middleware (Batch 01)
+@app.middleware("http")
+async def diagnostics_middleware(request: Request, call_next):
+    import time
+    import logging
+    from app.core.diagnostics import (
+        _current_request_id,
+        _current_diagnostics,
+        RequestDiagnostics,
+        sanitize_or_generate_request_id,
+        normalize_route_template
+    )
+
+    req_logger = logging.getLogger("request.timing")
+
+    # 3.1 Request Correlation ID: sanitize incoming or generate fresh random ID
+    incoming_id = request.headers.get("X-Request-ID")
+    req_id = sanitize_or_generate_request_id(incoming_id)
+    token_req_id = _current_request_id.set(req_id)
+
+    # 3.2 & 3.3 Request Diagnostics & Stage Accumulator
+    diag = RequestDiagnostics(req_id, enabled=settings.PERF_DIAGNOSTICS)
+    token_diag = _current_diagnostics.set(diag)
+
+    t_start = time.perf_counter()
+    status_code = 500
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception as exc:
+        total_duration_ms = (time.perf_counter() - t_start) * 1000.0
+        route_template = normalize_route_template(request)
+        req_logger.error(
+            "Request failed",
+            extra={
+                "request_id": req_id,
+                "method": request.method,
+                "route": route_template,
+                "status_code": 500,
+                "duration_ms": round(total_duration_ms, 2),
+                "sql_statements": diag.sql.statements,
+                "sql_commits": diag.sql.commits,
+            }
+        )
+        raise exc
+    else:
+        total_duration_ms = (time.perf_counter() - t_start) * 1000.0
+        route_template = normalize_route_template(request)
+
+        # 3.2 Structured request completion logging without exposing query strings or bodies
+        req_logger.info(
+            "Request completed",
+            extra={
+                "request_id": req_id,
+                "method": request.method,
+                "route": route_template,
+                "status_code": status_code,
+                "duration_ms": round(total_duration_ms, 2),
+                "sql_statements": diag.sql.statements,
+                "sql_commits": diag.sql.commits,
+            }
+        )
+
+        # 3.1 Return correlation ID header
+        response.headers["X-Request-ID"] = req_id
+
+        # 3.6 Standards-compatible Server-Timing header if diagnostics enabled
+        if diag.enabled:
+            timing_header = diag.build_server_timing_header(total_duration_ms)
+            if timing_header:
+                response.headers["Server-Timing"] = timing_header
+            response.headers["X-SQL-Statements"] = str(diag.sql.statements)
+            response.headers["X-SQL-Commits"] = str(diag.sql.commits)
+
+        return response
+    finally:
+        _current_diagnostics.reset(token_diag)
+        _current_request_id.reset(token_req_id)
 
 # CORS setup for local development and same-origin / cross-origin deployments
 app.add_middleware(
@@ -122,6 +207,8 @@ def api_health(response: Response):
     except Exception:
         available_generation_keys = 0
 
+    provider_status = "configured" if available_generation_keys else ("unconfigured" if not is_configured else "cooldown_active")
+
     return {
         "status": "healthy" if db_connected else "degraded",
         "service": "Venture Atlas Backend",
@@ -132,7 +219,16 @@ def api_health(response: Response):
         "generation_model": settings.GEMINI_MODEL,
         "configured_generation_keys": len(settings.GEMINI_API_KEYS),
         "available_generation_keys": available_generation_keys,
-        "generation_provider_status": "ready" if available_generation_keys else ("unconfigured" if not is_configured else "cooling_down_or_unavailable")
+        "generation_provider_status": provider_status,
+        "provider_probe_status": "provider_not_probed"
+    }
+
+@api_v1.get("/health/live")
+def api_liveness():
+    return {
+        "status": "alive",
+        "service": "Venture Atlas Backend",
+        "environment": settings.APP_ENV
     }
 
 app.mount("/api", api_v1)

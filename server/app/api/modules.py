@@ -141,24 +141,27 @@ def get_module(
     module_type = normalize_module_type(module_type)
     if module_type not in DELETABLE_MODULE_TYPES and module_type != "overview":
         raise HTTPException(status_code=404, detail="Unknown module")
-    module = db.query(ModuleContent).filter(
-        ModuleContent.project_id == project.id,
-        ModuleContent.module_type == module_type
-    ).first()
+    from app.core.diagnostics import record_stage
 
-    # Reads never migrate or repair records. Legacy history is combined for
-    # display, and is moved only during an authorized write.
-    legacy_module = None
-    if not module and module_type == "execution_roadmap":
+    with record_stage("module_query"):
         module = db.query(ModuleContent).filter(
             ModuleContent.project_id == project.id,
-            ModuleContent.module_type == "detailed_roadmap"
+            ModuleContent.module_type == module_type
         ).first()
-    elif module and module_type == "execution_roadmap":
-        legacy_module = db.query(ModuleContent).filter(
-            ModuleContent.project_id == project.id,
-            ModuleContent.module_type == "detailed_roadmap"
-        ).first()
+
+        # Reads never migrate or repair records. Legacy history is combined for
+        # display, and is moved only during an authorized write.
+        legacy_module = None
+        if not module and module_type == "execution_roadmap":
+            module = db.query(ModuleContent).filter(
+                ModuleContent.project_id == project.id,
+                ModuleContent.module_type == "detailed_roadmap"
+            ).first()
+        elif module and module_type == "execution_roadmap":
+            legacy_module = db.query(ModuleContent).filter(
+                ModuleContent.project_id == project.id,
+                ModuleContent.module_type == "detailed_roadmap"
+            ).first()
 
     if not module:
         return ModuleDetailResponse(
@@ -170,10 +173,11 @@ def get_module(
             versions=[]
         )
 
-    versions = VersionService.get_versions(db, module.id)
-    if legacy_module and legacy_module.id != module.id:
-        versions += VersionService.get_versions(db, legacy_module.id)
-    active_ver = active_version(db, module)
+    with record_stage("version_metadata_query"):
+        versions = VersionService.get_versions(db, module.id)
+        if legacy_module and legacy_module.id != module.id:
+            versions += VersionService.get_versions(db, legacy_module.id)
+        active_ver = active_version(db, module)
 
     is_stale = False
     stale_reason = None

@@ -29,6 +29,9 @@ else:
 
 engine = create_engine(db_url, **engine_kwargs)
 
+from app.core.diagnostics import register_sql_diagnostics_listeners
+register_sql_diagnostics_listeners(engine)
+
 if engine.dialect.name == "sqlite":
     @event.listens_for(engine, "connect")
     def _configure_sqlite_connection(dbapi_connection, _connection_record):

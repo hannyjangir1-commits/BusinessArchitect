@@ -61,7 +61,9 @@ def send_chat_message(
     }
 
     try:
-        reply_text = ai_service.chat_copilot(proj_info, history_dicts, req.message, cross_module_context=active_module_summaries)
+        from app.core.diagnostics import record_stage
+        with record_stage("provider_call"):
+            reply_text = ai_service.chat_copilot(proj_info, history_dicts, req.message, cross_module_context=active_module_summaries)
         assistant_msg = CopilotMessage(
             project_id=project.id,
             role="assistant",

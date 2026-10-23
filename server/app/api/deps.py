@@ -31,47 +31,51 @@ def get_current_user(
             detail="Authentication required"
         )
 
-    db_session = db.query(DBSession).filter(DBSession.session_token == token).first()
-    if not db_session:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
-        )
+    from app.core.diagnostics import record_stage
 
-    # Check expiration (ensure timezone-naive comparison is safe)
-    now = datetime.now(timezone.utc)
-    sess_exp = db_session.expires_at
-    if sess_exp.tzinfo is None:
-        sess_exp = sess_exp.replace(tzinfo=timezone.utc)
+    with record_stage("auth_lookup"):
+        db_session = db.query(DBSession).filter(DBSession.session_token == token).first()
+        if not db_session:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired session"
+            )
 
-    if sess_exp < now:
-        db.delete(db_session)
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session has expired. Please log in again."
-        )
+        # Check expiration (ensure timezone-naive comparison is safe)
+        now = datetime.now(timezone.utc)
+        sess_exp = db_session.expires_at
+        if sess_exp.tzinfo is None:
+            sess_exp = sess_exp.replace(tzinfo=timezone.utc)
 
-    user = db.query(User).filter(User.id == db_session.user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
+        if sess_exp < now:
+            db.delete(db_session)
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has expired. Please log in again."
+            )
 
-    # Enforce account suspension strictly across all endpoints
-    if getattr(user, "is_suspended", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account has been suspended. Please contact administrative support."
-        )
+        user = db.query(User).filter(User.id == db_session.user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+
+        # Enforce account suspension strictly across all endpoints
+        if getattr(user, "is_suspended", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account has been suspended. Please contact administrative support."
+            )
 
     # Update last_active_at timestamp safely
-    try:
-        user.last_active_at = now
-        db.commit()
-    except Exception:
-        db.rollback()
+    with record_stage("auth_activity_write"):
+        try:
+            user.last_active_at = now
+            db.commit()
+        except Exception:
+            db.rollback()
 
     return user
 

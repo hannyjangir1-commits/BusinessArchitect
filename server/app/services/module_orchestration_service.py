@@ -72,27 +72,29 @@ class ModuleOrchestrationService:
                 )
 
             # Stage 2: Module synthesis dispatch
-            if module_type == "bmc":
-                generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx)
-                data_dict = generated.model_dump()
-            elif module_type == "tech_stack":
-                generated = ai_service.generate_tech_stack(proj_info, brief, cross_module_context=cross_ctx, planning_inputs=planning_dict)
-                data_dict = generated.model_dump()
-                data_dict["planning_inputs"] = planning_dict or {}
-            elif module_type == "idea_validator":
-                generated = ai_service.generate_idea_validator(proj_info, brief, cross_module_context=cross_ctx)
-                data_dict = generated.model_dump()
-            elif module_type == "market_research":
-                generated = ai_service.generate_market_research(proj_info, brief, cross_module_context=cross_ctx)
-                data_dict = generated.model_dump()
-            elif module_type in ("execution_roadmap", "detailed_roadmap"):
-                roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict, brief, cross_module_context=cross_ctx)
-                data_dict = RoadmapDomainService.normalize_roadmap_schedule(roadmap_raw, planning)
-                data_dict["planning_inputs"] = planning_dict
-                if "feasibility_evaluation" in roadmap_raw and "feasibility_evaluation" not in data_dict:
-                    data_dict["feasibility_evaluation"] = roadmap_raw["feasibility_evaluation"]
-            else:
-                raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
+            from app.core.diagnostics import record_stage
+            with record_stage("provider_call"):
+                if module_type == "bmc":
+                    generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx)
+                    data_dict = generated.model_dump()
+                elif module_type == "tech_stack":
+                    generated = ai_service.generate_tech_stack(proj_info, brief, cross_module_context=cross_ctx, planning_inputs=planning_dict)
+                    data_dict = generated.model_dump()
+                    data_dict["planning_inputs"] = planning_dict or {}
+                elif module_type == "idea_validator":
+                    generated = ai_service.generate_idea_validator(proj_info, brief, cross_module_context=cross_ctx)
+                    data_dict = generated.model_dump()
+                elif module_type == "market_research":
+                    generated = ai_service.generate_market_research(proj_info, brief, cross_module_context=cross_ctx)
+                    data_dict = generated.model_dump()
+                elif module_type in ("execution_roadmap", "detailed_roadmap"):
+                    roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict, brief, cross_module_context=cross_ctx)
+                    data_dict = RoadmapDomainService.normalize_roadmap_schedule(roadmap_raw, planning)
+                    data_dict["planning_inputs"] = planning_dict
+                    if "feasibility_evaluation" in roadmap_raw and "feasibility_evaluation" not in data_dict:
+                        data_dict["feasibility_evaluation"] = roadmap_raw["feasibility_evaluation"]
+                else:
+                    raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
 
             # Attach provenance context metadata
             data_dict["context_metadata"] = {
