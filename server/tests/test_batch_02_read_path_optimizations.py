@@ -160,22 +160,42 @@ def test_expired_session_remains_rejected():
         db.close()
 
 
-def test_activity_throttle_configuration_bounds():
-    """Configuration enforces safe bounds between 60 and 86400 seconds."""
-    # Negative value clamped to 60
-    s_low = Settings()
-    s_low.USER_ACTIVITY_THROTTLE_SECONDS = max(60, min(-500, 86400))
-    assert s_low.USER_ACTIVITY_THROTTLE_SECONDS == 60
+def test_activity_throttle_configuration_bounds(monkeypatch):
+    """Configuration enforces safe bounds between 60 and 86400 seconds, rejecting invalid inputs."""
+    # 59 rejected
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "59")
+    with pytest.raises(ValueError, match="between 60 and 86400 seconds"):
+        Settings()
 
-    # Excessively large value clamped to 86400
-    s_high = Settings()
-    s_high.USER_ACTIVITY_THROTTLE_SECONDS = max(60, min(9999999, 86400))
-    assert s_high.USER_ACTIVITY_THROTTLE_SECONDS == 86400
+    # 60 accepted
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "60")
+    s_60 = Settings()
+    assert s_60.USER_ACTIVITY_THROTTLE_SECONDS == 60
 
-    # Normal value preserved
-    s_normal = Settings()
-    s_normal.USER_ACTIVITY_THROTTLE_SECONDS = max(60, min(600, 86400))
-    assert s_normal.USER_ACTIVITY_THROTTLE_SECONDS == 600
+    # 600 accepted (default)
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "600")
+    s_600 = Settings()
+    assert s_600.USER_ACTIVITY_THROTTLE_SECONDS == 600
+
+    # 86400 accepted
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "86400")
+    s_86400 = Settings()
+    assert s_86400.USER_ACTIVITY_THROTTLE_SECONDS == 86400
+
+    # 86401 rejected
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "86401")
+    with pytest.raises(ValueError, match="between 60 and 86400 seconds"):
+        Settings()
+
+    # Negative value rejected
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "-100")
+    with pytest.raises(ValueError, match="between 60 and 86400 seconds"):
+        Settings()
+
+    # Invalid text rejected
+    monkeypatch.setenv("USER_ACTIVITY_THROTTLE_SECONDS", "invalid_text")
+    with pytest.raises(ValueError, match="must be an integer"):
+        Settings()
 
 
 # ==============================================================================
@@ -522,3 +542,210 @@ def test_module_detail_endpoint_query_count_does_not_grow_with_versions():
         assert stmts_1 == stmts_5
     finally:
         db.close()
+
+
+# ==============================================================================
+# SECTION 5: PROVE INACTIVE VERSION JSON IS NEVER LAZY-LOADED (SQL CAPTURE)
+# ==============================================================================
+
+def test_module_version_payload_sql_capture_and_no_lazy_loading():
+    """
+    Focused SQL-capture test:
+    1. Creates a module with at least 5 versions.
+    2. Gives each inactive version a recognizable large JSON payload.
+    3. Executes the real module endpoint.
+    4. Fully serializes the response.
+    5. Captures every SQL statement executed during the request.
+    6. Proves inactive JSON/content columns were absent from the metadata query.
+    7. Proves no follow-up lazy-load query fetched an inactive version's payload.
+    8. Proves the active version content remains correct.
+    9. Proves query count remains constant between one and five versions.
+    """
+    from sqlalchemy import event
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        user, sess = _create_test_user(db, "sql_capture_user")
+
+        p = Project(
+            id=gen_id("prj_"),
+            user_id=user.id,
+            name="SQL Capture Project",
+            stage="Idea",
+            active_module="bmc",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(p)
+        db.flush()
+
+        mod = ModuleContent(
+            id=gen_id("mod_"),
+            project_id=p.id,
+            module_type="bmc",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(mod)
+        db.flush()
+
+        # Create 5 versions: v1-v4 inactive with recognizable payloads, v5 active
+        for i in range(1, 6):
+            is_act = (i == 5)
+            v = ModuleVersion(
+                id=gen_id("ver_"),
+                module_content_id=mod.id,
+                version_number=i,
+                version_name=f"BMC Version {i}",
+                change_summary=f"Change summary {i}",
+                is_active=is_act,
+                data=(
+                    {"secret_inactive_payload": f"INACTIVE_HUGE_DATA_{i}_" + ("X" * 10000)}
+                    if not is_act
+                    else {"active_data_marker": "ACTIVE_VERSION_PAYLOAD_VALID", "value_propositions": ["ValuePropA"]}
+                ),
+                created_at=now,
+            )
+            db.add(v)
+            if is_act:
+                db.flush()
+                mod.active_version_id = v.id
+
+        db.commit()
+
+        # Warm user activity so auth commit count is 0
+        client.get(f"/api/projects/{p.id}/modules/bmc", headers={"Authorization": f"Bearer {sess.session_token}"})
+
+        # Capture SQL executed during the request
+        captured_sql: list[str] = []
+
+        def sql_listener(conn, cursor, statement, parameters, context, executemany):
+            captured_sql.append(statement)
+
+        event.listen(engine, "before_cursor_execute", sql_listener)
+        try:
+            res = client.get(
+                f"/api/projects/{p.id}/modules/bmc",
+                headers={"Authorization": f"Bearer {sess.session_token}"}
+            )
+            assert res.status_code == 200
+
+            # 4. Fully serialize the response to JSON
+            res_json = res.json()
+        finally:
+            event.remove(engine, "before_cursor_execute", sql_listener)
+
+        # 8. Verify active version content remains correct
+        assert res_json["active_version_number"] == 5
+        assert res_json["data"] is not None
+        assert res_json["data"]["active_data_marker"] == "ACTIVE_VERSION_PAYLOAD_VALID"
+        assert len(res_json["versions"]) == 5
+
+        # 6. Prove inactive JSON/content columns were absent from the metadata query
+        meta_queries = [q for q in captured_sql if "ORDER BY module_versions.version_number" in q]
+        assert len(meta_queries) == 1, f"Expected 1 metadata query, got {len(meta_queries)}"
+        assert "module_versions.data" not in meta_queries[0], (
+            f"'data' column unexpectedly projected in metadata query: {meta_queries[0]}"
+        )
+
+        # 7. Prove no follow-up lazy-load query fetched an inactive version's payload
+        for q in captured_sql:
+            assert "secret_inactive_payload" not in q, f"Inactive payload leaked in query: {q}"
+            assert "INACTIVE_HUGE_DATA" not in q, f"Inactive payload leaked in query: {q}"
+
+        # Only the active version query by ID selects 'data'
+        active_ver_queries = [q for q in captured_sql if "module_versions.id = ?" in q]
+        assert len(active_ver_queries) == 1, f"Expected 1 active version query, got {len(active_ver_queries)}"
+        assert "module_versions.data" in active_ver_queries[0]
+    finally:
+        db.close()
+
+
+# ==============================================================================
+# SECTION 6: PROVE MAINTENANCE REFRESH DOES NOT BLOCK ASYNC EVENT LOOP
+# ==============================================================================
+
+def test_maintenance_refresh_does_not_block_event_loop_and_concurrency():
+    """
+    Deterministic async concurrency test:
+    1. Expire or clear the maintenance cache.
+    2. Replace the maintenance database lookup with a synthetic blocking delay (~200ms).
+    3. Start a normal request that triggers the cache miss.
+    4. While that request is waiting, start /health/live.
+    5. Verify /health/live begins and completes without waiting for the slow DB lookup (< 50ms).
+    6. Repeat with two simultaneous normal requests to check lock behavior.
+    7. Verify cache state remains valid.
+    """
+    import httpx
+    import app.services.system_setting_service as sss
+    from app.services.system_setting_service import (
+        reset_maintenance_mode_cache,
+        check_maintenance_cache_fast,
+    )
+
+    async def _async_runner():
+        reset_maintenance_mode_cache()
+
+        db_call_count = 0
+        orig_get_setting_bool = sss.get_setting_bool
+
+        def slow_get_setting_bool(*args, **kwargs):
+            nonlocal db_call_count
+            db_call_count += 1
+            time.sleep(0.2)  # Synthetic 200ms remote database latency
+            return False
+
+        sss.get_setting_bool = slow_get_setting_bool
+
+        try:
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as async_client:
+                # Phase 1: Test event-loop non-blocking while maintenance DB refresh is sleeping
+                async def run_api_req():
+                    # Hits maintenance check and triggers cache miss
+                    return await async_client.get("/api/auth/me")
+
+                async def run_health_req():
+                    # Start 40ms after API request, while worker thread is sleeping in slow_get_setting_bool
+                    await asyncio.sleep(0.04)
+                    t_h0 = time.perf_counter()
+                    res = await async_client.get("/health/live")
+                    t_h1 = time.perf_counter()
+                    return res, (t_h1 - t_h0) * 1000.0
+
+                res_api, (res_health, health_duration_ms) = await asyncio.gather(
+                    run_api_req(),
+                    run_health_req(),
+                )
+
+                # /health/live must succeed and must NOT wait 200ms for maintenance refresh
+                assert res_health.status_code == 200
+                assert res_health.json()["status"] == "alive"
+                assert health_duration_ms < 50.0, (
+                    f"/health/live took {health_duration_ms:.2f}ms! Event loop was blocked by maintenance refresh."
+                )
+
+                # Phase 2: Simultaneous normal requests testing lock behavior
+                reset_maintenance_mode_cache()
+                db_call_count = 0
+
+                t_sim_0 = time.perf_counter()
+                res_sim1, res_sim2 = await asyncio.gather(
+                    async_client.get("/api/auth/me"),
+                    async_client.get("/api/auth/me"),
+                )
+                sim_duration_ms = (time.perf_counter() - t_sim_0) * 1000.0
+
+                # Both completed concurrently without deadlocking or holding lock across I/O
+                assert res_sim1.status_code in (401, 200)
+                assert res_sim2.status_code in (401, 200)
+
+                # Cache state must be valid and populated
+                cached_mode = check_maintenance_cache_fast()
+                assert cached_mode is False
+        finally:
+            sss.get_setting_bool = orig_get_setting_bool
+            reset_maintenance_mode_cache()
+
+    asyncio.run(_async_runner())

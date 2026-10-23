@@ -72,8 +72,16 @@ async def maintenance_mode_middleware(request: Request, call_next):
 
     # Check maintenance mode for user-facing API routes (Batch 02: In-Process TTL Cache)
     try:
-        from app.services.system_setting_service import get_maintenance_mode_cached
-        is_maintenance = get_maintenance_mode_cached()
+        from app.services.system_setting_service import (
+            check_maintenance_cache_fast,
+            get_maintenance_mode_cached_async,
+        )
+        cached = check_maintenance_cache_fast()
+        if cached is not None:
+            is_maintenance = cached
+        else:
+            is_maintenance = await get_maintenance_mode_cached_async()
+
         if is_maintenance:
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

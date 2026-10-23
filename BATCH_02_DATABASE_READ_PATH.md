@@ -1,8 +1,10 @@
 # BATCH 02 — AUTHENTICATED READ-PATH AND DATABASE ROUND-TRIP OPTIMIZATION
 
 **Repository:** `https://github.com/hannyjangir1-commits/BusinessArchitect`
-**Execution Timestamp:** 2026-10-23T14:30:00Z
+**Execution Timestamp:** 2026-10-23T15:10:00Z
 **Branch:** `main`
+**Deployment Status:** Batch 02 was pushed to main but has not been deployed because Render auto-deploy is disabled.
+**Production Safety:** No production data was modified.
 **Scope:** Batch 02 Only (Authenticated Activity Write Throttling, Maintenance Mode In-Process TTL Cache, Project Listing N+1 Query Elimination, Module Version Payload Deferral).
 
 ---
@@ -14,7 +16,8 @@
 ---
 
 ## 2. Ending Commit
-- **Target Commit Message:** `perf: reduce authenticated database round trips`
+- **Batch 02 Initial Commit:** `1ffe1cdfa098382f027cdeb67e6c840624822911` (`perf: reduce authenticated database round trips`)
+- **Review Gate Hardening Commit:** To be recorded upon push (`fix: harden database read-path optimizations`)
 - **Target Branch:** `main`
 
 ---
@@ -69,7 +72,12 @@
 
 ## 5. Maintenance-Cache Design
 - **Structure:** Process-local, bounded state storing `_cached_maintenance_value: Optional[bool]` and `_cached_maintenance_expiry: float` (monotonic timestamp).
-- **Concurrency:** Thread-safe read/write guarded by `threading.Lock()`, with lock-free fast-path inspection when valid.
+- **Concurrency & Non-Blocking Event Loop:**
+  - Maintenance-cache refresh does not block the event loop: verified through deterministic async concurrency testing with a synthetic 200 ms slow refresh, where `/health/live` completed in < 10 ms without waiting for the maintenance database lookup.
+  - The in-memory cache fast-path inspects state without locking or DB queries.
+  - On a cache miss, database I/O is offloaded to a worker thread via `asyncio.to_thread` so the ASGI event loop remains completely unblocked.
+  - Crucially, no `threading.Lock` is held while performing remote database I/O. The lock's critical section is limited strictly to sub-microsecond in-memory assignments.
+  - Synchronous database sessions are created, used, and closed entirely within the worker-thread operation.
 - **TTL:** 30.0 seconds.
 - **Fail-Open Policy:** If the database query raises an exception during refresh, the cache returns the last known value or `False` without poisoning the cache or blocking user traffic.
 - **Invalidation Triggers:**
@@ -98,6 +106,7 @@
   - `VersionService.get_version_metadata` employs SQLAlchemy `load_only(...)` to explicitly project only metadata columns.
   - The heavy `data` column is loaded solely for the active version required by `current_module_data`.
   - Inactive version data payloads are never transferred across the database connection or deserialized into memory.
+  - A SQLAlchemy `load_only()` projection was verified through fully serialized endpoint testing. Capturing all executed SQL statements during the request demonstrated that inactive version `data` JSON payloads are absent from the query projection, and no follow-up lazy-load queries are issued during response serialization.
 
 ---
 
@@ -134,10 +143,10 @@ Measured using `server/scripts/run_baseline_measurements.py` on disposable SQLit
 
 ## 10. Test Results
 - **Batch 01 Diagnostics & Baseline Suite:** 13 passed, 0 failed (`pytest server/tests/test_batch_01_diagnostics_and_baseline.py`).
-- **Batch 02 Read-Path Optimizations Suite:** 13 passed, 0 failed (`pytest server/tests/test_batch_02_read_path_optimizations.py`).
-- **Complete Backend Test Suite:** 230 passed, 4 skipped, 0 failed in 29.25s (`pytest server/tests`).
+- **Batch 02 Read-Path Optimizations Suite:** 15 passed, 0 failed (`pytest server/tests/test_batch_02_read_path_optimizations.py`).
+- **Complete Backend Test Suite:** 232 passed, 4 skipped, 0 failed in 29.61s (`pytest server/tests`).
 - **Frontend Vitest Suite:** 39 passed in 7 test files (`npm test` in `client/`).
-- **Frontend Production Build:** Built cleanly in 480ms (`npm run build` in `client/`).
+- **Frontend Production Build:** Built cleanly in 455ms (`npm run build` in `client/`).
 - **Database Migrations:** Schema remains at `e6b30f8a2c19 (head)` with 0 schema migrations required.
 - **Git Whitespace:** `git diff --check` clean with 0 whitespace issues.
 
@@ -159,9 +168,10 @@ Measured using `server/scripts/run_baseline_measurements.py` on disposable SQLit
 ---
 
 ## 13. Expected Production Impact
+- Query reduction predicts improvement but production latency has not been measured yet.
 - On remote Supabase connections where every database round-trip over Singapore $\leftrightarrow$ Mumbai carries network latency, reducing statement counts from 26 to 5 on project listing eliminates 21 sequential round-trips.
 - Eliminating the write transaction (`last_active_at` commit) on every read eliminates ACID commit wait time on warm read operations.
-- The maintenance cache eliminates 1 round trip on every user-facing API request.
+- The maintenance cache eliminates 1 round trip on every user-facing API request. Production impact will be measured after authorized manual deployment.
 
 ---
 

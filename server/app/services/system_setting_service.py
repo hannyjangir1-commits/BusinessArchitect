@@ -91,6 +91,7 @@ def set_setting(db: Session, key: str, value: Any, value_type: str = "string", u
     return setting
 
 # --- In-Process Thread-Safe Maintenance Mode TTL Cache (Batch 02) ---
+import asyncio
 import time
 import threading
 
@@ -99,46 +100,85 @@ _maintenance_cache_lock = threading.Lock()
 _cached_maintenance_value: Optional[bool] = None
 _cached_maintenance_expiry: float = 0.0
 
+def check_maintenance_cache_fast() -> Optional[bool]:
+    """
+    Check fast in-memory cache without locking or database access.
+    Returns the cached boolean if valid, or None on cache miss / expiry.
+    """
+    now_mono = time.monotonic()
+    if _cached_maintenance_value is not None and now_mono < _cached_maintenance_expiry:
+        return _cached_maintenance_value
+    return None
+
+def update_maintenance_cache(value: bool, ttl_seconds: float = MAINTENANCE_CACHE_TTL_SECONDS) -> None:
+    """Thread-safe update of the in-process maintenance cache under lock."""
+    global _cached_maintenance_value, _cached_maintenance_expiry
+    with _maintenance_cache_lock:
+        _cached_maintenance_value = value
+        _cached_maintenance_expiry = time.monotonic() + max(0.01, float(ttl_seconds))
+
+def _fetch_maintenance_from_db_worker(ttl_seconds: float = MAINTENANCE_CACHE_TTL_SECONDS) -> bool:
+    """
+    Synchronous worker that creates, uses, and closes a DB session inside the worker thread.
+    Crucially, does NOT hold any lock during remote database I/O.
+    """
+    val = False
+    try:
+        from app.core.diagnostics import record_stage
+        from app.db.session import SessionLocal
+        with record_stage("maintenance_lookup"):
+            with SessionLocal() as local_db:
+                val = get_setting_bool(local_db, "maintenance_mode", False)
+        update_maintenance_cache(val, ttl_seconds)
+        return val
+    except Exception as e:
+        logger.warning("Failed to refresh cached maintenance mode from database: %s", str(e))
+        with _maintenance_cache_lock:
+            if _cached_maintenance_value is not None:
+                return _cached_maintenance_value
+        return False
+
 def get_maintenance_mode_cached(
     db: Optional[Session] = None,
     ttl_seconds: float = MAINTENANCE_CACHE_TTL_SECONDS
 ) -> bool:
     """
-    Thread-safe, bounded in-process TTL cache for the global maintenance_mode setting.
-    Eliminates redundant database round-trips on high-frequency request paths.
-
-    Note: In multi-worker deployments, this is a per-process cache with a maximum
-    consistency delay equal to ttl_seconds.
+    Synchronous entry point for maintenance mode lookup.
+    Checks fast cache first; if miss, queries DB without holding a lock across I/O.
     """
-    global _cached_maintenance_value, _cached_maintenance_expiry
+    cached = check_maintenance_cache_fast()
+    if cached is not None:
+        return cached
 
-    now_mono = time.monotonic()
-    if _cached_maintenance_value is not None and now_mono < _cached_maintenance_expiry:
-        return _cached_maintenance_value
-
-    with _maintenance_cache_lock:
-        now_mono = time.monotonic()
-        if _cached_maintenance_value is not None and now_mono < _cached_maintenance_expiry:
-            return _cached_maintenance_value
-
-        val = False
+    if db is not None:
         try:
             from app.core.diagnostics import record_stage
             with record_stage("maintenance_lookup"):
-                if db is not None:
-                    val = get_setting_bool(db, "maintenance_mode", False)
-                else:
-                    from app.db.session import SessionLocal
-                    with SessionLocal() as local_db:
-                        val = get_setting_bool(local_db, "maintenance_mode", False)
-            _cached_maintenance_value = val
-            _cached_maintenance_expiry = time.monotonic() + max(0.01, float(ttl_seconds))
+                val = get_setting_bool(db, "maintenance_mode", False)
+            update_maintenance_cache(val, ttl_seconds)
             return val
         except Exception as e:
             logger.warning("Failed to refresh cached maintenance mode from database: %s", str(e))
-            if _cached_maintenance_value is not None:
-                return _cached_maintenance_value
+            with _maintenance_cache_lock:
+                if _cached_maintenance_value is not None:
+                    return _cached_maintenance_value
             return False
+
+    return _fetch_maintenance_from_db_worker(ttl_seconds)
+
+async def get_maintenance_mode_cached_async(
+    ttl_seconds: float = MAINTENANCE_CACHE_TTL_SECONDS
+) -> bool:
+    """
+    Non-blocking async entry point for maintenance mode lookup.
+    Checks fast in-memory cache first; on miss, offloads DB I/O to a worker thread
+    via asyncio.to_thread so the event loop remains completely unblocked.
+    """
+    cached = check_maintenance_cache_fast()
+    if cached is not None:
+        return cached
+
+    return await asyncio.to_thread(_fetch_maintenance_from_db_worker, ttl_seconds)
 
 def invalidate_maintenance_mode_cache() -> None:
     """Immediately invalidate the local in-process maintenance-mode cache."""

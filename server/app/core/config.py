@@ -65,12 +65,19 @@ class Settings:
 
         # Authenticated Activity Write Throttling (Batch 02)
         # Bounded between 60 seconds (1 minute) and 86400 seconds (24 hours). Default: 600 seconds (10 minutes).
-        raw_activity_throttle = os.getenv("USER_ACTIVITY_THROTTLE_SECONDS", "600")
+        raw_activity_throttle = os.getenv("USER_ACTIVITY_THROTTLE_SECONDS", "600").strip()
         try:
             parsed_throttle = int(raw_activity_throttle)
-        except (ValueError, TypeError):
-            parsed_throttle = 600
-        self.USER_ACTIVITY_THROTTLE_SECONDS: int = max(60, min(parsed_throttle, 86400))
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f"Invalid USER_ACTIVITY_THROTTLE_SECONDS '{raw_activity_throttle}': must be an integer."
+            ) from exc
+
+        if parsed_throttle < 60 or parsed_throttle > 86400:
+            raise ValueError(
+                f"Invalid USER_ACTIVITY_THROTTLE_SECONDS '{parsed_throttle}': value must be between 60 and 86400 seconds."
+            )
+        self.USER_ACTIVITY_THROTTLE_SECONDS: int = parsed_throttle
 
 
     # CORS
