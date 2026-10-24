@@ -5,9 +5,9 @@ from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.core.config import settings
-from app.models.all_models import Project, ModuleContent, ModuleVersion, RoadmapTask
+from app.models.all_models import Project, ModuleContent, ModuleVersion, RoadmapTask, User
 from app.schemas.modules import (
     ModuleDetailResponse, VersionItemResponse, VersionRenameRequest,
     VersionConflictResolveRequest, SectionModifyRequest,
@@ -341,7 +341,11 @@ def generate_module(
         project_dict=proj_info,
     )
 
-    versions = VersionService.get_versions(db, module.id)
+    versions = getattr(new_ver, "_cached_versions", None)
+    if versions is None:
+        with SessionLocal() as q_db:
+            versions = VersionService.get_versions(q_db, module.id)
+
     return ModuleDetailResponse(
         module_type=module_type,
         active_version_id=new_ver.id,
@@ -401,107 +405,154 @@ def modify_module_with_ai(
     VersionService.assert_version_capacity(db, module)
 
     t0 = time.time()
+    project_id = project.id
+    user_id = project.user_id
+    module_id = module.id
+    curr_data = current_module_data(db, module, active_ver)
+    instruction = req.instruction
+    proj_info = _get_project_dict(project)
+    cross_ctx = read_project_context(db, project_id, exclude_module=module_type)[0]
+    saved_inputs = (active_ver.data or {}).get("planning_inputs", {}) if isinstance(active_ver.data, dict) else {}
+
+    # Decouple: release database connection before calling the external provider
+    db.close()
+
     try:
         new_data, change_summary = ai_service.modify_section(
             module_type=module_type,
-            current_data=current_module_data(db, module, active_ver),
-            instruction=req.instruction,
-            project_info=_get_project_dict(project),
-            cross_module_context=read_project_context(db, project.id, exclude_module=module_type)[0]
+            current_data=curr_data,
+            instruction=instruction,
+            project_info=proj_info,
+            cross_module_context=cross_ctx,
         )
-        if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
-            saved_inputs = (active_ver.data or {}).get("planning_inputs", {}) if isinstance(active_ver.data, dict) else {}
-            planning = RoadmapPlanningRequest.model_validate(saved_inputs or {})
-            new_data = _normalize_roadmap_schedule(new_data, planning)
-            new_data["planning_inputs"] = planning.model_dump(mode="json")
-        # Validate modified data against schema before persistence (F-09)
-        _validate_module_data(module_type, new_data)
+    except Exception as e:
+        dur_ms = int((time.time() - t0) * 1000)
+        terminal_provider_error = ai_service._terminal_provider_error_message(e)
+        raw_err = str(e)
+        err_msg = terminal_provider_error or "An unexpected internal error occurred during module modification."
+        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in raw_err.lower() else "api_error")
+        try:
+            with SessionLocal() as telemetry_db:
+                record_ai_operation(
+                    telemetry_db,
+                    user_id=user_id,
+                    project_id=project_id,
+                    module_type=module_type,
+                    operation_type="modify",
+                    model_name=settings.GEMINI_MODEL,
+                    duration_ms=dur_ms,
+                    status="timeout" if "timeout" in raw_err.lower() else "failed",
+                    error_category=err_cat,
+                    error_message=err_msg,
+                    structured_validation_passed=False,
+                    persistence_status="failed",
+                    is_retryable=terminal_provider_error is None,
+                )
+                telemetry_db.commit()
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Module update failed: {err_msg}",
+        ) from e
 
-        # Save new version and reconcile roadmap tasks in single atomic transaction under project-first lock
-        with project_first_lock(db, project.id, module.id):
+    if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
+        planning = RoadmapPlanningRequest.model_validate(saved_inputs or {})
+        new_data = _normalize_roadmap_schedule(new_data, planning)
+        new_data["planning_inputs"] = planning.model_dump(mode="json")
+
+    # Validate modified data against schema before persistence (F-09)
+    _validate_module_data(module_type, new_data)
+
+    # Save new version and reconcile roadmap tasks in short atomic transaction under project-first lock
+    with SessionLocal(expire_on_commit=False) as persist_db:
+        p_user = persist_db.query(User).filter(User.id == user_id).first()
+        if not p_user or p_user.is_suspended:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is suspended or no longer active."
+            )
+
+        p_proj = persist_db.query(Project).filter(Project.id == project_id).first()
+        if not p_proj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project was deleted while modification was in progress."
+            )
+        if p_proj.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project ownership changed or access revoked."
+            )
+
+        p_mod = persist_db.query(ModuleContent).filter(
+            ModuleContent.id == module_id,
+            ModuleContent.project_id == project_id,
+        ).first()
+        if not p_mod:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Module was deleted while modification was in progress."
+            )
+
+        with project_first_lock(persist_db, project_id, p_mod.id):
+            VersionService.assert_version_capacity(persist_db, p_mod)
+
             if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
                 if "tasks" not in new_data or not isinstance(new_data["tasks"], list):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Roadmap data must contain an explicit 'tasks' list."
                     )
-                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(db, project, new_data["tasks"])
+                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(persist_db, p_proj, new_data["tasks"])
                 new_data = dict(new_data)
                 new_data["tasks"] = canonical_tasks
 
             new_ver = VersionService.save_new_version(
-                db=db,
-                module=module,
+                db=persist_db,
+                module=p_mod,
                 data=new_data,
                 change_summary=change_summary,
-                commit=False
+                commit=False,
             )
 
             # Reconcile roadmap tasks if roadmap
             if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
-                _reconcile_roadmap_tasks(db, project, new_data["tasks"])
+                _reconcile_roadmap_tasks(persist_db, p_proj, new_data["tasks"])
 
-            db.commit()
-            db.refresh(new_ver)
+            persist_db.commit()
+            persist_db.refresh(new_ver)
+            versions = VersionService.get_versions(persist_db, p_mod.id)
 
         dur_ms = int((time.time() - t0) * 1000)
         record_ai_operation(
-            db,
-            user_id=project.user_id,
-            project_id=project.id,
+            persist_db,
+            user_id=user_id,
+            project_id=project_id,
             module_type=module_type,
             operation_type="modify",
             model_name=settings.GEMINI_MODEL,
             duration_ms=dur_ms,
             status="success",
             structured_validation_passed=True,
-            persistence_status="persisted"
+            persistence_status="persisted",
         )
         record_analytics_event(
-            db,
-            user_id=project.user_id,
-            project_id=project.id,
-            event_name=f"{module_type}_modified"
+            persist_db,
+            user_id=user_id,
+            project_id=project_id,
+            event_name=f"{module_type}_modified",
         )
+        persist_db.commit()
 
-        versions = VersionService.get_versions(db, module.id)
-        return ModuleDetailResponse(
-            module_type=module_type,
-            active_version_id=new_ver.id,
-            active_version_name=new_ver.version_name,
-            active_version_number=new_ver.version_number,
-            data=new_ver.data,
-            versions=[VersionItemResponse.model_validate(v) for v in versions]
-        )
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        dur_ms = int((time.time() - t0) * 1000)
-        terminal_provider_error = ai_service._terminal_provider_error_message(e)
-        raw_err = str(e)
-        err_msg = terminal_provider_error or "An unexpected internal error occurred during module modification."
-        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in raw_err.lower() else "api_error")
-        record_ai_operation(
-            db,
-            user_id=project.user_id,
-            project_id=project.id,
-            module_type=module_type,
-            operation_type="modify",
-            model_name=settings.GEMINI_MODEL,
-            duration_ms=dur_ms,
-            status="timeout" if "timeout" in raw_err.lower() else "failed",
-            error_category=err_cat,
-            error_message=err_msg,
-            structured_validation_passed=False,
-            persistence_status="failed",
-            is_retryable=terminal_provider_error is None
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Module update failed: {err_msg}"
-        )
+    return ModuleDetailResponse(
+        module_type=module_type,
+        active_version_id=new_ver.id,
+        active_version_name=new_ver.version_name,
+        active_version_number=new_ver.version_number,
+        data=new_ver.data,
+        versions=[VersionItemResponse.model_validate(v) for v in versions],
+    )
 
 @router.post("/{module_type}/resolve-conflict", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
 def resolve_version_conflict(
@@ -521,8 +572,14 @@ def resolve_version_conflict(
     if not target_ver:
         raise HTTPException(status_code=404, detail="Target version to replace not found in this module")
 
+    project_id = project.id
+    user_id = project.user_id
+    module_id = module.id
+    target_ver_id = req.replace_version_id
+    new_ver_name = req.new_version_name
     new_data = req.new_data
     change_summary = req.change_summary
+    t0 = time.time()
 
     # If pending instruction provided, apply it via Gemini AI and validate
     if req.instruction:
@@ -530,55 +587,55 @@ def resolve_version_conflict(
         if not active_ver:
             raise HTTPException(status_code=400, detail="No active version data found to apply modification")
 
-        t0 = time.time()
+        curr_data = current_module_data(db, module, active_ver)
+        instruction = req.instruction
+        proj_info = _get_project_dict(project)
+        cross_ctx = read_project_context(db, project_id, exclude_module=module_type)[0]
+
+        # Decouple: release database connection before calling the external provider
+        db.close()
+
         try:
             modified_data, summary = ai_service.modify_section(
                 module_type=module_type,
-                current_data=current_module_data(db, module, active_ver),
-                instruction=req.instruction,
-                project_info=_get_project_dict(project),
-                cross_module_context=read_project_context(db, project.id, exclude_module=module_type)[0]
+                current_data=curr_data,
+                instruction=instruction,
+                project_info=proj_info,
+                cross_module_context=cross_ctx,
             )
             _validate_module_data(module_type, modified_data)
             new_data = modified_data
             change_summary = summary or req.change_summary or f"Applied instruction: {req.instruction[:60]}"
-
-            dur_ms = int((time.time() - t0) * 1000)
-            record_ai_operation(
-                db,
-                user_id=project.user_id,
-                project_id=project.id,
-                module_type=module_type,
-                operation_type="modify",
-                model_name=settings.GEMINI_MODEL,
-                duration_ms=dur_ms,
-                status="success",
-                structured_validation_passed=True,
-                persistence_status="persisted"
-            )
         except Exception as e:
             dur_ms = int((time.time() - t0) * 1000)
             terminal_provider_error = ai_service._terminal_provider_error_message(e)
             err_msg = terminal_provider_error or str(e)
-            record_ai_operation(
-                db,
-                user_id=project.user_id,
-                project_id=project.id,
-                module_type=module_type,
-                operation_type="modify",
-                model_name=settings.GEMINI_MODEL,
-                duration_ms=dur_ms,
-                status="failed",
-                error_category="provider_error" if terminal_provider_error else ("validation_error" if "validation" in err_msg.lower() else "api_error"),
-                error_message=err_msg,
-                structured_validation_passed=False,
-                persistence_status="failed",
-                is_retryable=terminal_provider_error is None
-            )
+            try:
+                with SessionLocal() as telemetry_db:
+                    record_ai_operation(
+                        telemetry_db,
+                        user_id=user_id,
+                        project_id=project_id,
+                        module_type=module_type,
+                        operation_type="modify",
+                        model_name=settings.GEMINI_MODEL,
+                        duration_ms=dur_ms,
+                        status="failed",
+                        error_category="provider_error" if terminal_provider_error else ("validation_error" if "validation" in err_msg.lower() else "api_error"),
+                        error_message=err_msg,
+                        structured_validation_passed=False,
+                        persistence_status="failed",
+                        is_retryable=terminal_provider_error is None,
+                    )
+                    telemetry_db.commit()
+            except Exception:
+                pass
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Module update during conflict resolution failed: {err_msg}"
-            )
+                detail=f"Module update during conflict resolution failed: {err_msg}",
+            ) from e
+    else:
+        db.close()
 
     if not new_data:
         raise HTTPException(status_code=400, detail="Missing new data or modification instruction for version replacement")
@@ -591,51 +648,80 @@ def resolve_version_conflict(
     except Exception as ve:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Validation failed for {module_type}: {str(ve)}"
+            detail=f"Validation failed for {module_type}: {str(ve)}",
         )
 
-    try:
-        with project_first_lock(db, project.id, module.id):
+    with SessionLocal(expire_on_commit=False) as persist_db:
+        p_user = persist_db.query(User).filter(User.id == user_id).first()
+        if not p_user or p_user.is_suspended:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is suspended or no longer active.")
+        p_proj = persist_db.query(Project).filter(Project.id == project_id).first()
+        if not p_proj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project was deleted while conflict resolution was in progress.")
+        if p_proj.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Project ownership changed or access revoked.")
+        p_mod = persist_db.query(ModuleContent).filter(
+            ModuleContent.id == module_id,
+            ModuleContent.project_id == project_id,
+        ).first()
+        if not p_mod:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module was deleted while conflict resolution was in progress.")
+
+        p_target_ver = persist_db.query(ModuleVersion).filter(
+            ModuleVersion.id == target_ver_id,
+            ModuleVersion.module_content_id == p_mod.id,
+        ).first()
+        if not p_target_ver:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target version to replace not found in this module")
+
+        with project_first_lock(persist_db, project_id, p_mod.id):
             if module_type in ("execution_roadmap", "detailed_roadmap"):
                 if not isinstance(new_data, dict) or "tasks" not in new_data or not isinstance(new_data["tasks"], list):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Roadmap data must contain an explicit 'tasks' list."
                     )
-                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(db, project, new_data["tasks"])
+                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(persist_db, p_proj, new_data["tasks"])
                 new_data = dict(new_data)
                 new_data["tasks"] = canonical_tasks
 
             replaced_ver = VersionService.resolve_conflict_and_replace(
-                db=db,
-                module=module,
-                replace_version_id=req.replace_version_id,
+                db=persist_db,
+                module=p_mod,
+                replace_version_id=target_ver_id,
                 new_data=new_data,
-                new_name=req.new_version_name,
+                new_name=new_ver_name,
                 change_summary=change_summary,
-                commit=False
+                commit=False,
             )
 
-            db.commit()
-            db.refresh(replaced_ver)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Version replacement failed due to an unexpected internal error."
-        )
+            persist_db.commit()
+            persist_db.refresh(replaced_ver)
+            versions = VersionService.get_versions(persist_db, p_mod.id)
 
-    versions = VersionService.get_versions(db, module.id)
+        if req.instruction:
+            dur_ms = int((time.time() - t0) * 1000)
+            record_ai_operation(
+                persist_db,
+                user_id=user_id,
+                project_id=project_id,
+                module_type=module_type,
+                operation_type="modify",
+                model_name=settings.GEMINI_MODEL,
+                duration_ms=dur_ms,
+                status="success",
+                structured_validation_passed=True,
+                persistence_status="persisted",
+            )
+            persist_db.commit()
+
     return ModuleDetailResponse(
         module_type=module_type,
         active_version_id=replaced_ver.id,
         active_version_name=replaced_ver.version_name,
         active_version_number=replaced_ver.version_number,
         data=replaced_ver.data,
-        versions=[VersionItemResponse.model_validate(v) for v in versions]
+        versions=[VersionItemResponse.model_validate(v) for v in versions],
     )
 
 @router.patch("/{module_type}/versions/{version_id}/rename", dependencies=[Depends(verify_csrf)])

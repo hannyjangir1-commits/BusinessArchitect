@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, asc, case
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.models.all_models import (
     User, Project, ModuleContent, ModuleVersion, AIOperation, AuditLog, gen_id
 )
@@ -234,6 +234,17 @@ def retry_failed_operation(
     from app.ai.gemini_service import ai_service
     from app.services.version_service import VersionService
     import time
+    import copy
+
+    admin_id = current_admin.id
+    admin_username = current_admin.username
+    op_id = op.id
+    op_user_id = op.user_id
+    op_project_id = op.project_id
+    op_module_type = op.module_type
+    op_operation_type = op.operation_type
+    op_model_name = op.model_name
+    op_retry_count = op.retry_count
 
     proj_info = {
         "id": proj.id,
@@ -248,34 +259,39 @@ def retry_failed_operation(
         "existing_stack": proj.existing_stack or {}
     }
 
+    module = VersionService.get_or_create_module(db, proj.id, op_module_type)
+    module_id = module.id
+    VersionService.assert_version_capacity(db, module)
+
+    active_ver_data = None
+    if op_operation_type == "modify":
+        active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
+        if not active_ver or not active_ver.data:
+            raise HTTPException(status_code=400, detail="Active version data not available to modify")
+        active_ver_data = copy.deepcopy(active_ver.data)
+
+    # Decouple: release database connection before calling the external provider
+    db.close()
+
     new_op_id = gen_id("aio_")
     t0 = time.time()
 
     try:
         data_dict = None
-        module_type = op.module_type
-        module = VersionService.get_or_create_module(db, proj.id, module_type)
-        VersionService.assert_version_capacity(db, module)
-
-        if op.operation_type == "modify":
-            # For modification retries, attempt section modify with previous prompt or error note
-            active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
-            if not active_ver or not active_ver.data:
-                raise ValueError("Active version data not available to modify")
-            instruction = f"Administrative recovery retry for failed operation {op.id}"
-            modified_data, _ = ai_service.modify_section(module_type, active_ver.data, instruction)
+        if op_operation_type == "modify":
+            instruction = f"Administrative recovery retry for failed operation {op_id}"
+            modified_data, _ = ai_service.modify_section(op_module_type, active_ver_data, instruction)
             data_dict = modified_data
         else:
-            # Generation retry
-            if module_type == "bmc":
+            if op_module_type == "bmc":
                 data_dict = ai_service.generate_bmc(proj_info).model_dump()
-            elif module_type == "tech_stack":
+            elif op_module_type == "tech_stack":
                 data_dict = ai_service.generate_tech_stack(proj_info).model_dump()
-            elif module_type == "idea_validator":
+            elif op_module_type == "idea_validator":
                 data_dict = ai_service.generate_idea_validator(proj_info).model_dump()
-            elif module_type == "market_research":
+            elif op_module_type == "market_research":
                 data_dict = ai_service.generate_market_research(proj_info).model_dump()
-            elif module_type in ("execution_roadmap", "detailed_roadmap"):
+            elif op_module_type in ("execution_roadmap", "detailed_roadmap"):
                 from app.api.modules import _normalize_roadmap_schedule
                 from app.schemas.modules import RoadmapPlanningRequest
 
@@ -285,119 +301,144 @@ def retry_failed_operation(
                 data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
                 data_dict["planning_inputs"] = planning_dict
             else:
-                raise ValueError(f"Unsupported module type for retry: {module_type}")
-
+                raise ValueError(f"Unsupported module type for retry: {op_module_type}")
+    except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
+        terminal_provider_error = ai_service._terminal_provider_error_message(e)
+        err_msg = terminal_provider_error or str(e)
+        try:
+            with SessionLocal() as fail_db:
+                failed_retry_record = AIOperation(
+                    id=new_op_id,
+                    request_id=f"retry_{op_id[:8]}",
+                    user_id=op_user_id,
+                    project_id=op_project_id,
+                    module_type=op_module_type,
+                    operation_type=op_operation_type,
+                    model_name=op_model_name or settings.GEMINI_MODEL,
+                    duration_ms=dur_ms,
+                    status="failed",
+                    error_category="provider_error" if terminal_provider_error else "api_error",
+                    error_message=err_msg,
+                    retry_count=op_retry_count,
+                    structured_validation_passed=False,
+                    persistence_status="failed",
+                    is_retryable=terminal_provider_error is None,
+                    retry_of_id=op_id,
+                    created_at=datetime.now(timezone.utc)
+                )
+                fail_db.add(failed_retry_record)
+                record_audit_log(
+                    fail_db,
+                    actor_id=admin_id,
+                    action="ai_operation_retry",
+                    target_type="ai_operation",
+                    target_id=op_id,
+                    outcome="failed",
+                    reason=f"Admin {admin_username} retry attempt failed due to provider error: {err_msg}",
+                    details={"original_op_id": op_id, "new_op_id": new_op_id}
+                )
+                fail_db.commit()
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail=f"Retry generation failed: {err_msg}"
+        ) from e
 
-        # Persist new version and task state under project-first lock protocol
+    with SessionLocal(expire_on_commit=False) as persist_db:
+        p_admin = persist_db.query(User).filter(User.id == admin_id).first()
+        from app.api.deps import _get_permissions_for_role
+        if not p_admin or p_admin.is_suspended or "retry_ai_ops" not in _get_permissions_for_role(p_admin.role):
+            raise HTTPException(status_code=403, detail="Admin authorization revoked.")
+
+        p_proj = persist_db.query(Project).filter(Project.id == op_project_id).first()
+        if not p_proj:
+            raise HTTPException(status_code=404, detail="Project was deleted while retry was in progress.")
+
+        p_op = persist_db.query(AIOperation).filter(AIOperation.id == op_id).first()
+        if not p_op:
+            raise HTTPException(status_code=404, detail="Original AI operation was deleted.")
+
+        # Re-check for concurrent successful retry
+        existing_retry = persist_db.query(AIOperation).filter(
+            AIOperation.retry_of_id == op_id,
+            AIOperation.status == "success"
+        ).first()
+        if existing_retry:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This operation was already successfully recovered by retry ID: {existing_retry.id}"
+            )
+
         from app.services.task_graph_validator import project_first_lock
-        module = VersionService.get_or_create_module(db, proj.id, module_type)
-        with project_first_lock(db, proj.id, module.id):
-            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
+        p_mod = VersionService.get_or_create_module(persist_db, op_project_id, op_module_type)
+        with project_first_lock(persist_db, op_project_id, p_mod.id):
+            VersionService.assert_version_capacity(persist_db, p_mod)
+
+            if op_module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
                 from app.services.roadmap_service import RoadmapDomainService
                 if "tasks" not in data_dict or not isinstance(data_dict["tasks"], list):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Roadmap data must contain an explicit 'tasks' list."
                     )
-                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(db, proj, data_dict["tasks"])
+                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(persist_db, p_proj, data_dict["tasks"])
                 data_dict = dict(data_dict)
                 data_dict["tasks"] = canonical_tasks
 
             VersionService.save_new_version(
-                db=db,
-                module=module,
+                db=persist_db,
+                module=p_mod,
                 data=data_dict,
-                change_summary=f"Recovered via admin retry ({current_admin.username})",
+                change_summary=f"Recovered via admin retry ({admin_username})",
                 commit=False
             )
 
-            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
+            if op_module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
                 from app.api.modules import _reconcile_roadmap_tasks
-                _reconcile_roadmap_tasks(db, proj, data_dict["tasks"])
+                _reconcile_roadmap_tasks(persist_db, p_proj, data_dict["tasks"])
 
-            op.status = "retried"
-            op.retry_count += 1
+            p_op.status = "retried"
+            p_op.retry_count += 1
 
+            dur_ms = int((time.time() - t0) * 1000)
             retry_record = AIOperation(
                 id=new_op_id,
-                request_id=f"retry_{op.id[:8]}",
-                user_id=op.user_id,
-                project_id=op.project_id,
-                module_type=op.module_type,
-                operation_type=op.operation_type,
-                model_name=op.model_name or settings.GEMINI_MODEL,
+                request_id=f"retry_{op_id[:8]}",
+                user_id=op_user_id,
+                project_id=op_project_id,
+                module_type=op_module_type,
+                operation_type=op_operation_type,
+                model_name=op_model_name or settings.GEMINI_MODEL,
                 duration_ms=dur_ms,
                 status="success",
-                retry_count=op.retry_count,
+                retry_count=p_op.retry_count,
                 structured_validation_passed=True,
                 persistence_status="persisted",
                 is_retryable=False,
-                retry_of_id=op.id,
+                retry_of_id=op_id,
                 created_at=datetime.now(timezone.utc)
             )
-            db.add(retry_record)
-            db.commit()
+            persist_db.add(retry_record)
 
-        record_audit_log(
-            db,
-            actor_id=current_admin.id,
-            action="ai_operation_retry",
-            target_type="ai_operation",
-            target_id=op.id,
-            outcome="success",
-            reason=f"Admin {current_admin.username} successfully recovered failed operation {op.id} ({op.module_type})",
-            details={"original_op_id": op.id, "new_op_id": new_op_id, "duration_ms": dur_ms}
-        )
+            record_audit_log(
+                persist_db,
+                actor_id=admin_id,
+                action="ai_operation_retry",
+                target_type="ai_operation",
+                target_id=op_id,
+                outcome="success",
+                reason=f"Admin {admin_username} successfully recovered failed operation {op_id} ({op_module_type})",
+                details={"original_op_id": op_id, "new_op_id": new_op_id, "duration_ms": dur_ms}
+            )
 
-        return {
-            "message": "Operation retry executed and persisted successfully via Gemini.",
-            "original_operation_id": op.id,
-            "retry_operation_id": new_op_id,
-            "duration_ms": dur_ms,
-            "status": "success"
-        }
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        dur_ms = int((time.time() - t0) * 1000)
-        db.rollback()
+            persist_db.commit()
 
-        failed_retry_record = AIOperation(
-            id=new_op_id,
-            request_id=f"retry_{op.id[:8]}",
-            user_id=op.user_id,
-            project_id=op.project_id,
-            module_type=op.module_type,
-            operation_type=op.operation_type,
-            model_name=op.model_name or settings.GEMINI_MODEL,
-            duration_ms=dur_ms,
-            status="failed",
-            error_category="api_error",
-            error_message="Unexpected internal error during admin retry.",
-            retry_count=op.retry_count,
-            structured_validation_passed=False,
-            persistence_status="failed",
-            is_retryable=True,
-            retry_of_id=op.id,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(failed_retry_record)
-        db.commit()
-
-        record_audit_log(
-            db,
-            actor_id=current_admin.id,
-            action="ai_operation_retry",
-            target_type="ai_operation",
-            target_id=op.id,
-            outcome="failed",
-            reason=f"Admin {current_admin.username} retry attempt failed due to an unexpected error",
-            details={"original_op_id": op.id, "new_op_id": new_op_id}
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail="Retry execution failed due to an unexpected internal error."
-        )
+    return {
+        "message": "Operation retry executed and persisted successfully via Gemini.",
+        "original_operation_id": op_id,
+        "retry_operation_id": new_op_id,
+        "duration_ms": dur_ms,
+        "status": "success"
+    }

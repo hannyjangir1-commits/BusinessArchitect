@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.telemetry import record_ai_operation, record_analytics_event
-from app.models.all_models import Project, ModuleContent, ModuleVersion
+from app.db.session import SessionLocal
+from app.models.all_models import Project, ModuleContent, ModuleVersion, User
 from app.schemas.modules import (
     BMCData, TechStackData, IdeaValidatorData, MarketResearchData,
     ExecutionRoadmapData, RoadmapPlanningRequest, TechStackPlanningRequest, GenerationBrief
@@ -15,6 +16,7 @@ from app.schemas.modules import (
 from app.services.version_service import VersionService
 from app.services.project_context_service import read_project_context, project_fingerprint
 from app.services.roadmap_service import RoadmapDomainService
+from app.services.task_graph_validator import project_first_lock
 from app.ai.gemini_service import ai_service
 
 VALIDATION_MODELS = {
@@ -47,36 +49,43 @@ class ModuleOrchestrationService:
         planning_inputs: Optional[RoadmapPlanningRequest | TechStackPlanningRequest] = None,
         project_dict: Optional[Dict[str, Any]] = None,
     ) -> Tuple[ModuleVersion, Dict[str, Any]]:
-        # Stage 0: Version-capacity preflight (Fix B08)
+        # Stage 0: Version-capacity preflight
         # Check capacity BEFORE reading context, building briefs, or invoking AI provider
         VersionService.assert_version_capacity(db, module)
 
         t0 = time.time()
+        project_id = project.id
+        user_id = project.user_id
+        module_id = module.id
+        project_fp = project_fingerprint(project)
         proj_info = dict(project_dict or {})
-        cross_ctx, context_sources = read_project_context(db, project.id, exclude_module=module_type)
+        cross_ctx, context_sources = read_project_context(db, project_id, exclude_module=module_type)
         proj_info["context_sources"] = context_sources
 
+        planning_dict = None
+        if module_type in ("execution_roadmap", "detailed_roadmap", "tech_stack"):
+            planning = planning_inputs or (RoadmapPlanningRequest() if module_type != "tech_stack" else TechStackPlanningRequest())
+            planning_dict = planning.model_dump(mode="json")
+        else:
+            planning = None
+
+        # Release the checked-out database connection before calling the external provider
+        db.close()
+
+        # Stage 1: Private server-side generation brief
+        if module_type in {"bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap", "detailed_roadmap"} and not ai_service._configured_api_keys():
+            brief = ai_service.build_offline_generation_brief(proj_info, module_type)
+        else:
+            brief = ai_service.build_generation_brief(
+                proj_info,
+                module_type,
+                cross_module_context=cross_ctx,
+                planning_inputs=planning_dict,
+            )
+
+        # Stage 2: Module synthesis dispatch (Zero checked-out connections or write locks held)
+        from app.core.diagnostics import record_stage
         try:
-            planning_dict = None
-            if module_type in ("execution_roadmap", "detailed_roadmap", "tech_stack"):
-                planning = planning_inputs or (RoadmapPlanningRequest() if module_type != "tech_stack" else TechStackPlanningRequest())
-                planning_dict = planning.model_dump(mode="json")
-
-            # Stage 1: Private server-side generation brief. The planning modules
-            # support explicitly labeled offline baselines when credentials are
-            # absent; scoped modifications and copilot still require live generation.
-            if module_type in {"bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap", "detailed_roadmap"} and not ai_service._configured_api_keys():
-                brief = ai_service.build_offline_generation_brief(proj_info, module_type)
-            else:
-                brief = ai_service.build_generation_brief(
-                    proj_info,
-                    module_type,
-                    cross_module_context=cross_ctx,
-                    planning_inputs=planning_dict,
-                )
-
-            # Stage 2: Module synthesis dispatch
-            from app.core.diagnostics import record_stage
             with record_stage("provider_call"):
                 if module_type == "bmc":
                     generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx)
@@ -99,78 +108,9 @@ class ModuleOrchestrationService:
                         data_dict["feasibility_evaluation"] = roadmap_raw["feasibility_evaluation"]
                 else:
                     raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
-
-            # Attach provenance context metadata
-            data_dict["context_metadata"] = {
-                "stage": proj_info.get("stage"),
-                "industry": proj_info.get("industry"),
-                "budget": proj_info.get("budget"),
-                "technical_depth": brief.technical_depth,
-                "brief_summary": brief.venture_summary,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "cross_modules_used": list(cross_ctx),
-                "project_fingerprint": project_fingerprint(project),
-                "source_versions": context_sources,
-            }
-
-            # Pre-persistence structural validation
-            cls.validate_module_payload(module_type, data_dict)
-
-            # Atomic save under project-first lock protocol
-            from app.services.task_graph_validator import project_first_lock
-            with project_first_lock(db, project.id, module.id):
-                if module_type in ("execution_roadmap", "detailed_roadmap"):
-                    if "tasks" not in data_dict or not isinstance(data_dict["tasks"], list):
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Roadmap payload missing 'tasks' list."
-                        )
-                    canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(
-                        db, project, data_dict["tasks"]
-                    )
-                    data_dict = dict(data_dict)
-                    data_dict["tasks"] = canonical_tasks
-
-                new_ver = VersionService.save_new_version(
-                    db=db,
-                    module=module,
-                    data=data_dict,
-                    change_summary="Initial blueprint generation",
-                    commit=False,
-                )
-
-                if module_type in ("execution_roadmap", "detailed_roadmap"):
-                    RoadmapDomainService.reconcile_roadmap_tasks(db, project, data_dict["tasks"])
-
-                db.commit()
-                db.refresh(new_ver)
-
-            dur_ms = int((time.time() - t0) * 1000)
-            record_ai_operation(
-                db,
-                user_id=project.user_id,
-                project_id=project.id,
-                module_type=module_type,
-                operation_type="generate",
-                model_name=settings.GEMINI_MODEL,
-                duration_ms=dur_ms,
-                status="success",
-                structured_validation_passed=True,
-                persistence_status="persisted",
-            )
-            record_analytics_event(
-                db,
-                user_id=project.user_id,
-                project_id=project.id,
-                event_name=f"{module_type}_generated",
-            )
-            return new_ver, data_dict
-
         except HTTPException:
-            db.rollback()
             raise
         except Exception as e:
-            db.rollback()
             dur_ms = int((time.time() - t0) * 1000)
             terminal_provider_error = ai_service._terminal_provider_error_message(e)
             raw_err = str(e)
@@ -181,22 +121,128 @@ class ModuleOrchestrationService:
                 else ("parse_error" if "json" in raw_err.lower() or "validation" in raw_err.lower()
                 else "api_error"))
             )
-            record_ai_operation(
-                db,
-                user_id=project.user_id,
-                project_id=project.id,
-                module_type=module_type,
-                operation_type="generate",
-                model_name=settings.GEMINI_MODEL,
-                duration_ms=dur_ms,
-                status="timeout" if "timeout" in raw_err.lower() else "failed",
-                error_category=err_cat,
-                error_message=err_msg,
-                structured_validation_passed=False,
-                persistence_status="failed",
-                is_retryable=terminal_provider_error is None,
-            )
+            try:
+                with SessionLocal() as telemetry_db:
+                    record_ai_operation(
+                        telemetry_db,
+                        user_id=user_id,
+                        project_id=project_id,
+                        module_type=module_type,
+                        operation_type="generate",
+                        model_name=settings.GEMINI_MODEL,
+                        duration_ms=dur_ms,
+                        status="timeout" if "timeout" in raw_err.lower() else "failed",
+                        error_category=err_cat,
+                        error_message=err_msg,
+                        structured_validation_passed=False,
+                        persistence_status="failed",
+                        is_retryable=terminal_provider_error is None,
+                    )
+                    telemetry_db.commit()
+            except Exception:
+                pass
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Generation failed: {err_msg}",
             ) from e
+
+        # Attach provenance context metadata
+        data_dict["context_metadata"] = {
+            "stage": proj_info.get("stage"),
+            "industry": proj_info.get("industry"),
+            "budget": proj_info.get("budget"),
+            "technical_depth": brief.technical_depth,
+            "brief_summary": brief.venture_summary,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "cross_modules_used": list(cross_ctx),
+            "project_fingerprint": project_fp,
+            "source_versions": context_sources,
+        }
+
+        # Pre-persistence structural validation
+        cls.validate_module_payload(module_type, data_dict)
+
+        # Stage 3: Atomic save under short persistence transaction and project-first lock
+        with SessionLocal(expire_on_commit=False) as persist_db:
+            p_user = persist_db.query(User).filter(User.id == user_id).first()
+            if not p_user or p_user.is_suspended:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User account is suspended or no longer active."
+                )
+
+            p_proj = persist_db.query(Project).filter(Project.id == project_id).first()
+            if not p_proj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project was deleted while generation was in progress."
+                )
+            if p_proj.user_id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Project ownership changed or access revoked."
+                )
+
+            p_mod = persist_db.query(ModuleContent).filter(
+                ModuleContent.id == module_id,
+                ModuleContent.project_id == project_id
+            ).first()
+            if not p_mod:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Module was deleted while generation was in progress."
+                )
+
+            with project_first_lock(persist_db, project_id, p_mod.id):
+                VersionService.assert_version_capacity(persist_db, p_mod)
+
+                if module_type in ("execution_roadmap", "detailed_roadmap"):
+                    if "tasks" not in data_dict or not isinstance(data_dict["tasks"], list):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Roadmap payload missing 'tasks' list."
+                        )
+                    canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(
+                        persist_db, p_proj, data_dict["tasks"]
+                    )
+                    data_dict = dict(data_dict)
+                    data_dict["tasks"] = canonical_tasks
+
+                new_ver = VersionService.save_new_version(
+                    db=persist_db,
+                    module=p_mod,
+                    data=data_dict,
+                    change_summary="Initial blueprint generation",
+                    commit=False,
+                )
+
+                if module_type in ("execution_roadmap", "detailed_roadmap"):
+                    RoadmapDomainService.reconcile_roadmap_tasks(persist_db, p_proj, data_dict["tasks"])
+
+                persist_db.commit()
+                persist_db.refresh(new_ver)
+                all_versions = VersionService.get_versions(persist_db, p_mod.id)
+                setattr(new_ver, "_cached_versions", all_versions)
+
+            dur_ms = int((time.time() - t0) * 1000)
+            record_ai_operation(
+                persist_db,
+                user_id=user_id,
+                project_id=project_id,
+                module_type=module_type,
+                operation_type="generate",
+                model_name=settings.GEMINI_MODEL,
+                duration_ms=dur_ms,
+                status="success",
+                structured_validation_passed=True,
+                persistence_status="persisted",
+            )
+            record_analytics_event(
+                persist_db,
+                user_id=user_id,
+                project_id=project_id,
+                event_name=f"{module_type}_generated",
+            )
+            persist_db.commit()
+
+        return new_ver, data_dict

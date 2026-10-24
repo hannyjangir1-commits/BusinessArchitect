@@ -145,7 +145,48 @@ This register persists progress across phases, documenting findings, affected pa
 ---
 
 ## Phase 4 — Provider Transaction Decoupling
-- **Status:** Pending
+
+- **Status:** COMPLETED
+- **Findings & Affected Paths:**
+  1. `server/app/services/module_orchestration_service.py` (`execute_module_generation`):
+     - Prior implementation held an open database transaction across external AI provider calls (`ai_service.build_generation_brief` and `ai_service.generate_*`), exhausting connection pool slots under concurrency and transaction pooler timeouts.
+     - Decoupled into preflight, provider invocation, and persistence phases:
+       - Preflight: verifies version capacity under project-first lock and copies detached scalar context (`project_id`, `user_id`, `module_id`, `cross_ctx`, `context_sources`, `planning_dict`, `project_fp`).
+       - Connection release: `db.close()` immediately returns the connection to the pool.
+       - Provider invocation: provider runs with 0 checked-out database connections (`engine.pool.checkedout() == 0`).
+       - Post-provider persistence: short isolated transaction under `project_first_lock` revalidates user existence/active status, project existence and ownership, module existence, and re-enforces capacity.
+       - Commits version, roadmap tasks (if roadmap), sets `_cached_versions`, and records telemetry.
+       - On provider failure, records isolated telemetry in a short separate transaction without touching business entities.
+  2. `server/app/api/modules.py`:
+     - `generate_module`: leverages `getattr(new_ver, "_cached_versions", None)` or short query session for metadata response without holding long connections.
+     - `modify_module_with_ai`: reads context, closes `db`, executes `ai_service.modify_section`, validates schema, and persists under short revalidated transaction with `project_first_lock`.
+     - `resolve_conflict_and_replace`: reads context, closes `db` when AI modification requested, executes provider, validates, and persists under short revalidated transaction.
+  3. `server/app/api/copilot.py` (`send_chat_message`):
+     - Commits user message, extracts chat history and project info, closes `db`, invokes `ai_service.chat_copilot`, and persists assistant message under short revalidated transaction.
+  4. `server/app/api/admin/ai_ops.py` (`retry_ai_operation`):
+     - Reads operation context, closes `db`, executes provider call, and persists retried version in a short transaction checking permissions via `_get_permissions_for_role(p_admin.role)` supporting `super_admin`.
+- **Test Evidence:**
+  - `server/tests/test_correction_phase_04_provider_transaction_decoupling.py` (10 passed in 4.84s):
+    - `test_generation_releases_db_connection_during_provider_call` (verified `engine.pool.checkedout() == 0`)
+    - `test_section_modify_releases_db_connection_during_provider_call` (verified `engine.pool.checkedout() == 0`)
+    - `test_copilot_chat_releases_db_connection_during_provider_call` (verified `engine.pool.checkedout() == 0`)
+    - `test_admin_retry_releases_db_connection_during_provider_call` (verified `engine.pool.checkedout() == 0`)
+    - `test_concurrent_ordinary_requests_continue_while_provider_blocked`
+    - `test_project_deleted_while_provider_pending_returns_404`
+    - `test_module_deleted_while_provider_pending_returns_404`
+    - `test_capacity_reached_while_provider_pending_returns_conflict`
+    - `test_user_suspended_while_provider_pending_returns_403`
+    - `test_provider_failure_leaves_saved_content_unchanged_and_records_isolated_telemetry`
+  - Regression verification (58 passed in 20.57s):
+    - `test_correction_phase_03_session_storage_and_auth_safety.py` (12 passed)
+    - `test_correction_batch_07_1_authoritative_versions.py` (13 passed)
+    - `test_batch_07_version_integrity_and_safe_repair.py` (15 passed)
+    - `test_admin_management_and_ops.py` (9 passed)
+    - `test_ai_failure_modes.py` (9 passed)
+  - Total: 68 tests passing cleanly with 0 failures.
+- **Commit SHA:** `PENDING_COMMIT`
+- **Remaining Limitations:** None. Connection pool checkouts assert 0 during all external provider operations.
+- **Production Config / Migration Requirements:** None. Zero schema migrations required.
 
 ---
 

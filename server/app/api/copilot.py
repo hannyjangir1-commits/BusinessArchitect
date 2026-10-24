@@ -1,8 +1,8 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
-from app.models.all_models import Project, CopilotMessage, ModuleContent, ModuleVersion
+from app.db.session import get_db, SessionLocal
+from app.models.all_models import Project, CopilotMessage, User
 from app.schemas.copilot import CopilotChatRequest, CopilotMessageResponse
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
@@ -46,6 +46,8 @@ def send_chat_message(
     from app.services.project_context_service import read_project_context
     active_module_summaries, context_sources = read_project_context(db, project.id)
 
+    project_id = project.id
+    user_id = project.user_id
     proj_info = {
         "name": project.name,
         "stage": normalize_business_stage(project.stage),
@@ -60,21 +62,37 @@ def send_chat_message(
         "context_sources": context_sources
     }
 
+    # Decouple: release database connection before calling the external provider
+    db.close()
+
     try:
         from app.core.diagnostics import record_stage
         with record_stage("provider_call"):
             reply_text = ai_service.chat_copilot(proj_info, history_dicts, req.message, cross_module_context=active_module_summaries)
-        assistant_msg = CopilotMessage(
-            project_id=project.id,
-            role="assistant",
-            content=reply_text
-        )
-        db.add(assistant_msg)
-        db.commit()
-        db.refresh(assistant_msg)
-        return assistant_msg
+
+        with SessionLocal(expire_on_commit=False) as persist_db:
+            p_user = persist_db.query(User).filter(User.id == user_id).first()
+            if not p_user or p_user.is_suspended:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is suspended or no longer active.")
+            p_proj = persist_db.query(Project).filter(Project.id == project_id).first()
+            if not p_proj:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project was deleted while copilot was responding.")
+            if p_proj.user_id != user_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Project ownership changed or access revoked.")
+
+            assistant_msg = CopilotMessage(
+                project_id=project_id,
+                role="assistant",
+                content=reply_text
+            )
+            persist_db.add(assistant_msg)
+            persist_db.commit()
+            persist_db.refresh(assistant_msg)
+            return assistant_msg
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Planning Copilot error: {str(e)}"
-        )
+        ) from e
