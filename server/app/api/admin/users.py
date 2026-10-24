@@ -13,12 +13,48 @@ from app.api.deps import require_admin, require_permission, verify_csrf, ADMIN_R
 from app.core.security import hash_password
 from app.core.telemetry import record_security_event, record_audit_log
 from app.core.business_stage import normalize_business_stage
+from app.core.diagnostics import get_current_request_id
 from app.services.admin_authorization_service import (
     validate_admin_mutation_target,
     assert_super_admin_invariant,
     synchronize_and_authoritative_load,
     release_sqlite_lock_if_held
 )
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _categorize_exception(exc: Exception) -> str:
+    """Map an arbitrary exception to a safe, allowlisted diagnostic category."""
+    from sqlalchemy.exc import (
+        IntegrityError,
+        OperationalError,
+        DataError,
+        DatabaseError,
+        SQLAlchemyError,
+    )
+    if isinstance(exc, IntegrityError):
+        return "integrity_error"
+    if isinstance(exc, OperationalError):
+        return "database_operational_error"
+    if isinstance(exc, DataError):
+        return "database_data_error"
+    if isinstance(exc, (DatabaseError, SQLAlchemyError)):
+        return "database_error"
+    if isinstance(exc, TimeoutError):
+        return "timeout_error"
+    if isinstance(exc, PermissionError):
+        return "permission_error"
+    if isinstance(exc, ValueError):
+        return "value_error"
+    if isinstance(exc, KeyError):
+        return "key_error"
+    if isinstance(exc, TypeError):
+        return "type_error"
+    if isinstance(exc, RuntimeError):
+        return "runtime_error"
+    return "internal_error"
 
 router = APIRouter(prefix="/users", tags=["Admin User Management"])
 
@@ -546,9 +582,15 @@ def delete_user(
             raise
         except Exception as e:
             db.rollback()
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error("Failed to delete user account %s: %s", user_id, str(e), exc_info=True)
+            category = _categorize_exception(e)
+            correlation_id = get_current_request_id() or "none"
+            logger.error(
+                "event=%s operation=%s category=%s correlation_id=%s",
+                "admin_user_deletion_failed",
+                "delete_user",
+                category,
+                correlation_id
+            )
             raise HTTPException(
                 status_code=500,
                 detail="Failed to delete user account. Please try again or contact support."

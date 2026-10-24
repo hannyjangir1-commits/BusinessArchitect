@@ -36,8 +36,8 @@ The transaction architecture was refactored so that target and actor states are 
    - **Step 6: Authoritative Invariant Enforcement**: `assert_super_admin_invariant()` refreshes the target and queries active count under serialization. If `active_count <= 1`, the mutation is rejected with HTTP 400.
    - **Step 7: Atomic Mutation and Commit**: Changes applied to the verified target; transaction commits.
 
-2. **Lock Order & Deadlock Prevention**:
-   All administrative mutation routes (`create_user`, `update_user`, `suspend_user`, `reactivate_user`, `revoke_user_sessions`, `delete_user`, `revoke_session`, `revoke_all_sessions`) acquire the identical single 64-bit advisory lock key (`6004834884214473805`) in uniform order. This single-lock protocol guarantees complete freedom from cross-lock deadlocks. Ordinary user operations (browsing, profile updates, project management) remain entirely unblocked.
+2. **Lock Order & Deadlock Risk Reduction**:
+   All administrative mutation routes (`create_user`, `update_user`, `suspend_user`, `reactivate_user`, `revoke_user_sessions`, `delete_user`, `revoke_session`, `revoke_all_sessions`) acquire the identical single 64-bit advisory lock key (`6004834884214473805`) in uniform order. Using a common application-level lock reduces application lock-order risk across administrative transactions; it does not prove universal "deadlock freedom" against unrelated database-level locks or external access patterns. Ordinary user operations (browsing, profile updates, project management) remain entirely unblocked.
 
 ---
 
@@ -92,15 +92,20 @@ All actor-versus-target policy rules are centralized into [`server/app/services/
 ---
 
 ## 5. Sanitized Deletion Error Handling
-In `delete_user()`, raw database exception exposure (`detail=f"Failed to delete user: {str(e)}"`) was eliminated.
-- Internal diagnostics log the exception with correlation ID and user ID via server logging.
+In `delete_user()`, raw database exception exposure (`detail=f"Failed to delete user: {str(e)}"`) and raw traceback logging were eliminated.
+- Server diagnostics log a bounded, structured entry containing only:
+  - Fixed event name (`admin_user_deletion_failed`)
+  - Request correlation ID when available
+  - Safe operation identifier (`delete_user`)
+  - Allowlisted exception category (e.g., `database_error`, `runtime_error`, `internal_error`)
+- Server logs contain no exception messages, exception repr, SQL parameters, connection strings, credentials, or raw exception tracebacks (`exc_info=None`).
 - Client responses return a stable generic message:
   ```json
   {
     "detail": "Failed to delete user account. Please try again or contact support."
   }
   ```
-- No SQL statements, database URLs, table schemas, or database parameters are exposed to the client.
+- No SQL statements, database URLs, table schemas, or database parameters are exposed to the client or leaked into server logs.
 - Injected database failures roll back cleanly, leaving target user accounts and sessions intact.
 
 ---
@@ -121,14 +126,15 @@ In `delete_user()`, raw database exception exposure (`detail=f"Failed to delete 
 - **Frontend Production Build**: `tsc -b && vite build` succeeded with exit code 0 in 481ms.
 - **`git diff --check`**: Passed with 0 whitespace errors.
 
-### PostgreSQL Concurrency Test
-The test `test_postgresql_concurrent_super_admin_removal` was strengthened:
-- Uses `threading.Barrier(2)` to enforce exact concurrent overlap.
-- Uses separate sessions with statement and lock timeouts (`statement_timeout = 10000`, `lock_timeout = 5000`).
-- Strict assertion: exactly 1 removal succeeds (HTTP 200) and exactly 1 invariant rejection occurs (HTTP 400: "last active super admin").
-- Zero unexpected exceptions tolerated; bounded thread joins (`timeout=10`).
-- Disposes test connections and cleans up only test resources.
-- Safely skips when `TEST_POSTGRES_URL` is omitted in local SQLite environments without claiming concurrency was proved.
+### PostgreSQL Concurrency Test & Isolation Architecture
+The test `test_postgresql_concurrent_super_admin_removal` was isolated and hardened:
+- **URL Parsing & Safety Guard**: Parses configuration using `sqlalchemy.engine.make_url`. Defaults to local disposable PostgreSQL only (`localhost`, `127.0.0.1`, `::1`); rejects remote destinations unless `TEST_POSTGRES_ALLOW_NAMED_ENV='disposable-test'` is explicitly configured. Full connection URLs containing credentials are never logged or exposed.
+- **Isolated Schema Namespace**: Dynamically provisions a unique test-owned schema (`test_conc_<uuid>`) and applies `search_path` to all test connections, workers, and verifications. Never touches, modifies, or deletes from a shared or default schema.
+- **Dedicated Synthetic Users**: Seeds exactly the 2 intended synthetic test users in the isolated schema.
+- **Bounded Timeouts**: Strict 5s connection timeout, 10s statement timeout (`statement_timeout = 10000`), 5s lock timeout (`lock_timeout = 5000`), 5s barrier timeout (`Barrier(2)`), and 10s thread joins.
+- **Guaranteed Teardown**: Teardown in `finally` ensures worker threads are stopped before cleanup, disposes test engines even if assertions fail, and drops the unique test schema with `CASCADE`.
+- **Concurrency Assertions**: Asserts exactly 1 removal succeeds (HTTP 200) and exactly 1 invariant rejection occurs (HTTP 400: "last active super admin"), with zero unexpected exceptions.
+- **SQLite vs. PostgreSQL Clarification**: SQLite tests execute under Python threading with in-process reentrant locking; they do not prove PostgreSQL behavior or engine-level serialization. When `TEST_POSTGRES_URL` is not configured, the PostgreSQL concurrency check is explicitly skipped with runnable instructions and is never reported as "verified."
 
 Execution against disposable PostgreSQL:
 ```bash

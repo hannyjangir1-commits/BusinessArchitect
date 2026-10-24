@@ -4,6 +4,7 @@ Addresses audit finding S01 and related admin-user mutation inconsistencies.
 """
 
 import os
+import uuid
 import threading
 from datetime import datetime, timezone, timedelta
 import pytest
@@ -817,7 +818,7 @@ def test_concurrent_demotion_cannot_leave_zero_active_super_admins():
 # 5. Sanitized User Deletion Error Enforcement
 # ==============================================================================
 
-def test_delete_user_injected_failure_rolls_back_and_sanitizes_error(client, db, monkeypatch):
+def test_delete_user_injected_failure_rolls_back_and_sanitizes_error(client, db, monkeypatch, caplog):
     """
     Test an injected deletion failure:
     - Database error containing sensitive connection strings, SQL statements, and passwords.
@@ -825,7 +826,12 @@ def test_delete_user_injected_failure_rolls_back_and_sanitizes_error(client, db,
     - Account and sessions remain intact.
     - Client response status is 500 with a stable generic message.
     - Client response contains NO raw database exception text or credentials.
+    - Server logs contain ONLY bounded, structured diagnostic markers.
+    - Sensitive markers are absent from response body, formatted logs, log arguments, and exc_info.
     """
+    import logging
+    caplog.set_level(logging.INFO)
+
     super_admin = create_user_fixture(db, "sa_del_err_actor", role="super_admin")
     target_user = create_user_fixture(db, "target_del_err_user", role="user")
     sa_cookies, sa_headers = login_user(client, super_admin.username)
@@ -839,8 +845,16 @@ def test_delete_user_injected_failure_rolls_back_and_sanitizes_error(client, db,
     db.add(sess)
     db.commit()
 
-    # Inject failure into db.delete
-    def faulty_delete(obj):
+    # Inject failure into db.delete with realistic secret and credential markers
+    fake_markers = [
+        "SuperSecretPassword123!",
+        "postgresql://admin:secret@pg.prod:5432/main",
+        "pg.prod",
+        "DELETE FROM users",
+        "dbname=production",
+    ]
+
+    def faulty_delete(*args, **kwargs):
         raise RuntimeError(
             "FATAL: password=SuperSecretPassword123! dbname=production "
             "connection to postgresql://admin:secret@pg.prod:5432/main failed executing DELETE FROM users"
@@ -858,13 +872,44 @@ def test_delete_user_injected_failure_rolls_back_and_sanitizes_error(client, db,
     resp_text = resp.text
     # Generic stable detail
     assert resp.json()["detail"] == "Failed to delete user account. Please try again or contact support."
-    # Leak assertions: raw sensitive information must never appear
-    assert "SuperSecretPassword123!" not in resp_text
-    assert "postgresql://" not in resp_text
-    assert "pg.prod" not in resp_text
-    assert "DELETE FROM" not in resp_text
 
-    # Verify rollback: user and session remain in database
+    # 1. Assert sensitive markers are absent from HTTP response
+    for marker in fake_markers:
+        assert marker not in resp_text, f"Sensitive marker '{marker}' found in HTTP response body"
+
+    # 2. Assert sensitive markers are absent from formatted captured logs
+    captured_logs = caplog.text
+    for marker in fake_markers:
+        assert marker not in captured_logs, f"Sensitive marker '{marker}' found in captured log text"
+
+    # 3. Assert sensitive markers are absent from log arguments and exception information attached to captured records
+    deletion_records = [
+        rec for rec in caplog.records
+        if "admin_user_deletion_failed" in rec.getMessage()
+    ]
+    assert len(deletion_records) >= 1, "Expected bounded diagnostic log record was not emitted"
+
+    for rec in caplog.records:
+        if rec.args:
+            if isinstance(rec.args, dict):
+                arg_values = [str(v) for v in rec.args.values()]
+            else:
+                arg_values = [str(a) for a in rec.args]
+            for val in arg_values:
+                for marker in fake_markers:
+                    assert marker not in val, f"Sensitive marker '{marker}' found in log argument: {val}"
+        # Exception information (traceback/repr) must not be attached to captured records
+        assert rec.exc_info is None, f"Raw exc_info was attached to log record: {rec.exc_info}"
+
+    # 4. Verify structured diagnostic was emitted with safe allowlisted fields
+    target_record = deletion_records[0]
+    formatted_msg = target_record.getMessage()
+    assert "event=admin_user_deletion_failed" in formatted_msg
+    assert "operation=delete_user" in formatted_msg
+    assert "category=runtime_error" in formatted_msg
+    assert "correlation_id=" in formatted_msg
+
+    # 5. Verify rollback: account and sessions remain intact
     db.expire_all()
     assert db.query(User).filter(User.id == target_user.id).first() is not None
     assert db.query(DBSession).filter(DBSession.id == sess.id).first() is not None
@@ -945,16 +990,20 @@ def test_global_session_revocation_authorization_matrix_and_current_session_excl
 def test_postgresql_concurrent_super_admin_removal():
     """
     PostgreSQL Concurrency Test Execution:
-    - Connects to an isolated disposable PostgreSQL instance defined by TEST_POSTGRES_URL.
-    - Strictly rejects any production or non-disposable hostnames to prevent accidental connection.
-    - Synchronizes requests using threading.Barrier(2) to guarantee genuine concurrent overlap.
-    - Sets statement_timeout and lock_timeout.
+    - Parses configuration using SQLAlchemy URL utilities.
+    - Defaults to local disposable PostgreSQL only (localhost / 127.0.0.1 / ::1).
+    - Strictly rejects remote destinations unless TEST_POSTGRES_ALLOW_NAMED_ENV='disposable-test' is explicitly set.
+    - Never outputs the complete connection URL (protects credentials).
+    - Creates a unique test-owned schema namespace ('test_conc_<uuid>') to prevent collision.
+    - Configures every connection to operate strictly within that isolated schema via search_path.
+    - Seeds exactly the intended synthetic users inside the isolated schema.
+    - Never deletes fixed names from a shared/default schema.
+    - Enforces bounded connection (5s), statement (10s), lock (5s), barrier (5s), and join (10s) timeouts.
     - Spawns two concurrent threads using real service/transaction wiring attempting to demote both super admins.
-    - Asserts that pg_advisory_xact_lock serializes execution: exactly one succeeds (HTTP 200) and exactly one fails with the expected invariant rejection (HTTP 400).
+    - Asserts that pg_advisory_xact_lock serializes execution: exactly one succeeds (HTTP 200) and exactly one fails with HTTP 400 ("last active super admin").
     - Asserts zero unexpected exceptions.
-    - Bounded thread joins with timeouts.
-    - Asserts final persisted database state: exactly 1 active super admin remains.
-    - Disposes all connections and cleans up only test resources.
+    - In finally: guarantees workers have stopped, disposes test engines even on assertion failure, and drops the unique test schema with CASCADE.
+    - If PostgreSQL is unavailable, retains an explicit skip and runnable instructions without claiming verified status.
 
     Execution Instructions:
     To execute this test against a disposable PostgreSQL container:
@@ -965,126 +1014,200 @@ def test_postgresql_concurrent_super_admin_removal():
     pg_url = os.environ.get("TEST_POSTGRES_URL")
     if not pg_url:
         pytest.skip(
-            "TEST_POSTGRES_URL not configured. Disposable PostgreSQL concurrency test skipped in local environment."
+            "TEST_POSTGRES_URL not configured. Disposable PostgreSQL concurrency test skipped in local environment.\n"
+            "To execute against a local disposable container:\n"
+            "  docker run -d --name pg-test -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:15\n"
+            "  $env:TEST_POSTGRES_URL='postgresql://postgres:test@localhost:5433/postgres'"
         )
 
-    # Safety guard: Never connect to production
-    lower_url = pg_url.lower()
-    for forbidden in ["supabase.co", "render.com", "aws.com", "pooler.supabase.com"]:
-        if forbidden in lower_url:
-            pytest.fail(f"TEST_POSTGRES_URL points to a production or remote host ({forbidden}). Aborting test.")
+    from sqlalchemy.engine import make_url
+    try:
+        parsed_url = make_url(pg_url)
+    except Exception:
+        pytest.fail("TEST_POSTGRES_URL is not a valid SQLAlchemy database connection URL.")
 
-    engine = create_engine(pg_url, pool_pre_ping=True)
-    from app.db.base import Base
-    Base.metadata.create_all(bind=engine)
+    # Guard host: Default to local disposable PostgreSQL only
+    host = (parsed_url.host or "").strip().lower()
+    is_local = host in ("localhost", "127.0.0.1", "::1")
+    if not is_local:
+        allowed_env = os.environ.get("TEST_POSTGRES_ALLOW_NAMED_ENV", "").strip()
+        if allowed_env != "disposable-test":
+            pytest.fail(
+                f"Refusing to execute concurrency test on remote host '{host}'. "
+                "Non-local destinations are rejected unless TEST_POSTGRES_ALLOW_NAMED_ENV='disposable-test' is explicitly set."
+            )
 
-    from sqlalchemy.orm import sessionmaker
-    PGSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    # Unique test-owned isolated schema namespace
+    unique_suffix = uuid.uuid4().hex[:12]
+    schema_name = f"test_conc_{unique_suffix}"
 
-    # Setup isolated test super admins
-    with PGSessionLocal() as s:
-        # Set lock and statement timeouts
-        s.execute(text("SET statement_timeout = 10000"))
-        s.execute(text("SET lock_timeout = 5000"))
-        s.query(User).filter(User.username.in_(["pg_test_sa_1", "pg_test_sa_2"])).delete()
-        s.commit()
+    bootstrap_engine = None
+    test_engine = None
+    schema_created = False
+    t1 = None
+    t2 = None
 
-        sa1 = User(
-            id=gen_id("usr_"),
-            username="pg_test_sa_1",
-            email="pg_test_sa_1@test.com",
-            hashed_password=hash_password("Password123!"),
-            role="super_admin",
-            is_suspended=False,
-            terms_accepted=True,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-            last_active_at=datetime.now(timezone.utc)
+    try:
+        # Bootstrap connection to verify availability and create the unique schema
+        try:
+            bootstrap_engine = create_engine(
+                parsed_url,
+                connect_args={"connect_timeout": 5},
+                pool_pre_ping=True
+            )
+            with bootstrap_engine.connect() as conn:
+                conn.execution_options(isolation_level="AUTOCOMMIT")
+                conn.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+                schema_created = True
+        except Exception as conn_err:
+            pytest.skip(
+                f"PostgreSQL at host '{host}' is unavailable or refused connection ({type(conn_err).__name__}).\n"
+                "Concurrency test skipped.\n"
+                "To execute: docker run -d --name pg-test -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:15"
+            )
+
+        # Isolated test engine applying the unique test namespace to every connection
+        from sqlalchemy import event
+        test_engine = create_engine(
+            parsed_url,
+            connect_args={
+                "connect_timeout": 5,
+                "options": f"-c search_path={schema_name}"
+            },
+            pool_pre_ping=True
         )
-        sa2 = User(
-            id=gen_id("usr_"),
-            username="pg_test_sa_2",
-            email="pg_test_sa_2@test.com",
-            hashed_password=hash_password("Password123!"),
-            role="super_admin",
-            is_suspended=False,
-            terms_accepted=True,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-            last_active_at=datetime.now(timezone.utc)
-        )
-        s.add_all([sa1, sa2])
-        s.commit()
-        sa1_id, sa2_id = sa1.id, sa2.id
 
-    from app.services.admin_authorization_service import (
-        synchronize_and_authoritative_load,
-        validate_admin_mutation_target,
-        assert_super_admin_invariant
-    )
-    from fastapi import HTTPException
+        @event.listens_for(test_engine, "connect")
+        def set_search_path(dbapi_conn, conn_record):
+            with dbapi_conn.cursor() as cursor:
+                cursor.execute(f'SET search_path TO "{schema_name}"')
 
-    barrier = threading.Barrier(2)
-    results = []
-    errors = []
+        # Create tables inside the isolated schema namespace
+        from app.db.base import Base
+        Base.metadata.create_all(bind=test_engine)
 
-    def attempt_route_demotion(actor_id: str, target_id: str, thread_name: str):
+        from sqlalchemy.orm import sessionmaker
+        PGSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+        # Seed exactly the intended synthetic users in the fresh schema (no shared/fixed names deleted)
+        sa1_id = gen_id("usr_")
+        sa2_id = gen_id("usr_")
+        sa1_username = f"sa1_{unique_suffix}"
+        sa2_username = f"sa2_{unique_suffix}"
+
         with PGSessionLocal() as s:
+            s.execute(text("SET statement_timeout = 10000"))
+            s.execute(text("SET lock_timeout = 5000"))
+            sa1 = User(
+                id=sa1_id,
+                username=sa1_username,
+                email=f"{sa1_username}@disposable.local",
+                hashed_password=hash_password("Password123!"),
+                role="super_admin",
+                is_suspended=False,
+                terms_accepted=True,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                last_active_at=datetime.now(timezone.utc)
+            )
+            sa2 = User(
+                id=sa2_id,
+                username=sa2_username,
+                email=f"{sa2_username}@disposable.local",
+                hashed_password=hash_password("Password123!"),
+                role="super_admin",
+                is_suspended=False,
+                terms_accepted=True,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                last_active_at=datetime.now(timezone.utc)
+            )
+            s.add_all([sa1, sa2])
+            s.commit()
+
+        from app.services.admin_authorization_service import (
+            synchronize_and_authoritative_load,
+            validate_admin_mutation_target,
+            assert_super_admin_invariant
+        )
+        from fastapi import HTTPException
+
+        barrier = threading.Barrier(2)
+        results = []
+        errors = []
+
+        def attempt_route_demotion(actor_id: str, target_id: str, thread_name: str):
+            with PGSessionLocal() as s:
+                try:
+                    s.execute(text("SET statement_timeout = 10000"))
+                    s.execute(text("SET lock_timeout = 5000"))
+                    actor = s.query(User).filter(User.id == actor_id).first()
+
+                    # Synchronize threads with bounded barrier timeout
+                    barrier.wait(timeout=5.0)
+
+                    # Authoritative synchronized mutation pipeline
+                    auth_actor, auth_target = synchronize_and_authoritative_load(
+                        s, actor, target_id=target_id, required_permission="manage_users"
+                    )
+                    validate_admin_mutation_target(auth_actor, auth_target, proposed_role="user")
+                    assert_super_admin_invariant(s, auth_target, proposed_role="user")
+
+                    auth_target.role = "user"
+                    s.commit()
+                    results.append((thread_name, "success", 200, None))
+                except HTTPException as http_exc:
+                    s.rollback()
+                    results.append((thread_name, "rejected", http_exc.status_code, http_exc.detail))
+                except Exception as e:
+                    s.rollback()
+                    errors.append((thread_name, type(e).__name__))
+
+        t1 = threading.Thread(target=attempt_route_demotion, args=(sa1_id, sa1_id, "T1"))
+        t2 = threading.Thread(target=attempt_route_demotion, args=(sa2_id, sa2_id, "T2"))
+
+        t1.start()
+        t2.start()
+        t1.join(timeout=10.0)
+        t2.join(timeout=10.0)
+
+        assert not t1.is_alive(), "Thread 1 timed out during concurrent PostgreSQL demotion"
+        assert not t2.is_alive(), "Thread 2 timed out during concurrent PostgreSQL demotion"
+        assert len(errors) == 0, f"Unexpected exceptions encountered: {errors}"
+
+        successes = [r for r in results if r[1] == "success"]
+        rejections = [r for r in results if r[1] == "rejected"]
+
+        assert len(successes) == 1, f"Expected exactly 1 successful demotion, got {len(successes)}: {results}"
+        assert len(rejections) == 1, f"Expected exactly 1 invariant rejection, got {len(rejections)}: {results}"
+        assert rejections[0][2] == 400
+        assert "last active super admin" in rejections[0][3].lower()
+
+        with PGSessionLocal() as s:
+            remaining_active = s.query(User).filter(
+                User.role == "super_admin",
+                User.is_suspended == False
+            ).count()
+            assert remaining_active == 1, f"Invariant violated: expected exactly 1 active super admin, found {remaining_active}"
+
+    finally:
+        # Guarantee workers have stopped before starting teardown
+        for t in (t1, t2):
+            if t is not None and t.is_alive():
+                t.join(timeout=2.0)
+
+        # Dispose test engine first so all sessions and pooled connections are closed
+        if test_engine is not None:
+            test_engine.dispose()
+
+        # Teardown: Drop the unique test schema with CASCADE
+        if schema_created and bootstrap_engine is not None:
             try:
-                s.execute(text("SET statement_timeout = 10000"))
-                s.execute(text("SET lock_timeout = 5000"))
-                actor = s.query(User).filter(User.id == actor_id).first()
+                with bootstrap_engine.connect() as conn:
+                    conn.execution_options(isolation_level="AUTOCOMMIT")
+                    conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+            except Exception:
+                pass
 
-                # Synchronize before starting the mutation sequence to guarantee overlap
-                barrier.wait(timeout=5)
-
-                # Real route transaction wiring:
-                auth_actor, auth_target = synchronize_and_authoritative_load(
-                    s, actor, target_id=target_id, required_permission="manage_users"
-                )
-                validate_admin_mutation_target(auth_actor, auth_target, proposed_role="user")
-                assert_super_admin_invariant(s, auth_target, proposed_role="user")
-
-                auth_target.role = "user"
-                s.commit()
-                results.append((thread_name, "success", 200, None))
-            except HTTPException as http_exc:
-                s.rollback()
-                results.append((thread_name, "rejected", http_exc.status_code, http_exc.detail))
-            except Exception as e:
-                s.rollback()
-                errors.append((thread_name, str(e)))
-
-    t1 = threading.Thread(target=attempt_route_demotion, args=(sa1_id, sa1_id, "T1"))
-    t2 = threading.Thread(target=attempt_route_demotion, args=(sa2_id, sa2_id, "T2"))
-
-    t1.start()
-    t2.start()
-    t1.join(timeout=10)
-    t2.join(timeout=10)
-
-    assert not t1.is_alive(), "Thread 1 timed out during concurrent PostgreSQL demotion"
-    assert not t2.is_alive(), "Thread 2 timed out during concurrent PostgreSQL demotion"
-    assert len(errors) == 0, f"Unexpected exceptions encountered: {errors}"
-
-    successes = [r for r in results if r[1] == "success"]
-    rejections = [r for r in results if r[1] == "rejected"]
-
-    assert len(successes) == 1, f"Expected exactly 1 successful demotion, got {len(successes)}: {results}"
-    assert len(rejections) == 1, f"Expected exactly 1 invariant rejection, got {len(rejections)}: {results}"
-    assert rejections[0][2] == 400
-    assert "last active super admin" in rejections[0][3].lower()
-
-    with PGSessionLocal() as s:
-        remaining_active = s.query(User).filter(
-            User.role == "super_admin",
-            User.is_suspended == False,
-            User.id.in_([sa1_id, sa2_id])
-        ).count()
-        assert remaining_active == 1, f"Invariant violated: expected exactly 1 active super admin, found {remaining_active}"
-
-        # Clean up test resources
-        s.query(User).filter(User.username.in_(["pg_test_sa_1", "pg_test_sa_2"])).delete()
-        s.commit()
-
-    engine.dispose()
+        if bootstrap_engine is not None:
+            bootstrap_engine.dispose()
