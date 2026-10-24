@@ -9,6 +9,7 @@ from app.models.all_models import (
 )
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
+from app.core.security import hash_session_token
 from app.core.telemetry import record_security_event, record_audit_log
 from app.services.admin_authorization_service import (
     validate_session_revocation_target,
@@ -67,6 +68,7 @@ def list_active_sessions(
     db: Session = Depends(get_db)
 ):
     current_token = request.cookies.get(settings.COOKIE_NAME)
+    current_digest = hash_session_token(current_token) if current_token else None
     now = datetime.now(timezone.utc)
 
     # Active sessions not yet expired
@@ -88,7 +90,7 @@ def list_active_sessions(
                 "username": s.user.username if s.user else "Unknown",
                 "email": s.user.email if s.user else "Unknown",
                 "role": s.user.role if s.user else "user",
-                "is_current": s.session_token == current_token,
+                "is_current": bool(current_digest and (s.token_digest == current_digest or s._session_token == current_token)),
                 "created_at": s.created_at.isoformat(),
                 "expires_at": s.expires_at.isoformat()
             }

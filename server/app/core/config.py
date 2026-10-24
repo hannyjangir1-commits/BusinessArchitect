@@ -170,7 +170,7 @@ def validate_production_runtime_safety(cfg: Settings = None) -> None:
     if not secret or len(secret) < 32 or secret in KNOWN_DEV_SESSION_SECRETS:
         raise RuntimeError(
             "Production requires a strong, unique SESSION_SECRET of at least 32 characters. "
-            "Known development session secrets and fallbacks are strictly rejected."
+            "Insecure default session secrets and fallbacks are strictly rejected."
         )
 
     # 2. DATABASE_URL

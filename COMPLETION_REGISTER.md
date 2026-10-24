@@ -88,7 +88,59 @@ This register persists progress across phases, documenting findings, affected pa
 ---
 
 ## Phase 3 — Session Storage and Authentication Safety
-- **Status:** Pending
+
+- **Status:** COMPLETED
+- **Findings & Affected Paths:**
+  1. `server/app/core/security.py`:
+     - Added `hash_session_token(token: str) -> str` to generate a high-entropy SHA-256 cryptographic digest of session tokens for database persistence and server-side lookup.
+     - Preserved raw bearer tokens exclusively in memory and inside secure HttpOnly cookies (`aba_session`).
+     - Preserved HMAC-SHA256 CSRF protection bound to the browser's cookie session token.
+  2. `server/app/models/all_models.py`:
+     - Added `token_digest` column (`String(64)`, unique index) to `Session` table.
+     - Altered `session_token` column to be `nullable=True`.
+     - Added `SessionTokenComparator` and `@hybrid_property` on `Session.session_token` to support transparent dual lookup (`session_token == token` or `token_digest == hash_session_token(token)`), and SQL NULL-safe inequality (`!=`).
+     - Automatic setter ensures test fixtures constructing `Session(session_token=...)` compute `token_digest` automatically.
+  3. `server/alembic/versions/b1c2d3e4f5a6_add_session_token_digest.py`:
+     - Reversible, additive migration adding `token_digest` and making `session_token` nullable via `batch_alter_table`.
+     - Automatically backfills `token_digest = sha256(session_token)` for all existing active sessions without invalidating or logging out any active users.
+     - Downgrade cleanly drops `token_digest` and its unique index.
+  4. `server/app/api/deps.py`:
+     - Updated `get_current_user` to query `Session.token_digest == digest`.
+     - Implemented self-healing migration fallback: legacy unmigrated raw-token sessions authenticate seamlessly, immediately upgrade their database record with `token_digest`, clear `session_token = None`, and commit.
+     - Enforces account suspension and expiration checks with timezone awareness.
+  5. `server/app/api/auth.py` & `server/app/api/admin/auth.py`:
+     - Updated `register`, `login`, and `refresh` to store ONLY `token_digest` in `DBSession` (`session_token = None`).
+     - Response bodies NEVER return raw tokens or digests (only user info and `csrf_token`).
+     - Updated `logout` and `change-password` to safely invalidate sessions using `token_digest`.
+  6. `server/app/api/admin/security.py`:
+     - `list_active_sessions`: evaluated `is_current` via `token_digest == current_digest` without returning tokens or digests in JSON.
+     - `revoke_all_sessions`: emergency global kill-switch excludes the invoking admin session via `token_digest != current_digest` and revokes all other active sessions.
+  7. `server/app/core/config.py`:
+     - `validate_production_runtime_safety`: verified that known dev secrets and weak secrets abort startup safely without printing secret values in exceptions.
+- **Test Evidence:**
+  - `server/tests/test_correction_phase_03_session_storage_and_auth_safety.py` (12 passed in 16.89s):
+    - `test_login_and_registration_store_digest_not_raw_token`
+    - `test_session_lookup_succeeds_with_digest`
+    - `test_legacy_session_self_healing_upgrade`
+    - `test_expired_session_fails_and_cleans_up`
+    - `test_logout_invalidates_session`
+    - `test_session_fixation_resistance_on_refresh`
+    - `test_csrf_protection_on_state_changing_requests`
+    - `test_password_change_invalidates_other_sessions`
+    - `test_suspended_user_session_denied`
+    - `test_admin_sessions_and_emergency_revoke_all`
+    - `test_admin_session_listings_do_not_expose_tokens_or_digests`
+    - `test_production_config_rejects_insecure_secrets`
+  - `server/tests/test_production_config_safety.py` (8 passed in 5.49s).
+  - `server/tests/test_batch_04_admin_authorization.py` & `server/tests/test_audit_repairs_and_csrf_exhaustive.py` (39 passed, 1 skipped in 55.28s).
+  - Disposable database upgrade & downgrade test passed cleanly.
+  - Full suite test collection: 425 tests collected cleanly.
+- **Commit SHA:** `9e62ce7ee9f5066f2c8a10a592d9c073b298d745`
+- **Remaining Limitations:**
+  - None for Phase 3; multi-process PostgreSQL engine-level checks remain pending Phase 11.
+- **Production Config / Migration Requirements:**
+  - Run `alembic upgrade head` (`b1c2d3e4f5a6`). Existing sessions are automatically backfilled with cryptographic digests; zero forced logouts.
+
 
 ---
 

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import (
-    hash_password, verify_password, generate_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
+    hash_password, verify_password, generate_session_token, hash_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
 )
 from app.models.all_models import User, Session as DBSession
 from app.api.deps import get_current_user, get_request_session_token, require_admin, verify_csrf, ADMIN_ROLES, _get_permissions_for_role
@@ -136,8 +136,9 @@ def admin_login(
     from app.services.system_setting_service import get_setting_int
     expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     session_token = generate_session_token()
+    token_digest = hash_session_token(session_token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
-    sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
+    sess = DBSession(token_digest=token_digest, user_id=user.id, expires_at=expires_at)
     db.add(sess)
 
     # Update last_active_at
@@ -321,6 +322,7 @@ def list_my_sessions(
 ):
     """List active sessions for the currently authenticated administrator."""
     current_token = get_request_session_token(request)
+    current_digest = hash_session_token(current_token) if current_token else None
     now = datetime.now(timezone.utc)
 
     sessions = (
@@ -338,7 +340,7 @@ def list_my_sessions(
         "sessions": [
             {
                 "id": s.id,
-                "is_current": s.session_token == current_token,
+                "is_current": bool(current_digest and (s.token_digest == current_digest or s._session_token == current_token)),
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "expires_at": s.expires_at.isoformat() if s.expires_at else None
             }

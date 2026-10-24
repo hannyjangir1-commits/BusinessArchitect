@@ -32,9 +32,22 @@ def get_current_user(
         )
 
     from app.core.diagnostics import record_stage
+    from app.core.security import hash_session_token
 
     with record_stage("auth_lookup"):
-        db_session = db.query(DBSession).filter(DBSession.session_token == token).first()
+        digest = hash_session_token(token)
+        db_session = db.query(DBSession).filter(DBSession.token_digest == digest).first()
+        if not db_session:
+            # Self-healing migration fallback for legacy raw session tokens
+            db_session = db.query(DBSession).filter(DBSession._session_token == token).first()
+            if db_session:
+                db_session.token_digest = digest
+                db_session._session_token = None
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
+
         if not db_session:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

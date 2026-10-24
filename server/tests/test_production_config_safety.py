@@ -221,9 +221,12 @@ def test_ci_database_schema_and_alembic_head():
         for column in {"assigned_to", "assigned_role", "department", "steps", "is_overloaded"}:
             assert column in task_columns, f"Expected persisted roadmap task field '{column}'"
 
+        session_columns = {column["name"] for column in inspector.get_columns("sessions")}
+        assert "token_digest" in session_columns, "Expected 'token_digest' column in sessions table"
+
         # Check alembic_version has head revision
         from sqlalchemy import text
         res = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert res == "a2b3c4d5e6f7", f"Expected Alembic head revision 'a2b3c4d5e6f7', got '{res}'"
+        assert res == "b1c2d3e4f5a6", f"Expected Alembic head revision 'b1c2d3e4f5a6', got '{res}'"
     finally:
         db.close()

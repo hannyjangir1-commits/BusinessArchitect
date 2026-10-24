@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint, Index, text, false
+    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint, Index, text, false, or_, and_
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property, Comparator
 from app.db.base import Base
 
 def gen_id(prefix: str = "") -> str:
@@ -31,16 +32,56 @@ class User(Base):
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="actor")
 
+class SessionTokenComparator(Comparator):
+    def __eq__(self, other):
+        if isinstance(other, str) and other:
+            from app.core.security import hash_session_token
+            digest = hash_session_token(other)
+            return or_(self.__clause_element__() == other, Session.token_digest == digest)
+        return self.__clause_element__() == other
+
+    def __ne__(self, other):
+        if isinstance(other, str) and other:
+            from app.core.security import hash_session_token
+            digest = hash_session_token(other)
+            return or_(
+                Session.token_digest != digest,
+                and_(Session.token_digest.is_(None), self.__clause_element__() != other)
+            )
+        return self.__clause_element__() != other
+
 class Session(Base):
     __tablename__ = "sessions"
 
     id = Column(String(36), primary_key=True, default=lambda: gen_id("ses_"))
-    session_token = Column(String(128), unique=True, nullable=False, index=True)
+    _session_token = Column("session_token", String(128), unique=True, nullable=True, index=True)
+    token_digest = Column(String(64), unique=True, nullable=True, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     user = relationship("User", back_populates="sessions")
+
+    @hybrid_property
+    def session_token(self):
+        return self._session_token
+
+    @session_token.setter
+    def session_token(self, value):
+        self._session_token = value
+        if value and not self.token_digest:
+            from app.core.security import hash_session_token
+            self.token_digest = hash_session_token(value)
+
+    @session_token.comparator
+    def session_token(cls):
+        return SessionTokenComparator(cls._session_token)
+
+    def __init__(self, **kwargs):
+        if "session_token" in kwargs and kwargs["session_token"] and not kwargs.get("token_digest"):
+            from app.core.security import hash_session_token
+            kwargs["token_digest"] = hash_session_token(kwargs["session_token"])
+        super().__init__(**kwargs)
 
 class Project(Base):
     __tablename__ = "projects"

@@ -31,6 +31,15 @@ def generate_session_token() -> str:
     """Generate a high-entropy cryptographically secure session token."""
     return secrets.token_hex(32)
 
+def hash_session_token(token: str) -> str:
+    """
+    Compute cryptographic SHA-256 digest of high-entropy session token.
+    Used for server-side persistence and lookup so raw tokens are never stored.
+    """
+    if not token:
+        return ""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
 def generate_csrf_token(session_token: str) -> str:
     """Generate a CSRF token bound to the session token."""
     key = settings.SESSION_SECRET.encode("utf-8")

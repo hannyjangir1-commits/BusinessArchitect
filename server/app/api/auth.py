@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.core.config import settings
-from app.core.security import hash_password, verify_password, generate_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
+from app.core.security import hash_password, verify_password, generate_session_token, hash_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
 from app.models.all_models import User, Session as DBSession, SecurityEvent
 from app.schemas.auth import (
     UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse,
@@ -95,8 +95,9 @@ def register(
     # Create session with dynamic expiry days setting
     expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     session_token = generate_session_token()
+    token_digest = hash_session_token(session_token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
-    sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
+    sess = DBSession(token_digest=token_digest, user_id=user.id, expires_at=expires_at)
     db.add(sess)
     db.commit()
     db.refresh(user)
@@ -156,8 +157,9 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
 
     expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     session_token = generate_session_token()
+    token_digest = hash_session_token(session_token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
-    sess = DBSession(session_token=session_token, user_id=user.id, expires_at=expires_at)
+    sess = DBSession(token_digest=token_digest, user_id=user.id, expires_at=expires_at)
     db.add(sess)
     db.commit()
 
@@ -205,12 +207,13 @@ def refresh_session(
     token = get_request_session_token(request)
     expiry_days = get_setting_int(db, "session_expiry_days", settings.SESSION_EXPIRE_DAYS)
     new_token = generate_session_token()
+    new_digest = hash_session_token(new_token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
 
     if token:
         db.query(DBSession).filter(DBSession.session_token == token).delete()
 
-    sess = DBSession(session_token=new_token, user_id=current_user.id, expires_at=expires_at)
+    sess = DBSession(token_digest=new_digest, user_id=current_user.id, expires_at=expires_at)
     db.add(sess)
     db.commit()
 
