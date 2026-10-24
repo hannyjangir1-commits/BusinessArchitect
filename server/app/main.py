@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Request, Response, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -53,6 +53,43 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Registration Admission Protection Middleware (Phase 2)
+@app.middleware("http")
+async def registration_admission_middleware(request: Request, call_next):
+    # Strictly intercept registration requests before expensive body parsing or hashing
+    if request.url.path in ("/api/auth/register", "/api/v1/auth/register") and request.method == "POST":
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > 65536:
+                    return JSONResponse(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        content={"detail": "Registration request body exceeds maximum allowed size (64KB)."}
+                    )
+            except ValueError:
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={"detail": "Invalid Content-Length header."}
+                )
+
+        from app.core.client_identity import extract_client_ip
+        from app.core.auth_limiter import check_and_record_registration_admission
+        client_ip = extract_client_ip(request, settings.TRUSTED_PROXIES)
+        try:
+            with SessionLocal() as lim_db:
+                check_and_record_registration_admission(lim_db, client_ip)
+        except HTTPException as he:
+            return JSONResponse(
+                status_code=he.status_code,
+                content={"detail": he.detail},
+                headers=he.headers
+            )
+
+        # Mark that admission check ran and was recorded before Pydantic parsing
+        request.state.admission_checked = True
+
+    return await call_next(request)
 
 # Maintenance Mode Middleware (F-05)
 @app.middleware("http")
@@ -293,6 +330,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.core.client_identity import TrustedProxyMiddleware
+app.add_middleware(TrustedProxyMiddleware)
 
 # API Routers
 api_v1 = FastAPI(title="API V1")

@@ -92,7 +92,7 @@ def record_analytics_event(
         return None
 
 def record_security_event(
-    db: Session,
+    db: Optional[Session] = None,
     *,
     event_type: str,
     severity: str = "info",
@@ -103,27 +103,29 @@ def record_security_event(
     request_path: Optional[str] = None,
     details: Optional[Dict[str, Any]] = None
 ) -> Optional[SecurityEvent]:
-    """Record a security event (e.g. login failure, CSRF failure, permission denied)."""
-    try:
-        sec = SecurityEvent(
-            id=gen_id("sec_"),
-            event_type=event_type,
-            severity=severity,
-            actor_id=actor_id,
-            target_user_id=target_user_id,
-            ip_address=ip_address,
-            user_agent=user_agent[:255] if user_agent else None,
-            request_path=request_path[:255] if request_path else None,
-            details=details or {},
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(sec)
-        db.commit()
-        return sec
-    except Exception as e:
-        db.rollback()
-        logger.error("Failed to record security event: %s", str(e))
-        return None
+    """Record a security event safely in an isolated transaction to prevent committing caller state."""
+    from app.db.session import SessionLocal
+    with SessionLocal() as sec_db:
+        try:
+            sec = SecurityEvent(
+                id=gen_id("sec_"),
+                event_type=event_type,
+                severity=severity,
+                actor_id=actor_id,
+                target_user_id=target_user_id,
+                ip_address=ip_address,
+                user_agent=user_agent[:255] if user_agent else None,
+                request_path=request_path[:255] if request_path else None,
+                details=details or {},
+                created_at=datetime.now(timezone.utc)
+            )
+            sec_db.add(sec)
+            sec_db.commit()
+            return sec
+        except Exception as e:
+            sec_db.rollback()
+            logger.error("Failed to record security event: %s", str(e))
+            return None
 
 def record_audit_log(
     db: Session,

@@ -13,6 +13,9 @@ ph = PasswordHasher(
     salt_len=16
 )
 
+# Precomputed valid Argon2id hash to mitigate user enumeration timing side-channels
+DUMMY_PASSWORD_HASH = ph.hash("DummyPasswordVerificationForTimingMitigation123!")
+
 def hash_password(password: str) -> str:
     """Hash a password using Argon2id."""
     return ph.hash(password)

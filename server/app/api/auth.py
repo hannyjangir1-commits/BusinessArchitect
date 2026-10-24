@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.core.config import settings
-from app.core.security import hash_password, verify_password, generate_session_token, generate_csrf_token
+from app.core.security import hash_password, verify_password, generate_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
 from app.models.all_models import User, Session as DBSession, SecurityEvent
 from app.schemas.auth import (
     UserRegisterRequest, UserLoginRequest, UserResponse, SessionResponse,
@@ -20,6 +20,7 @@ from app.core.auth_limiter import (
     record_login_failure,
     record_login_success,
     check_and_record_registration_admission,
+    maybe_cleanup_expired_events,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -59,7 +60,8 @@ def register(
 ):
     # 1. Admission protection against registration floods before expensive Argon2 password hashing
     client_ip = extract_client_ip(request, settings.TRUSTED_PROXIES)
-    check_and_record_registration_admission(db, client_ip)
+    if not getattr(request.state, "admission_checked", False):
+        check_and_record_registration_admission(db, client_ip)
 
     # 2. Check if public registration is enabled
     if not get_setting_bool(db, "public_registration_enabled", True):
@@ -117,10 +119,16 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
         (User.email == normalized_account) | (User.username == req.email_or_username.strip())
     ).first()
 
-    if not user or not verify_password(req.password, user.hashed_password):
+    # Verify password with comparable timing regardless of account existence
+    valid_password = False
+    if user:
+        valid_password = verify_password(req.password, user.hashed_password)
+    else:
+        verify_password(req.password, DUMMY_PASSWORD_HASH)
+
+    if not user or not valid_password:
         record_login_failure(client_ip, normalized_account, is_admin=False)
         record_security_event(
-            db,
             event_type="login_failure",
             severity="low",
             ip_address=client_ip,
@@ -131,6 +139,9 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
 
     # Clear failed attempt counter for this account upon verified credentials
     record_login_success(client_ip, normalized_account, is_admin=False)
+
+    # Opportunistically trigger bounded cleanup for expired limiter events
+    maybe_cleanup_expired_events()
 
     if getattr(user, "is_suspended", False):
         record_security_event(

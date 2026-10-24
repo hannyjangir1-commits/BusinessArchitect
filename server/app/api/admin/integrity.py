@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -7,7 +7,7 @@ from sqlalchemy import func, text
 from app.db.session import get_db
 from app.models.all_models import (
     User, Project, ModuleContent, ModuleVersion, RoadmapTask,
-    CopilotMessage, Session as DBSession, AuditLog
+    CopilotMessage, Session as DBSession, AuditLog, AuthRateLimitEvent
 )
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_audit_log
@@ -125,6 +125,21 @@ def run_integrity_scan(
             "items": []
         })
 
+    # 6. Expired rate limit events
+    cutoff_24h = now - timedelta(hours=24)
+    expired_limits_count = db.query(func.count(AuthRateLimitEvent.id)).filter(AuthRateLimitEvent.created_at < cutoff_24h).scalar() or 0
+    if expired_limits_count > 0:
+        findings.append({
+            "code": "EXPIRED_RATE_LIMITS",
+            "severity": "low",
+            "title": f"{expired_limits_count} Expired Rate Limit Event(s) Lingering",
+            "description": "Auth rate limit events past the 24-hour retention window",
+            "count": expired_limits_count,
+            "repairable": True,
+            "repair_action": "clean_expired_rate_limits",
+            "items": []
+        })
+
     return {
         "status": "clean" if not findings else "issues_found",
         "findings_count": len(findings),
@@ -210,6 +225,10 @@ def execute_repair(
             del_projs = db.query(Project).filter(~Project.user_id.in_(db.query(User.id))).delete(synchronize_session=False)
             repaired_count = del_tasks + del_msgs + del_mods + del_projs
             db.commit()
+
+        elif action == "clean_expired_rate_limits":
+            from app.core.auth_limiter import cleanup_expired_events
+            repaired_count = cleanup_expired_events(max_retention_seconds=86400, batch_size=5000)
 
         else:
             raise HTTPException(status_code=400, detail=f"Unrecognized repair action: '{action}'")

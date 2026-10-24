@@ -4,6 +4,7 @@ Provides IP-scoped and account-scoped throttling for public login, administrativ
 and public registration admission before expensive Argon2 password hashing.
 """
 
+import time
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
@@ -87,20 +88,29 @@ def check_rate_limit(
 
     k_hash = hash_key(scope, raw_key)
 
-    # On PostgreSQL, acquire bucket-level advisory lock to serialize concurrent attempts
-    # on the exact same bucket without serializing unrelated keys.
-    bind = db.get_bind()
-    if bind and bind.dialect.name == "postgresql":
-        lock_id = struct.unpack(">q", hashlib.sha256(k_hash.encode()).digest()[:8])[0]
-        db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_id})
+    try:
+        # On PostgreSQL, acquire bucket-level advisory lock to serialize concurrent attempts
+        # on the exact same bucket without serializing unrelated keys.
+        bind = db.get_bind()
+        if bind and bind.dialect.name == "postgresql":
+            lock_id = struct.unpack(">q", hashlib.sha256(k_hash.encode()).digest()[:8])[0]
+            db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_id})
 
-    cutoff = current_time - timedelta(seconds=window_seconds)
+        cutoff = current_time - timedelta(seconds=window_seconds)
 
-    records = db.query(AuthRateLimitEvent.created_at).filter(
-        AuthRateLimitEvent.scope == scope,
-        AuthRateLimitEvent.key_hash == k_hash,
-        AuthRateLimitEvent.created_at >= cutoff
-    ).order_by(AuthRateLimitEvent.created_at.asc()).all()
+        records = db.query(AuthRateLimitEvent.created_at).filter(
+            AuthRateLimitEvent.scope == scope,
+            AuthRateLimitEvent.key_hash == k_hash,
+            AuthRateLimitEvent.created_at >= cutoff
+        ).order_by(AuthRateLimitEvent.created_at.asc()).all()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Limiter database check failed for scope %s: %s", scope, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service temporarily unavailable. Please try again later."
+        )
 
     if len(records) >= max_attempts:
         oldest = records[0][0]
@@ -251,3 +261,61 @@ def reset_auth_limiter_state() -> None:
             lim_db.commit()
         except Exception:
             lim_db.rollback()
+
+
+_last_cleanup_timestamp: float = 0.0
+_cleanup_lock = threading.Lock()
+
+
+def cleanup_expired_events(
+    max_retention_seconds: int = 86400,
+    batch_size: int = 1000
+) -> int:
+    """
+    Delete expired rate limit events in bounded batches using indexed created_at.
+    Ensures bounded storage and prevents unbounded table growth.
+    Returns the number of deleted records.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_retention_seconds)
+    with SessionLocal() as db:
+        try:
+            expired_ids = [
+                row[0] for row in
+                db.query(AuthRateLimitEvent.id)
+                .filter(AuthRateLimitEvent.created_at < cutoff)
+                .order_by(AuthRateLimitEvent.created_at.asc())
+                .limit(batch_size)
+                .all()
+            ]
+            if not expired_ids:
+                return 0
+            deleted = db.query(AuthRateLimitEvent).filter(
+                AuthRateLimitEvent.id.in_(expired_ids)
+            ).delete(synchronize_session=False)
+            db.commit()
+            return deleted
+        except Exception as exc:
+            db.rollback()
+            logger.error("Failed to clean up expired rate limit events: %s", exc)
+            return 0
+
+
+def maybe_cleanup_expired_events(
+    interval_seconds: int = 3600,
+    max_retention_seconds: int = 86400
+) -> int:
+    """
+    Opportunistically trigger bounded cleanup across workers without blocking requests.
+    Enforces interval_seconds cooldown to prevent running deletion scans on every login.
+    """
+    global _last_cleanup_timestamp
+    now = time.time()
+    if now - _last_cleanup_timestamp < interval_seconds:
+        return 0
+    if not _cleanup_lock.acquire(blocking=False):
+        return 0
+    try:
+        _last_cleanup_timestamp = now
+        return cleanup_expired_events(max_retention_seconds=max_retention_seconds)
+    finally:
+        _cleanup_lock.release()

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import (
-    hash_password, verify_password, generate_session_token, generate_csrf_token
+    hash_password, verify_password, generate_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
 )
 from app.models.all_models import User, Session as DBSession
 from app.api.deps import get_current_user, get_request_session_token, require_admin, verify_csrf, ADMIN_ROLES, _get_permissions_for_role
@@ -74,11 +74,16 @@ def admin_login(
         (User.username == username_clean) | (User.email == username_clean)
     ).first()
 
-    # Fail safely with constant-like message to avoid username enumeration
-    if not user or not verify_password(req.password, user.hashed_password):
+    # Mitigate account enumeration timing shortcut using constant-like Argon2 verification
+    valid_password = False
+    if user and user.role in ADMIN_ROLES:
+        valid_password = verify_password(req.password, user.hashed_password)
+    else:
+        verify_password(req.password, DUMMY_PASSWORD_HASH)
+
+    if not user or not valid_password:
         record_login_failure(client_ip, normalized_account, is_admin=True)
         record_security_event(
-            db,
             event_type="admin_login_failure",
             severity="medium",
             actor_id=user.id if user else None,
@@ -96,7 +101,6 @@ def admin_login(
     if user.role not in ADMIN_ROLES:
         record_login_failure(client_ip, normalized_account, is_admin=True)
         record_security_event(
-            db,
             event_type="unauthorized_admin_login_attempt",
             severity="high",
             actor_id=user.id,
