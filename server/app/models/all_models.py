@@ -122,6 +122,10 @@ class RoadmapTask(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
+    __table_args__ = (
+        UniqueConstraint("project_id", "task_code", name="uq_roadmap_tasks_project_task_code"),
+    )
+
     project = relationship("Project", back_populates="tasks")
 
 class CopilotMessage(Base):

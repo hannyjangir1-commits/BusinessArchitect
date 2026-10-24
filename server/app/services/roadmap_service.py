@@ -157,9 +157,17 @@ class RoadmapDomainService:
 
         base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
         active_codes = set()
+        seen_incoming_codes = set()
 
         for idx, t in enumerate(tasks_data):
-            code = t.get("task_code") or f"TSK-{str(idx + 1).zfill(2)}"
+            raw_code = t.get("task_code")
+            code = raw_code.strip() if raw_code and str(raw_code).strip() else f"TSK-{str(idx + 1).zfill(2)}"
+            if code in seen_incoming_codes:
+                suffix = 2
+                while f"{code}_{suffix}" in seen_incoming_codes or f"{code}_{suffix}" in existing_by_code:
+                    suffix += 1
+                code = f"{code}_{suffix}"
+            seen_incoming_codes.add(code)
             active_codes.add(code)
             s_date = t.get("start_date") or base_date_str
             e_date = t.get("end_date") or s_date
