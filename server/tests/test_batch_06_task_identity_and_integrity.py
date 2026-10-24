@@ -565,30 +565,35 @@ def test_deletion_with_dependents_rejected_with_blocking_list(client, db):
 
 def test_bulk_generation_persistence_and_version_restore_compatibility(db):
     """
-    RoadmapDomainService.reconcile_roadmap_tasks seamlessly deduplicates and persists
-    tasks without violating uniqueness or dropping existing user tasks.
+    RoadmapDomainService.reconcile_roadmap_tasks enforces duplicate code rejection
+    and persists valid tasks without violating uniqueness or dropping existing user tasks.
     """
+    from fastapi import HTTPException
     user = create_user_fixture(db, "bulk_sync_user", "bulksync@test.com")
     project = create_project_fixture(db, user)
 
-    incoming_plan = [
+    # 1. Deliberate duplicate code in incoming payload must be rejected cleanly (Batch 06.1)
+    duplicate_plan = [
         {"task_code": "PLAN-01", "phase": "P1", "title": "First Step", "start_date": "2026-11-01", "end_date": "2026-11-05"},
-        # Deliberate duplicate code in incoming payload:
         {"task_code": "PLAN-01", "phase": "P2", "title": "Second Step With Duplicate Code", "start_date": "2026-11-06", "end_date": "2026-11-10"},
         {"task_code": "PLAN-02", "phase": "P2", "title": "Third Step", "start_date": "2026-11-11", "end_date": "2026-11-15"}
     ]
+    with pytest.raises(HTTPException):
+        RoadmapDomainService.reconcile_roadmap_tasks(db, project, duplicate_plan)
 
-    # Reconcile into project
-    RoadmapDomainService.reconcile_roadmap_tasks(db, project, incoming_plan)
+    # 2. Valid incoming plan reconciles and persists cleanly
+    valid_plan = [
+        {"task_code": "PLAN-01", "phase": "P1", "title": "First Step", "start_date": "2026-11-01", "end_date": "2026-11-05"},
+        {"task_code": "PLAN-02", "phase": "P2", "title": "Second Step", "start_date": "2026-11-06", "end_date": "2026-11-10"},
+        {"task_code": "PLAN-03", "phase": "P2", "title": "Third Step", "start_date": "2026-11-11", "end_date": "2026-11-15"}
+    ]
+    RoadmapDomainService.reconcile_roadmap_tasks(db, project, valid_plan)
     db.commit()
 
     persisted = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
     assert len(persisted) == 3
     persisted_codes = [t.task_code for t in persisted]
-    # Codes must be strictly unique
-    assert len(set(persisted_codes)) == 3
-    assert "PLAN-01" in persisted_codes
-    assert "PLAN-02" in persisted_codes
+    assert sorted(persisted_codes) == ["PLAN-01", "PLAN-02", "PLAN-03"]
 
 
 # ==============================================================================

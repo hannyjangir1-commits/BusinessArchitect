@@ -152,23 +152,28 @@ def execute_repair(
             db.commit()
 
         elif action == "fix_missing_active_versions":
+            from app.services.task_graph_validator import project_first_lock
             all_modules = db.query(ModuleContent).all()
             for m in all_modules:
                 old_active_id = m.active_version_id
-                was_repaired = VersionService.repair_active_version_for_module(db, m)
-                if was_repaired:
-                    repaired_count += 1
-                    # If roadmap module and active version changed, synchronize working task state
-                    if m.module_type in ("execution_roadmap", "detailed_roadmap") and m.active_version_id != old_active_id:
-                        if m.active_version_id:
-                            act_ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
-                            proj = db.query(Project).filter(Project.id == m.project_id).first()
-                            if act_ver and proj and isinstance(act_ver.data, dict):
-                                tasks_data = act_ver.data.get("tasks", [])
-                                RoadmapDomainService.reconcile_roadmap_tasks(db, proj, tasks_data)
+                proj = db.query(Project).filter(Project.id == m.project_id).first()
+                if not proj:
+                    continue
+                with project_first_lock(db, proj.id, m.id):
+                    was_repaired = VersionService.repair_active_version_for_module(db, m)
+                    if was_repaired:
+                        repaired_count += 1
+                        # If roadmap module and active version changed, synchronize working task state
+                        if m.module_type in ("execution_roadmap", "detailed_roadmap") and m.active_version_id != old_active_id:
+                            if m.active_version_id:
+                                act_ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
+                                if act_ver and isinstance(act_ver.data, dict):
+                                    tasks_data = act_ver.data.get("tasks", [])
+                                    RoadmapDomainService.reconcile_roadmap_tasks(db, proj, tasks_data)
             db.commit()
 
         elif action == "prune_excess_versions":
+            from app.services.task_graph_validator import project_first_lock
             excess_modules = (
                 db.query(ModuleContent)
                 .join(ModuleVersion, ModuleVersion.module_content_id == ModuleContent.id)
@@ -177,8 +182,9 @@ def execute_repair(
                 .all()
             )
             for m in excess_modules:
-                deleted = VersionService.prune_excess_versions_for_module(db, m, limit=5)
-                repaired_count += deleted
+                with project_first_lock(db, m.project_id, m.id):
+                    deleted = VersionService.prune_excess_versions_for_module(db, m, limit=5)
+                    repaired_count += deleted
             db.commit()
 
         elif action == "clean_orphaned_records":

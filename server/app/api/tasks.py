@@ -75,6 +75,7 @@ def get_roadmap_summary(
 from app.services.task_graph_validator import (
     get_project_task_lock,
     lock_project_for_task_mutation,
+    project_first_lock,
     allocate_next_task_code,
     validate_candidate_task_graph,
     TaskGraphNode
@@ -137,9 +138,7 @@ def create_task(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    lock = get_project_task_lock(project.id)
-    with lock:
-        lock_project_for_task_mutation(db, project.id)
+    with project_first_lock(db, project.id):
 
         # 1. Monotonic automatic code allocation if not explicitly specified
         raw_code = req.task_code.strip() if req.task_code else None
@@ -218,9 +217,7 @@ def update_task(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    lock = get_project_task_lock(project.id)
-    with lock:
-        lock_project_for_task_mutation(db, project.id)
+    with project_first_lock(db, project.id):
 
         task = db.query(RoadmapTask).filter(
             RoadmapTask.id == task_id,
@@ -337,9 +334,7 @@ def delete_task(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    lock = get_project_task_lock(project.id)
-    with lock:
-        lock_project_for_task_mutation(db, project.id)
+    with project_first_lock(db, project.id):
 
         task = db.query(RoadmapTask).filter(
             RoadmapTask.id == task_id,

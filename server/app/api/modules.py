@@ -23,6 +23,7 @@ from app.api.deps import get_user_project, verify_csrf
 from app.core.telemetry import record_ai_operation, record_analytics_event
 from app.core.business_stage import normalize_business_stage
 from app.core.module_types import normalize_module_type
+from app.services.task_graph_validator import project_first_lock
 
 router = APIRouter(prefix="/projects/{project_id}/modules", tags=["Modules & Version Control"])
 
@@ -253,26 +254,29 @@ def delete_module(
         stored_types.append("detailed_roadmap")
 
     try:
-        lock_record(db, Project, project.id)
-        modules = db.query(ModuleContent).filter(
-            ModuleContent.project_id == project.id,
-            ModuleContent.module_type.in_(stored_types)
-        ).all()
-        for module in modules:
-            db.delete(module)
+        with project_first_lock(db, project.id):
+            modules = db.query(ModuleContent).filter(
+                ModuleContent.project_id == project.id,
+                ModuleContent.module_type.in_(stored_types)
+            ).all()
+            for module in modules:
+                db.delete(module)
 
-        deleted_tasks = 0
-        if canonical_type == "execution_roadmap":
-            deleted_tasks = db.query(RoadmapTask).filter(
-                RoadmapTask.project_id == project.id
-            ).delete(synchronize_session=False)
+            deleted_tasks = 0
+            if canonical_type == "execution_roadmap":
+                deleted_tasks = db.query(RoadmapTask).filter(
+                    RoadmapTask.project_id == project.id
+                ).delete(synchronize_session=False)
 
-        if modules or deleted_tasks:
-            # Child-row deletion is not an ORM update to Project, so its
-            # onupdate hook will not run unless we explicitly touch the row.
-            project.updated_at = datetime.now(timezone.utc)
+            if modules or deleted_tasks:
+                # Child-row deletion is not an ORM update to Project, so its
+                # onupdate hook will not run unless we explicitly touch the row.
+                project.updated_at = datetime.now(timezone.utc)
 
-        db.commit()
+            db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception:
         db.rollback()
         raise HTTPException(
@@ -406,22 +410,23 @@ def modify_module_with_ai(
         # Validate modified data against schema before persistence (F-09)
         _validate_module_data(module_type, new_data)
 
-        # Save new version and reconcile roadmap tasks in single atomic transaction (F-08)
-        new_ver = VersionService.save_new_version(
-            db=db,
-            module=module,
-            data=new_data,
-            change_summary=change_summary,
-            commit=False
-        )
+        # Save new version and reconcile roadmap tasks in single atomic transaction under project-first lock
+        with project_first_lock(db, project.id, module.id):
+            new_ver = VersionService.save_new_version(
+                db=db,
+                module=module,
+                data=new_data,
+                change_summary=change_summary,
+                commit=False
+            )
 
-        # Reconcile roadmap tasks if roadmap
-        if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
-            tasks_data = new_data.get("tasks", [])
-            _reconcile_roadmap_tasks(db, project, tasks_data)
+            # Reconcile roadmap tasks if roadmap
+            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
+                tasks_data = new_data.get("tasks", [])
+                _reconcile_roadmap_tasks(db, project, tasks_data)
 
-        db.commit()
-        db.refresh(new_ver)
+            db.commit()
+            db.refresh(new_ver)
 
         dur_ms = int((time.time() - t0) * 1000)
         record_ai_operation(
@@ -453,8 +458,10 @@ def modify_module_with_ai(
             versions=[VersionItemResponse.model_validate(v) for v in versions]
         )
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
+        db.rollback()
         dur_ms = int((time.time() - t0) * 1000)
         terminal_provider_error = ai_service._terminal_provider_error_message(e)
         err_msg = terminal_provider_error or str(e)
@@ -562,29 +569,42 @@ def resolve_version_conflict(
     # Validate replacement payload before persistence (F-09)
     try:
         _validate_module_data(module_type, new_data)
+    except HTTPException:
+        raise
     except Exception as ve:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Validation failed for {module_type}: {str(ve)}"
         )
 
-    replaced_ver = VersionService.resolve_conflict_and_replace(
-        db=db,
-        module=module,
-        replace_version_id=req.replace_version_id,
-        new_data=new_data,
-        new_name=req.new_version_name,
-        change_summary=change_summary,
-        commit=False
-    )
+    try:
+        with project_first_lock(db, project.id, module.id):
+            replaced_ver = VersionService.resolve_conflict_and_replace(
+                db=db,
+                module=module,
+                replace_version_id=req.replace_version_id,
+                new_data=new_data,
+                new_name=req.new_version_name,
+                change_summary=change_summary,
+                commit=False
+            )
 
-    if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
-        tasks_data = new_data.get("tasks", [])
-        if tasks_data:
-            _reconcile_roadmap_tasks(db, project, tasks_data)
+            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
+                tasks_data = new_data.get("tasks", [])
+                if tasks_data:
+                    _reconcile_roadmap_tasks(db, project, tasks_data)
 
-    db.commit()
-    db.refresh(replaced_ver)
+            db.commit()
+            db.refresh(replaced_ver)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Version replacement failed: {str(e)}"
+        )
 
     versions = VersionService.get_versions(db, module.id)
     return ModuleDetailResponse(
@@ -619,15 +639,23 @@ def delete_version(
 ):
     module_type = normalize_module_type(module_type)
     module = _get_or_create_canonical_module(db, project.id, module_type)
-    VersionService.delete_version(db, module, version_id, commit=False)
-    if module_type == "execution_roadmap":
-        active_version = db.query(ModuleVersion).filter(
-            ModuleVersion.id == module.active_version_id,
-            ModuleVersion.module_content_id == module.id
-        ).first()
-        tasks_data = active_version.data.get("tasks", []) if active_version and isinstance(active_version.data, dict) else []
-        _reconcile_roadmap_tasks(db, project, tasks_data)
-    db.commit()
+    try:
+        with project_first_lock(db, project.id, module.id):
+            VersionService.delete_version(db, module, version_id, commit=False)
+            if module_type == "execution_roadmap":
+                active_version = db.query(ModuleVersion).filter(
+                    ModuleVersion.id == module.active_version_id,
+                    ModuleVersion.module_content_id == module.id
+                ).first()
+                tasks_data = active_version.data.get("tasks", []) if active_version and isinstance(active_version.data, dict) else []
+                _reconcile_roadmap_tasks(db, project, tasks_data)
+            db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete version: {str(e)}")
     return {"message": "Version successfully deleted"}
 
 @router.post("/{module_type}/versions/{version_id}/restore", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -639,14 +667,24 @@ def restore_version(
 ):
     module_type = normalize_module_type(module_type)
     module = find_module(db, project.id, module_type)
-    new_ver = VersionService.restore_version(db, module, version_id, commit=False)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    try:
+        with project_first_lock(db, project.id, module.id):
+            new_ver = VersionService.restore_version(db, module, version_id, commit=False)
 
-    if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_ver.data, dict):
-        tasks_data = new_ver.data.get("tasks", [])
-        _reconcile_roadmap_tasks(db, project, tasks_data)
+            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_ver.data, dict):
+                tasks_data = new_ver.data.get("tasks", [])
+                _reconcile_roadmap_tasks(db, project, tasks_data)
 
-    db.commit()
-    db.refresh(new_ver)
+            db.commit()
+            db.refresh(new_ver)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to restore version: {str(e)}")
     versions = VersionService.get_versions(db, module.id)
 
     return ModuleDetailResponse(

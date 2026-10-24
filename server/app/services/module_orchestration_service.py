@@ -116,21 +116,23 @@ class ModuleOrchestrationService:
             # Pre-persistence structural validation
             cls.validate_module_payload(module_type, data_dict)
 
-            # Atomic save
-            new_ver = VersionService.save_new_version(
-                db=db,
-                module=module,
-                data=data_dict,
-                change_summary="Initial blueprint generation",
-                commit=False,
-            )
+            # Atomic save under project-first lock protocol
+            from app.services.task_graph_validator import project_first_lock
+            with project_first_lock(db, project.id, module.id):
+                new_ver = VersionService.save_new_version(
+                    db=db,
+                    module=module,
+                    data=data_dict,
+                    change_summary="Initial blueprint generation",
+                    commit=False,
+                )
 
-            if module_type in ("execution_roadmap", "detailed_roadmap"):
-                tasks_data = data_dict.get("tasks", [])
-                RoadmapDomainService.reconcile_roadmap_tasks(db, project, tasks_data)
+                if module_type in ("execution_roadmap", "detailed_roadmap"):
+                    tasks_data = data_dict.get("tasks", [])
+                    RoadmapDomainService.reconcile_roadmap_tasks(db, project, tasks_data)
 
-            db.commit()
-            db.refresh(new_ver)
+                db.commit()
+                db.refresh(new_ver)
 
             dur_ms = int((time.time() - t0) * 1000)
             record_ai_operation(
@@ -154,8 +156,10 @@ class ModuleOrchestrationService:
             return new_ver, data_dict
 
         except HTTPException:
+            db.rollback()
             raise
         except Exception as e:
+            db.rollback()
             dur_ms = int((time.time() - t0) * 1000)
             terminal_provider_error = ai_service._terminal_provider_error_message(e)
             err_msg = terminal_provider_error or str(e)

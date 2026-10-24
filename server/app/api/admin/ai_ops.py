@@ -276,7 +276,7 @@ def retry_failed_operation(
             elif module_type == "market_research":
                 data_dict = ai_service.generate_market_research(proj_info).model_dump()
             elif module_type in ("execution_roadmap", "detailed_roadmap"):
-                from app.api.modules import _normalize_roadmap_schedule, _reconcile_roadmap_tasks
+                from app.api.modules import _normalize_roadmap_schedule
                 from app.schemas.modules import RoadmapPlanningRequest
 
                 planning = RoadmapPlanningRequest()
@@ -284,43 +284,49 @@ def retry_failed_operation(
                 roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict)
                 data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
                 data_dict["planning_inputs"] = planning_dict
-                _reconcile_roadmap_tasks(db, proj, data_dict.get("tasks", []))
             else:
                 raise ValueError(f"Unsupported module type for retry: {module_type}")
 
         dur_ms = int((time.time() - t0) * 1000)
 
-        # Persist new version
+        # Persist new version and task state under project-first lock protocol
+        from app.services.task_graph_validator import project_first_lock
         module = VersionService.get_or_create_module(db, proj.id, module_type)
-        VersionService.save_new_version(
-            db=db,
-            module=module,
-            data=data_dict,
-            change_summary=f"Recovered via admin retry ({current_admin.username})"
-        )
+        with project_first_lock(db, proj.id, module.id):
+            VersionService.save_new_version(
+                db=db,
+                module=module,
+                data=data_dict,
+                change_summary=f"Recovered via admin retry ({current_admin.username})",
+                commit=False
+            )
 
-        op.status = "retried"
-        op.retry_count += 1
+            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
+                from app.api.modules import _reconcile_roadmap_tasks
+                _reconcile_roadmap_tasks(db, proj, data_dict.get("tasks", []))
 
-        retry_record = AIOperation(
-            id=new_op_id,
-            request_id=f"retry_{op.id[:8]}",
-            user_id=op.user_id,
-            project_id=op.project_id,
-            module_type=op.module_type,
-            operation_type=op.operation_type,
-            model_name=op.model_name or settings.GEMINI_MODEL,
-            duration_ms=dur_ms,
-            status="success",
-            retry_count=op.retry_count,
-            structured_validation_passed=True,
-            persistence_status="persisted",
-            is_retryable=False,
-            retry_of_id=op.id,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(retry_record)
-        db.commit()
+            op.status = "retried"
+            op.retry_count += 1
+
+            retry_record = AIOperation(
+                id=new_op_id,
+                request_id=f"retry_{op.id[:8]}",
+                user_id=op.user_id,
+                project_id=op.project_id,
+                module_type=op.module_type,
+                operation_type=op.operation_type,
+                model_name=op.model_name or settings.GEMINI_MODEL,
+                duration_ms=dur_ms,
+                status="success",
+                retry_count=op.retry_count,
+                structured_validation_passed=True,
+                persistence_status="persisted",
+                is_retryable=False,
+                retry_of_id=op.id,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(retry_record)
+            db.commit()
 
         record_audit_log(
             db,

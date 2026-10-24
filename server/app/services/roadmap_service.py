@@ -150,81 +150,263 @@ class RoadmapDomainService:
         return result
 
     @staticmethod
-    def reconcile_roadmap_tasks(db: Session, project: Project, tasks_data: List[Dict[str, Any]]) -> None:
-        """Synchronize the relational RoadmapTask table with the roadmap JSON tasks."""
-        existing_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
-        existing_by_code = {t.task_code: t for t in existing_tasks}
+    def reconcile_roadmap_tasks(
+        db: Session,
+        project: Project,
+        tasks_data: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Synchronize the relational RoadmapTask table with the roadmap JSON tasks.
 
-        base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
-        active_codes = set()
-        seen_incoming_codes = set()
+        Multi-stage pipeline:
+        Stage 1: Acquire the required project transaction lock (Project-first protocol).
+        Stage 2: Read authoritative current task state.
+        Stage 3: Validate incoming structure and canonical identifiers.
+        Stage 4: Construct the complete proposed final task set in memory.
+        Stage 5: Validate candidate merged graph (no cycles, no missing refs, correct schedule order).
+        Stage 6: Apply inserts, updates, and deletions in relational table.
+        Stage 7: Flush without committing (caller transaction retains commit ownership).
+        """
+        from fastapi import HTTPException, status
+        from sqlalchemy.orm.attributes import flag_modified
+        from app.services.task_graph_validator import (
+            project_first_lock,
+            allocate_next_task_code,
+            validate_candidate_task_graph,
+            TaskGraphNode,
+            IncompatibleTaskGraphError,
+            parse_iso_date,
+        )
 
-        for idx, t in enumerate(tasks_data):
-            raw_code = t.get("task_code")
-            code = raw_code.strip() if raw_code and str(raw_code).strip() else f"TSK-{str(idx + 1).zfill(2)}"
-            if code in seen_incoming_codes:
-                suffix = 2
-                while f"{code}_{suffix}" in seen_incoming_codes or f"{code}_{suffix}" in existing_by_code:
-                    suffix += 1
-                code = f"{code}_{suffix}"
-            seen_incoming_codes.add(code)
-            active_codes.add(code)
-            s_date = t.get("start_date") or base_date_str
-            e_date = t.get("end_date") or s_date
-            if e_date < s_date:
-                e_date = s_date
+        with project_first_lock(db, project.id):
+            # Stage 2: Read authoritative current task state
+            existing_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
+            existing_by_code = {t.task_code: t for t in existing_tasks}
+            existing_manual_tasks = [t for t in existing_tasks if not t.is_ai_generated]
+            existing_completed_ai_tasks = [
+                t for t in existing_tasks
+                if t.is_ai_generated and t.status in ("Finished", "Completed")
+            ]
 
-            if code in existing_by_code:
-                cur = existing_by_code[code]
-                if cur.status not in ("In Progress", "Ongoing", "Finished"):
-                    raw_st = t.get("status", "Pending")
-                    cur.status = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
-                cur.phase = t.get("phase", cur.phase)
-                cur.title = t.get("title", cur.title)
-                cur.description = t.get("description", cur.description)
-                cur.timeline = t.get("timeline", cur.timeline)
-                cur.start_date = s_date
-                cur.end_date = e_date
-                cur.priority = t.get("priority", cur.priority)
-                cur.dependencies = t.get("dependencies", cur.dependencies)
-                cur.deliverables = t.get("deliverables", cur.deliverables)
-                cur.effort = t.get("effort", cur.effort)
-                cur.assigned_to = t.get("assigned_to", cur.assigned_to or "Unassigned")
-                cur.assigned_role = t.get("assigned_role", cur.assigned_role)
-                cur.department = t.get("department", cur.department)
-                cur.steps = t.get("steps", cur.steps or [])
-                cur.is_overloaded = t.get("is_overloaded", cur.is_overloaded or False)
-                cur.order_index = idx
-            else:
-                raw_st = t.get("status", "Pending")
-                st_val = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
-                new_task = RoadmapTask(
-                    project_id=project.id,
-                    task_code=code,
-                    phase=t.get("phase", "Planning & Research"),
-                    title=t.get("title", f"Task {idx + 1}"),
-                    description=t.get("description", ""),
-                    timeline=t.get("timeline", "30-day"),
-                    start_date=s_date,
-                    end_date=e_date,
-                    priority=t.get("priority", "Medium"),
-                    status=st_val,
-                    dependencies=t.get("dependencies", []),
-                    deliverables=t.get("deliverables", ""),
-                    effort=t.get("effort", "1 week"),
-                    assigned_to=t.get("assigned_to", "Unassigned"),
-                    assigned_role=t.get("assigned_role"),
-                    department=t.get("department"),
-                    steps=t.get("steps", []),
-                    is_overloaded=t.get("is_overloaded", False),
-                    order_index=idx,
-                    is_ai_generated=True,
+            base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
+            seen_incoming_codes: set = set()
+            reserved_codes = set(existing_by_code.keys())
+
+            # Stage 3: Validate incoming structure and canonical identifiers
+            normalized_incoming: List[Dict[str, Any]] = []
+            for idx, t in enumerate(tasks_data):
+                if not isinstance(t, dict):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid task entry at index {idx}. Task items must be JSON objects."
+                    )
+
+                # 1. Validate & canonicalize task code
+                raw_code = t.get("task_code")
+                if raw_code is not None:
+                    if not isinstance(raw_code, str):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Non-string task code '{raw_code}' received. Task codes must be strings."
+                        )
+                    code = raw_code.strip()
+                    if not code:
+                        code = allocate_next_task_code(db, project.id, reserved_codes=reserved_codes | seen_incoming_codes)
+                else:
+                    code = allocate_next_task_code(db, project.id, reserved_codes=reserved_codes | seen_incoming_codes)
+
+                # Reject duplicate incoming codes (Reproduction C & C2)
+                if code in seen_incoming_codes:
+                    raise IncompatibleTaskGraphError(
+                        error_code="DUPLICATE_TASK_CODE",
+                        message=f"Duplicate task code '{code}' detected in incoming roadmap plan.",
+                        affected_task_codes=[code]
+                    )
+                seen_incoming_codes.add(code)
+
+                # Reject collision with existing manual tasks (Preserve user work)
+                if code in existing_by_code and not existing_by_code[code].is_ai_generated:
+                    raise IncompatibleTaskGraphError(
+                        error_code="MANUAL_TASK_COLLISION",
+                        message=f"Incoming task code '{code}' conflicts with an existing manual task.",
+                        affected_task_codes=[code]
+                    )
+
+                # 2. Validate & normalize dependencies
+                raw_deps = t.get("dependencies") or []
+                if not isinstance(raw_deps, list):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Dependencies for task '{code}' must be a list of task codes."
+                    )
+                clean_deps: List[str] = []
+                for d in raw_deps:
+                    if not isinstance(d, str):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Non-string dependency reference '{d}' in task '{code}'. Dependencies must be strings."
+                        )
+                    trimmed_d = d.strip()
+                    if trimmed_d:
+                        clean_deps.append(trimmed_d)
+
+                # 3. Validate dates (NO silent clamping)
+                raw_s_date = t.get("start_date") or base_date_str
+                raw_e_date = t.get("end_date") or raw_s_date
+                s_date_obj = parse_iso_date(raw_s_date)
+                e_date_obj = parse_iso_date(raw_e_date)
+                if e_date_obj < s_date_obj:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"End date ({e_date_obj.isoformat()}) cannot be earlier than start date ({s_date_obj.isoformat()}) for task '{code}'."
+                    )
+
+                # Write canonical normalized fields back into input dict
+                t["task_code"] = code
+                t["start_date"] = s_date_obj.isoformat()
+                t["end_date"] = e_date_obj.isoformat()
+                t["dependencies"] = clean_deps
+                normalized_incoming.append(t)
+
+            # Stage 4: Construct proposed complete final task set in memory
+            active_incoming_codes = seen_incoming_codes
+
+            # Candidate deletion set: Unfinished AI tasks omitted from incoming plan
+            candidate_deletions = [
+                cur for cur in existing_tasks
+                if cur.task_code not in active_incoming_codes
+                and cur.is_ai_generated
+                and cur.status not in ("Finished", "Completed")
+            ]
+            deleted_codes = {cur.task_code for cur in candidate_deletions}
+
+            # Retained tasks: all manual tasks + completed AI tasks not in incoming plan
+            retained_manual_tasks = existing_manual_tasks
+            retained_completed_tasks = [
+                cur for cur in existing_completed_ai_tasks
+                if cur.task_code not in active_incoming_codes
+            ]
+            all_retained_existing = retained_manual_tasks + retained_completed_tasks
+            retained_task_codes = {t.task_code for t in all_retained_existing}
+
+            # Pre-check: Ensure retained tasks do not lose prerequisites to candidate deletions (Reproduction B)
+            blocking_retained: List[str] = []
+            missing_prereqs: set = set()
+            for ret in all_retained_existing:
+                deps = ret.dependencies or []
+                for d in deps:
+                    if d in deleted_codes:
+                        blocking_retained.append(ret.task_code)
+                        missing_prereqs.add(d)
+
+            if blocking_retained:
+                sorted_missing = sorted(list(missing_prereqs))
+                raise IncompatibleTaskGraphError(
+                    error_code="RETAINED_TASK_PREREQUISITE_MISSING",
+                    message=(
+                        f"Cannot reconcile roadmap: retained task(s) {blocking_retained} depend on "
+                        f"prerequisite(s) {sorted_missing} omitted from the new plan."
+                    ),
+                    affected_task_codes=blocking_retained,
+                    missing_prerequisite_codes=sorted_missing,
+                    blocking_retained_task_codes=blocking_retained
                 )
-                db.add(new_task)
 
-        # Delete AI-generated tasks that are no longer part of active plan
-        for cur in existing_tasks:
-            if cur.task_code not in active_codes and cur.is_ai_generated and cur.status not in ("Finished", "Completed"):
+            # Build candidate graph nodes representing the proposed post-reconciliation state
+            candidate_nodes: List[TaskGraphNode] = []
+            for t in normalized_incoming:
+                existing_row = existing_by_code.get(t["task_code"])
+                candidate_nodes.append(TaskGraphNode(
+                    task_code=t["task_code"],
+                    start_date=t["start_date"],
+                    end_date=t["end_date"],
+                    dependencies=t["dependencies"],
+                    task_id=existing_row.id if existing_row else None
+                ))
+
+            for ret in all_retained_existing:
+                candidate_nodes.append(TaskGraphNode(
+                    task_code=ret.task_code,
+                    start_date=ret.start_date,
+                    end_date=ret.end_date,
+                    dependencies=ret.dependencies or [],
+                    task_id=ret.id
+                ))
+
+            # Stage 5: Validate the merged candidate graph atomically
+            validate_candidate_task_graph(
+                candidate_nodes,
+                project_id=project.id,
+                structured_error=True,
+                retained_task_codes=retained_task_codes
+            )
+
+            # Stage 6: Apply inserts, updates, and deletions
+            for idx, t in enumerate(normalized_incoming):
+                code = t["task_code"]
+                s_date = t["start_date"]
+                e_date = t["end_date"]
+                deps = t["dependencies"]
+
+                if code in existing_by_code:
+                    cur = existing_by_code[code]
+                    # Preserve user-maintained execution status
+                    if cur.status not in ("In Progress", "Ongoing", "Finished", "Completed"):
+                        raw_st = t.get("status", "Pending")
+                        cur.status = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
+                    cur.phase = t.get("phase", cur.phase)
+                    cur.title = t.get("title", cur.title)
+                    cur.description = t.get("description", cur.description)
+                    cur.timeline = t.get("timeline", cur.timeline)
+                    cur.start_date = s_date
+                    cur.end_date = e_date
+                    cur.priority = t.get("priority", cur.priority)
+                    cur.dependencies = deps
+                    cur.deliverables = t.get("deliverables", cur.deliverables)
+                    cur.effort = t.get("effort", cur.effort)
+                    # Preserve user assignments if already set
+                    if not cur.assigned_to or cur.assigned_to == "Unassigned":
+                        cur.assigned_to = t.get("assigned_to", "Unassigned")
+                    if not cur.assigned_role:
+                        cur.assigned_role = t.get("assigned_role")
+                    if not cur.department:
+                        cur.department = t.get("department")
+                    cur.steps = t.get("steps", cur.steps or [])
+                    cur.is_overloaded = t.get("is_overloaded", cur.is_overloaded or False)
+                    cur.order_index = idx
+                    flag_modified(cur, "dependencies")
+                    flag_modified(cur, "steps")
+                else:
+                    raw_st = t.get("status", "Pending")
+                    st_val = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
+                    new_task = RoadmapTask(
+                        project_id=project.id,
+                        task_code=code,
+                        phase=t.get("phase", "Planning & Research"),
+                        title=t.get("title", f"Task {idx + 1}"),
+                        description=t.get("description", ""),
+                        timeline=t.get("timeline", "30-day"),
+                        start_date=s_date,
+                        end_date=e_date,
+                        priority=t.get("priority", "Medium"),
+                        status=st_val,
+                        dependencies=deps,
+                        deliverables=t.get("deliverables", ""),
+                        effort=t.get("effort", "1 week"),
+                        assigned_to=t.get("assigned_to", "Unassigned"),
+                        assigned_role=t.get("assigned_role"),
+                        department=t.get("department"),
+                        steps=t.get("steps", []),
+                        is_overloaded=t.get("is_overloaded", False),
+                        order_index=idx,
+                        is_ai_generated=True,
+                    )
+                    db.add(new_task)
+
+            # Safely delete candidate deletions (verified to have no dependents)
+            for cur in candidate_deletions:
                 db.delete(cur)
 
-        db.flush()
+            # Stage 7: Flush without committing (owning transaction commits)
+            db.flush()
+            return normalized_incoming

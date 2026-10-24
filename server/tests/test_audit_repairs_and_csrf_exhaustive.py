@@ -415,7 +415,8 @@ def test_roadmap_task_reconciliation_preserves_user_edits(test_project, db):
         end_date="2026-01-05",
         priority="High",
         status="Ongoing",
-        dependencies=[]
+        dependencies=[],
+        is_ai_generated=True
     )
     db.add(task1)
     db.commit()
