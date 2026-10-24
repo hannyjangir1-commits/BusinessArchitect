@@ -13,6 +13,10 @@ from app.api.deps import require_admin, require_permission, verify_csrf, ADMIN_R
 from app.core.security import hash_password
 from app.core.telemetry import record_security_event, record_audit_log
 from app.core.business_stage import normalize_business_stage
+from app.services.admin_authorization_service import (
+    validate_admin_mutation_target,
+    assert_super_admin_invariant
+)
 
 router = APIRouter(prefix="/users", tags=["Admin User Management"])
 
@@ -265,45 +269,47 @@ def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # If modifying role
+    # 1. Pre-validate role format if role is specified
+    target_role = user.role
     if req.role is not None:
         target_role = req.role.strip()
         valid_roles = {"user", "super_admin", "operations_admin", "security_admin", "support_admin", "auditor"}
         if target_role not in valid_roles:
             raise HTTPException(status_code=400, detail=f"Invalid role '{target_role}'. Must be one of: {', '.join(sorted(valid_roles))}")
 
-        if (target_role in ADMIN_ROLES or user.role in ADMIN_ROLES) and current_admin.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Only a Super Admin can alter administrator roles.")
+    # 2. Central Actor-versus-Target Policy Validation
+    validate_admin_mutation_target(current_admin, user, proposed_role=req.role)
 
-        # Prevent demoting the last active super_admin
-        if user.role == "super_admin" and target_role != "super_admin":
-            active_super_admins = db.query(User).filter(
-                User.role == "super_admin",
-                User.is_suspended == False
-            ).count()
-            if active_super_admins <= 1:
-                raise HTTPException(status_code=400, detail="Cannot alter the role of the last active Super Admin account")
+    # 3. Self-action restriction: cannot suspend own account
+    if req.is_suspended is True and user.id == current_admin.id:
+        raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
 
-        user.role = target_role
-
+    # 4. Email collision check if email change requested
+    email_clean = None
     if req.email is not None:
         email_clean = str(req.email).strip().lower()
         collision = db.query(User).filter(User.email == email_clean, User.id != user_id).first()
         if collision:
             raise HTTPException(status_code=400, detail="Email is already in use by another account")
+
+    # 5. Enforce Last-Active-Super-Admin invariant across combined proposed state
+    assert_super_admin_invariant(
+        db,
+        user,
+        proposed_role=req.role,
+        proposed_suspended=req.is_suspended,
+        is_deletion=False
+    )
+
+    # 6. Apply validated changes atomically
+    if req.role is not None:
+        user.role = target_role
+
+    if email_clean is not None:
         user.email = email_clean
 
     if req.is_suspended is not None:
         if req.is_suspended:
-            if user.id == current_admin.id:
-                raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
-            if user.role == "super_admin":
-                active_super_admins = db.query(User).filter(
-                    User.role == "super_admin",
-                    User.is_suspended == False
-                ).count()
-                if active_super_admins <= 1:
-                    raise HTTPException(status_code=400, detail="Cannot suspend the last active Super Admin account")
             user.is_suspended = True
             user.suspended_at = datetime.now(timezone.utc)
             user.suspension_reason = req.suspension_reason or "Administrative suspension"
@@ -353,15 +359,8 @@ def suspend_user(
     if user.id == current_admin.id:
         raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
 
-    if user.role == "super_admin":
-        if current_admin.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Only a Super Admin can suspend another Super Admin")
-        active_super_admins = db.query(User).filter(
-            User.role == "super_admin",
-            User.is_suspended == False
-        ).count()
-        if active_super_admins <= 1:
-            raise HTTPException(status_code=400, detail="Cannot suspend the last active Super Admin account")
+    validate_admin_mutation_target(current_admin, user, proposed_role=None)
+    assert_super_admin_invariant(db, user, proposed_suspended=True)
 
     reason = req.reason.strip() or "Administrative suspension"
     now = datetime.now(timezone.utc)
@@ -411,6 +410,8 @@ def reactivate_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    validate_admin_mutation_target(current_admin, user, proposed_role=None)
+
     user.is_suspended = False
     user.suspended_at = None
     user.suspension_reason = None
@@ -452,6 +453,8 @@ def revoke_user_sessions(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    validate_admin_mutation_target(current_admin, user, proposed_role=None)
+
     deleted_sessions = db.query(DBSession).filter(DBSession.user_id == user_id).delete()
     db.commit()
 
@@ -492,12 +495,8 @@ def delete_user(
     if user.id == current_admin.id:
         raise HTTPException(status_code=400, detail="Administrators cannot delete their own account")
 
-    if user.role == "super_admin":
-        if current_admin.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Only a Super Admin can delete a Super Admin account")
-        total_super_admins = db.query(User).filter(User.role == "super_admin").count()
-        if total_super_admins <= 1:
-            raise HTTPException(status_code=400, detail="Cannot delete the last Super Admin account")
+    validate_admin_mutation_target(current_admin, user, proposed_role=None)
+    assert_super_admin_invariant(db, user, is_deletion=True)
 
     if confirm_username.strip() != user.username:
         raise HTTPException(status_code=400, detail="Confirmation username does not match target user")
@@ -522,6 +521,8 @@ def delete_user(
         )
 
         return {"message": f"Account '{username}' and associated resources have been permanently deleted."}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")

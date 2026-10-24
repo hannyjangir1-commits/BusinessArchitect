@@ -10,6 +10,7 @@ from app.models.all_models import (
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
 from app.core.telemetry import record_security_event, record_audit_log
+from app.services.admin_authorization_service import validate_session_revocation_target
 
 router = APIRouter(prefix="/security", tags=["Admin Security Center"])
 
@@ -103,6 +104,10 @@ def revoke_session(
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    target_user = sess.user or db.query(User).filter(User.id == sess.user_id).first()
+    if target_user:
+        validate_session_revocation_target(current_admin, target_user)
+
     target_user_id = sess.user_id
     db.delete(sess)
     db.commit()
@@ -135,6 +140,13 @@ def revoke_all_sessions(
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
+    """
+    Emergency global session kill-switch.
+    Explicitly authorized only for administrators with 'revoke_sessions' permission
+    (super_admin and security_admin). Revokes all active sessions system-wide, preserving
+    only the invoking administrator's current active session. This global action cannot
+    be used as a selective or targeted bypass against an individual administrator.
+    """
     current_token = request.cookies.get(settings.COOKIE_NAME)
     query = db.query(DBSession)
     if current_token:
