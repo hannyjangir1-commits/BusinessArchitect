@@ -387,26 +387,7 @@ def modify_module_with_ai(
     if not active_ver:
         raise HTTPException(status_code=404, detail="Active version data not found")
 
-    versions = VersionService.get_versions(db, module.id)
-    if len(versions) >= 5:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "error": "VERSION_LIMIT_EXCEEDED",
-                "message": "This section already has the maximum of 5 saved versions. Choose a version to replace or delete.",
-                "existing_versions": [
-                    {
-                        "id": v.id,
-                        "version_number": v.version_number,
-                        "version_name": v.version_name,
-                        "change_summary": v.change_summary,
-                        "is_active": v.is_active,
-                        "created_at": v.created_at.isoformat()
-                    }
-                    for v in versions
-                ]
-            }
-        )
+    VersionService.assert_version_capacity(db, module)
 
     t0 = time.time()
     try:

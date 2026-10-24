@@ -47,6 +47,10 @@ class ModuleOrchestrationService:
         planning_inputs: Optional[RoadmapPlanningRequest | TechStackPlanningRequest] = None,
         project_dict: Optional[Dict[str, Any]] = None,
     ) -> Tuple[ModuleVersion, Dict[str, Any]]:
+        # Stage 0: Version-capacity preflight (Fix B08)
+        # Check capacity BEFORE reading context, building briefs, or invoking AI provider
+        VersionService.assert_version_capacity(db, module)
+
         t0 = time.time()
         proj_info = dict(project_dict or {})
         cross_ctx, context_sources = read_project_context(db, project.id, exclude_module=module_type)

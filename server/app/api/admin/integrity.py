@@ -11,6 +11,8 @@ from app.models.all_models import (
 )
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.telemetry import record_audit_log
+from app.services.version_service import VersionService
+from app.services.roadmap_service import RoadmapDomainService
 
 router = APIRouter(prefix="/integrity", tags=["Admin Data Integrity"])
 
@@ -57,26 +59,32 @@ def run_integrity_scan(
             "items": [{"id": m[0], "type": m[1]} for m in orphaned_modules[:10]]
         })
 
-    # 3. Invalid active version pointers
+    # 3. Invalid active version pointers / state (Fix B06)
     modules_with_missing_active = []
     all_modules = db.query(ModuleContent).all()
     for m in all_modules:
-        if m.active_version_id:
-            ver_exists = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
-            if not ver_exists:
+        versions = db.query(ModuleVersion).filter(ModuleVersion.module_content_id == m.id).all()
+        if not versions:
+            if m.active_version_id is not None:
                 modules_with_missing_active.append(m.id)
         else:
-            # Module has versions, but no active version set
-            v_count = db.query(ModuleVersion).filter(ModuleVersion.module_content_id == m.id).count()
-            if v_count > 0:
+            if not m.active_version_id:
                 modules_with_missing_active.append(m.id)
+            else:
+                target = next((v for v in versions if v.id == m.active_version_id), None)
+                if not target:
+                    modules_with_missing_active.append(m.id)
+                else:
+                    active_count = sum(1 for v in versions if v.is_active)
+                    if not target.is_active or active_count != 1:
+                        modules_with_missing_active.append(m.id)
 
     if modules_with_missing_active:
         findings.append({
             "code": "INVALID_ACTIVE_VERSION",
             "severity": "medium",
             "title": f"{len(modules_with_missing_active)} Module(s) with Invalid Active Version Reference",
-            "description": "Modules whose active_version_id is null or points to a non-existent version",
+            "description": "Modules whose active_version_id is null, foreign, or mismatched with version active flags",
             "count": len(modules_with_missing_active),
             "repairable": True,
             "repair_action": "fix_missing_active_versions",
@@ -146,31 +154,31 @@ def execute_repair(
         elif action == "fix_missing_active_versions":
             all_modules = db.query(ModuleContent).all()
             for m in all_modules:
-                # Find latest version
-                latest = db.query(ModuleVersion).filter(
-                    ModuleVersion.module_content_id == m.id
-                ).order_by(ModuleVersion.version_number.desc()).first()
-                if latest and m.active_version_id != latest.id:
-                    m.active_version_id = latest.id
+                old_active_id = m.active_version_id
+                was_repaired = VersionService.repair_active_version_for_module(db, m)
+                if was_repaired:
                     repaired_count += 1
+                    # If roadmap module and active version changed, synchronize working task state
+                    if m.module_type in ("execution_roadmap", "detailed_roadmap") and m.active_version_id != old_active_id:
+                        if m.active_version_id:
+                            act_ver = db.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
+                            proj = db.query(Project).filter(Project.id == m.project_id).first()
+                            if act_ver and proj and isinstance(act_ver.data, dict):
+                                tasks_data = act_ver.data.get("tasks", [])
+                                RoadmapDomainService.reconcile_roadmap_tasks(db, proj, tasks_data)
             db.commit()
 
         elif action == "prune_excess_versions":
             excess_modules = (
-                db.query(ModuleVersion.module_content_id)
-                .group_by(ModuleVersion.module_content_id)
+                db.query(ModuleContent)
+                .join(ModuleVersion, ModuleVersion.module_content_id == ModuleContent.id)
+                .group_by(ModuleContent.id)
                 .having(func.count(ModuleVersion.id) > 5)
                 .all()
             )
-            for (mod_id,) in excess_modules:
-                versions = db.query(ModuleVersion).filter(
-                    ModuleVersion.module_content_id == mod_id
-                ).order_by(ModuleVersion.version_number.desc()).all()
-                # Keep top 5, delete the rest
-                to_delete = versions[5:]
-                for v in to_delete:
-                    db.delete(v)
-                    repaired_count += 1
+            for m in excess_modules:
+                deleted = VersionService.prune_excess_versions_for_module(db, m, limit=5)
+                repaired_count += deleted
             db.commit()
 
         elif action == "clean_orphaned_records":

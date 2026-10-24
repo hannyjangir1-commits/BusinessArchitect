@@ -614,6 +614,11 @@ class TestBusinessModelCanvas:
         client, csrf = login_identity("test_standard_owner")
         pid = get_valid_project_id(client)
         detail_before = client.get(f"/api/projects/{pid}/modules/bmc").json()
+        if len(detail_before.get("versions", [])) >= 5:
+            # Vacate a slot for regeneration test
+            inactive_v = next((v for v in detail_before["versions"] if not v["is_active"]), detail_before["versions"][0])
+            client.delete(f"/api/projects/{pid}/modules/bmc/versions/{inactive_v['id']}", headers={"X-CSRF-Token": csrf})
+            detail_before = client.get(f"/api/projects/{pid}/modules/bmc").json()
         active_ver_before = detail_before["active_version_number"]
 
         with patch("app.ai.gemini_service.GeminiAIService.generate_bmc", side_effect=RuntimeError("AI Down")):

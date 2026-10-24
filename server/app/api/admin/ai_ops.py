@@ -254,10 +254,11 @@ def retry_failed_operation(
     try:
         data_dict = None
         module_type = op.module_type
+        module = VersionService.get_or_create_module(db, proj.id, module_type)
+        VersionService.assert_version_capacity(db, module)
 
         if op.operation_type == "modify":
             # For modification retries, attempt section modify with previous prompt or error note
-            module = VersionService.get_or_create_module(db, proj.id, module_type)
             active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
             if not active_ver or not active_ver.data:
                 raise ValueError("Active version data not available to modify")
