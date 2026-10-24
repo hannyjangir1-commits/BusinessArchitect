@@ -327,6 +327,54 @@ def allocate_next_task_code_from_reserved(reserved_codes: Set[str]) -> str:
     return candidate_code
 
 
+def get_authoritative_project_tasks(db: Session, project_id: str) -> List[RoadmapTask]:
+    """
+    Authoritative read of RoadmapTask rows for a project under transaction lock.
+
+    Freshness & pending-change contract:
+    - For existing persistent objects in the identity map that have NOT been modified by the caller
+      session, selectively expires them (db.expire(obj)). This forces SQLAlchemy to reload their
+      attributes from the database, authoritatively reflecting concurrent committed changes
+      (e.g., from Session B).
+    - For objects that HAVE pending local changes (db.is_modified(obj) is True), leaves them
+      unexpired and queries without populate_existing=True. This guarantees caller-owned pending
+      mutations (status, assignments, dates, dependencies) are NOT overwritten.
+    - Excludes objects in db.deleted (pending deletions by caller).
+    - Incorporates objects in db.new (pending creations by caller belonging to this project).
+    - Never commits or flushes unrelated session state.
+    """
+    clean_id = project_id.strip() if project_id else ""
+    if not clean_id:
+        return []
+
+    # Selectively expire persistent, non-modified project tasks in identity map
+    for obj in list(db):
+        if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == clean_id:
+            if not db.is_modified(obj) and obj not in db.deleted and obj not in db.new:
+                db.expire(obj)
+
+    # Query persistent tasks from database (without populate_existing to preserve pending modifications)
+    persisted = (
+        db.query(RoadmapTask)
+        .filter(RoadmapTask.project_id == clean_id)
+        .all()
+    )
+
+    # Filter out pending deletions
+    active_persisted = [t for t in persisted if t not in db.deleted]
+
+    # Incorporate pending new tasks in caller session
+    pending_new = [
+        t for t in db.new
+        if isinstance(t, RoadmapTask) and getattr(t, "project_id", None) == clean_id and t not in db.deleted
+    ]
+
+    # Combine ensuring no duplicates
+    existing_ids = {t.id for t in active_persisted}
+    result = active_persisted + [t for t in pending_new if t.id not in existing_ids]
+    return result
+
+
 def allocate_next_task_code(
     db: Session,
     project_id: str,
@@ -335,9 +383,9 @@ def allocate_next_task_code(
     """
     Allocate the next unique automatic task code for a project.
 
-    Allocation policy (Batch 06.1/06.2):
-    - Inspects all existing task codes in the project plus any explicitly reserved codes.
-    - Uses populate_existing=True to avoid stale identity-map data.
+    Allocation policy (Batch 06.1/06.2/06.3):
+    - Authoritatively inspects all existing tasks in the project plus any explicitly reserved codes.
+    - Respects caller-owned pending new/modified tasks without overwriting them.
     - Extracts numeric indices from codes matching 'TSK-<number>'.
     - Determines the highest index N across existing and reserved tasks.
     - Next candidate code is TSK-(N + 1).
@@ -348,12 +396,8 @@ def allocate_next_task_code(
     - If any collision exists with a custom-named task or reserved code, increments forward until an available
       code is guaranteed unique within the project.
     """
-    existing_codes = {
-        row[0] for row in db.query(RoadmapTask.task_code)
-        .filter(RoadmapTask.project_id == project_id)
-        .execution_options(populate_existing=True)
-        .all()
-    }
+    tasks = get_authoritative_project_tasks(db, project_id)
+    existing_codes = {t.task_code for t in tasks if t.task_code}
     if reserved_codes:
         existing_codes.update(reserved_codes)
 

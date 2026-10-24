@@ -173,24 +173,14 @@ class RoadmapDomainService:
         from app.services.task_graph_validator import (
             project_first_lock,
             allocate_next_task_code_from_reserved,
+            get_authoritative_project_tasks,
             IncompatibleTaskGraphError,
             parse_iso_date,
         )
 
         with project_first_lock(db, project.id):
-            # Authoritative read of existing task codes with identity-map freshness
-            for obj in list(db):
-                if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
-                    if not db.is_modified(obj):
-                        db.expire(obj)
-
-            existing_tasks = (
-                db.query(RoadmapTask)
-                .filter(RoadmapTask.project_id == project.id)
-                .execution_options(populate_existing=True)
-                .all()
-            )
-            existing_by_code = {t.task_code: t for t in existing_tasks}
+            existing_tasks = get_authoritative_project_tasks(db, project.id)
+            existing_by_code = {t.task_code: t for t in existing_tasks if t.task_code}
             base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
 
             # Pass 1: Validate input types and collect all explicit incoming codes
@@ -303,6 +293,7 @@ class RoadmapDomainService:
             validate_candidate_task_graph,
             TaskGraphNode,
             IncompatibleTaskGraphError,
+            get_authoritative_project_tasks,
         )
 
         with project_first_lock(db, project.id):
@@ -310,18 +301,8 @@ class RoadmapDomainService:
             normalized_incoming = cls.canonicalize_incoming_tasks(db, project, tasks_data)
 
             # Authoritative read of current tasks
-            for obj in list(db):
-                if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
-                    if not db.is_modified(obj):
-                        db.expire(obj)
-
-            existing_tasks = (
-                db.query(RoadmapTask)
-                .filter(RoadmapTask.project_id == project.id)
-                .execution_options(populate_existing=True)
-                .all()
-            )
-            existing_by_code = {t.task_code: t for t in existing_tasks}
+            existing_tasks = get_authoritative_project_tasks(db, project.id)
+            existing_by_code = {t.task_code: t for t in existing_tasks if t.task_code}
             existing_manual_tasks = [t for t in existing_tasks if not t.is_ai_generated]
             existing_completed_ai_tasks = [
                 t for t in existing_tasks

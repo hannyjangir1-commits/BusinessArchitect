@@ -78,7 +78,8 @@ from app.services.task_graph_validator import (
     project_first_lock,
     allocate_next_task_code,
     validate_candidate_task_graph,
-    TaskGraphNode
+    TaskGraphNode,
+    get_authoritative_project_tasks
 )
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -97,17 +98,7 @@ def _build_and_validate_candidate_graph(
     rewritten_dependents: Optional[dict] = None
 ) -> None:
     """Construct full candidate task graph for the project and validate atomically."""
-    for obj in list(db):
-        if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project_id:
-            if not db.is_modified(obj):
-                db.expire(obj)
-
-    all_tasks = (
-        db.query(RoadmapTask)
-        .filter(RoadmapTask.project_id == project_id)
-        .execution_options(populate_existing=True)
-        .all()
-    )
+    all_tasks = get_authoritative_project_tasks(db, project_id)
     nodes: List[TaskGraphNode] = []
     found_target = False
 
@@ -228,16 +219,8 @@ def update_task(
     db: Session = Depends(get_db)
 ):
     with project_first_lock(db, project.id):
-        for obj in list(db):
-            if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
-                if not db.is_modified(obj):
-                    db.expire(obj)
-
-        task = db.query(RoadmapTask).filter(
-            RoadmapTask.id == task_id,
-            RoadmapTask.project_id == project.id
-        ).execution_options(populate_existing=True).first()
-
+        all_tasks = get_authoritative_project_tasks(db, project.id)
+        task = next((t for t in all_tasks if t.id == task_id), None)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
 
@@ -246,11 +229,7 @@ def update_task(
         is_rename = (new_task_code != old_task_code)
 
         if is_rename:
-            dup = db.query(RoadmapTask).filter(
-                RoadmapTask.project_id == project.id,
-                RoadmapTask.task_code == new_task_code,
-                RoadmapTask.id != task_id
-            ).first()
+            dup = next((t for t in all_tasks if t.task_code == new_task_code and t.id != task_id), None)
             if dup:
                 raise HTTPException(
                     status_code=400,
@@ -277,7 +256,6 @@ def update_task(
         new_deps = req.dependencies if req.dependencies is not None else (task.dependencies or [])
 
         # Rewrite incoming dependencies for all tasks depending on old_task_code
-        all_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
         rewritten_dependents: dict = {}
         dependent_tasks: List[RoadmapTask] = []
 
@@ -351,30 +329,13 @@ def delete_task(
     db: Session = Depends(get_db)
 ):
     with project_first_lock(db, project.id):
-        for obj in list(db):
-            if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
-                if not db.is_modified(obj):
-                    db.expire(obj)
-
-        task = db.query(RoadmapTask).filter(
-            RoadmapTask.id == task_id,
-            RoadmapTask.project_id == project.id
-        ).execution_options(populate_existing=True).first()
-
+        all_tasks = get_authoritative_project_tasks(db, project.id)
+        task = next((t for t in all_tasks if t.id == task_id), None)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
 
         # Dependency safety check: prevent deleting if other tasks depend on this task's code
-        dependents = (
-            db.query(RoadmapTask)
-            .filter(
-                RoadmapTask.project_id == project.id,
-                RoadmapTask.id != task.id
-            )
-            .execution_options(populate_existing=True)
-            .all()
-        )
-
+        dependents = [d for d in all_tasks if d.id != task.id]
         blocking = [d.task_code for d in dependents if task.task_code in (d.dependencies or [])]
         if blocking:
             raise HTTPException(
