@@ -1,10 +1,13 @@
+import copy
 import threading
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import inspect
+from sqlalchemy.orm import Session, load_only
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.exc import IntegrityError
-from app.models.all_models import ModuleContent, ModuleVersion
+from app.models.all_models import ModuleContent, ModuleVersion, Project
 from app.services.transaction_service import lock_record
 
 MAX_VERSIONS_LIMIT = 5
@@ -31,6 +34,112 @@ class VersionService:
                 detail="This module was deleted while the operation was running. Reload the project and try again."
             )
         return locked
+
+    @staticmethod
+    def _get_authoritative_versions(
+        db: Session,
+        module_content_id: str,
+        include_data: bool = False
+    ) -> List[ModuleVersion]:
+        """
+        Query versions for module_content_id while guaranteeing authoritative database state.
+
+        Contract:
+        1. Targeted refresh: does not expire the entire session or discard pending caller changes
+           on unrelated models.
+        2. Inspects SQLAlchemy identity map for persistent ModuleVersion instances belonging to this module.
+           - For instances with caller modifications (db.is_modified(v) is True), caller's dirty
+             attributes are explicitly tracked and preserved while clean attributes are refreshed.
+           - For clean instances, attributes are expired so populate_existing reloads authoritative DB state.
+        3. When include_data is False, loads metadata only (deferring large 'data' JSON payload).
+        """
+        cached_versions = [
+            obj for obj in db.identity_map.values()
+            if isinstance(obj, ModuleVersion) and getattr(obj, "module_content_id", None) == module_content_id
+        ]
+
+        dirty_state_map = {}
+        for obj in cached_versions:
+            if db.is_modified(obj):
+                ins = inspect(obj)
+                dirty_attrs = {}
+                for attr in ins.attrs:
+                    hist = attr.history
+                    if hist.has_changes():
+                        dirty_attrs[attr.key] = copy.deepcopy(getattr(obj, attr.key))
+                dirty_state_map[obj.id] = dirty_attrs
+            else:
+                db.expire(obj)
+
+        query = db.query(ModuleVersion).filter(ModuleVersion.module_content_id == module_content_id)
+        if not include_data:
+            query = query.options(
+                load_only(
+                    ModuleVersion.id,
+                    ModuleVersion.module_content_id,
+                    ModuleVersion.version_number,
+                    ModuleVersion.version_name,
+                    ModuleVersion.change_summary,
+                    ModuleVersion.is_active,
+                    ModuleVersion.created_at,
+                )
+            )
+
+        versions = query.populate_existing().order_by(ModuleVersion.version_number.asc()).all()
+
+        for v in versions:
+            if v.id in dirty_state_map:
+                for k, val in dirty_state_map[v.id].items():
+                    setattr(v, k, val)
+                    flag_modified(v, k)
+
+        return versions
+
+    @staticmethod
+    def sync_roadmap_working_tasks_to_active_version(
+        db: Session,
+        module: ModuleContent,
+        project: Optional[Project] = None
+    ) -> None:
+        """
+        Reconcile the relational roadmap task graph to match the active version snapshot.
+        Atomically preserves retained work, canonical codes, and schedule integrity.
+        Raises IncompatibleTaskGraphError / HTTPException on graph conflicts or malformed data,
+        causing complete caller transaction rollback.
+        """
+        if module.module_type not in ("execution_roadmap", "detailed_roadmap"):
+            return
+
+        if not module.active_version_id:
+            return
+
+        if project is None:
+            project = db.query(Project).filter(Project.id == module.project_id).first()
+            if not project:
+                return
+
+        active_version = db.query(ModuleVersion).filter(
+            ModuleVersion.id == module.active_version_id,
+            ModuleVersion.module_content_id == module.id
+        ).populate_existing().first()
+
+        if not active_version:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active roadmap version record not found."
+            )
+
+        if not isinstance(active_version.data, dict) or "tasks" not in active_version.data or not isinstance(active_version.data["tasks"], list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active roadmap version data must contain an explicit 'tasks' list."
+            )
+
+        from app.services.roadmap_service import RoadmapDomainService
+        canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(
+            db, project, active_version.data["tasks"]
+        )
+        RoadmapDomainService.reconcile_roadmap_tasks(db, project, canonical_tasks)
 
     @staticmethod
     def assert_version_capacity(db: Session, module: ModuleContent, limit: int = MAX_VERSIONS_LIMIT) -> None:
@@ -91,7 +200,6 @@ class VersionService:
         Load version list metadata without loading the heavy 'data' JSON column.
         Reduces memory allocation, database I/O, and payload transfer during read paths.
         """
-        from sqlalchemy.orm import load_only
         return db.query(ModuleVersion).options(
             load_only(
                 ModuleVersion.id,
@@ -131,9 +239,8 @@ class VersionService:
         lock = get_module_lock(module.id)
         with lock:
             try:
-                # Acquire database row-level lock on the parent ModuleContent to serialize concurrent multi-process writes
                 VersionService._lock_module(db, module)
-                versions = VersionService.get_versions(db, module.id)
+                versions = VersionService._get_authoritative_versions(db, module.id, include_data=False)
                 if len(versions) >= MAX_VERSIONS_LIMIT:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
@@ -154,9 +261,9 @@ class VersionService:
                         }
                     )
 
-                # Deactivate previous active versions
                 for v in versions:
                     v.is_active = False
+                    flag_modified(v, "is_active")
 
                 next_number = (max([v.version_number for v in versions]) + 1) if versions else 1
                 default_prefix = {
@@ -180,8 +287,8 @@ class VersionService:
                 db.add(new_version)
                 db.flush()
 
-                # Set as active version on module in the same atomic transaction
                 module.active_version_id = new_version.id
+
                 if commit:
                     db.commit()
                     db.refresh(new_version)
@@ -211,29 +318,22 @@ class VersionService:
         lock = get_module_lock(module.id)
         with lock:
             try:
-                # Row lock on module row to serialize concurrent writes
                 VersionService._lock_module(db, module)
-                target = db.query(ModuleVersion).filter(
-                    ModuleVersion.id == replace_version_id,
-                    ModuleVersion.module_content_id == module.id
-                ).first()
+                versions = VersionService._get_authoritative_versions(db, module.id, include_data=False)
+                target = next((v for v in versions if v.id == replace_version_id), None)
 
                 if not target:
                     raise HTTPException(status_code=404, detail="Target version to replace not found")
 
                 target_name = target.version_name
-
-                # Deactivate all existing versions
-                versions = VersionService.get_versions(db, module.id)
                 next_num = max((v.version_number for v in versions), default=0) + 1
                 for v in versions:
                     v.is_active = False
+                    flag_modified(v, "is_active")
 
-                # Delete the selected version to vacate slot (preserving remaining snapshots untouched)
                 db.delete(target)
                 db.flush()
 
-                # Create brand-new version record
                 default_prefix = {
                     "bmc": "BMC",
                     "tech_stack": "Tech Stack",
@@ -256,6 +356,10 @@ class VersionService:
                 db.flush()
 
                 module.active_version_id = new_ver.id
+
+                if module.module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict) and "tasks" in new_data:
+                    VersionService.sync_roadmap_working_tasks_to_active_version(db, module)
+
                 if commit:
                     db.commit()
                     db.refresh(new_ver)
@@ -276,7 +380,7 @@ class VersionService:
                 v = db.query(ModuleVersion).filter(
                     ModuleVersion.id == version_id,
                     ModuleVersion.module_content_id == module.id
-                ).first()
+                ).populate_existing().first()
                 if not v:
                     raise HTTPException(status_code=404, detail="Version not found in this module")
                 v.version_name = new_name.strip()
@@ -293,14 +397,11 @@ class VersionService:
         with lock:
             try:
                 VersionService._lock_module(db, module)
-                v = db.query(ModuleVersion).filter(
-                    ModuleVersion.id == version_id,
-                    ModuleVersion.module_content_id == module.id
-                ).first()
+                versions = VersionService._get_authoritative_versions(db, module.id, include_data=True)
+                v = next((ver for ver in versions if ver.id == version_id), None)
                 if not v:
                     raise HTTPException(status_code=404, detail="Version not found")
 
-                versions = VersionService.get_versions(db, module.id)
                 if len(versions) <= 1:
                     raise HTTPException(
                         status_code=400,
@@ -313,9 +414,22 @@ class VersionService:
 
                 if was_active:
                     remaining = [rem for rem in versions if rem.id != version_id]
-                    fallback = remaining[-1]
+                    fallback = max(remaining, key=lambda rem: (rem.version_number, rem.created_at or datetime.min, rem.id))
                     fallback.is_active = True
+                    flag_modified(fallback, "is_active")
+                    for rem in remaining:
+                        if rem.id != fallback.id:
+                            rem.is_active = False
+                            flag_modified(rem, "is_active")
                     module.active_version_id = fallback.id
+
+                    if module.module_type in ("execution_roadmap", "detailed_roadmap"):
+                        VersionService.sync_roadmap_working_tasks_to_active_version(db, module)
+                else:
+                    active_ver = next((ver for ver in versions if ver.id == module.active_version_id and ver.id != version_id), None)
+                    if active_ver:
+                        active_ver.is_active = True
+                        flag_modified(active_ver, "is_active")
 
                 if commit:
                     db.commit()
@@ -334,19 +448,21 @@ class VersionService:
         with lock:
             try:
                 VersionService._lock_module(db, module)
-                target = db.query(ModuleVersion).filter(
-                    ModuleVersion.id == version_id,
-                    ModuleVersion.module_content_id == module.id
-                ).first()
+                all_versions = VersionService._get_authoritative_versions(db, module.id, include_data=True)
+                target = next((v for v in all_versions if v.id == version_id), None)
                 if not target:
                     raise HTTPException(status_code=404, detail="Version to restore not found")
 
-                # Deactivate all versions in this module
-                all_versions = VersionService.get_versions(db, module.id)
                 for v in all_versions:
-                    v.is_active = (v.id == target.id)
+                    expected = (v.id == target.id)
+                    v.is_active = expected
+                    flag_modified(v, "is_active")
 
                 module.active_version_id = target.id
+
+                if module.module_type in ("execution_roadmap", "detailed_roadmap"):
+                    VersionService.sync_roadmap_working_tasks_to_active_version(db, module)
+
                 if commit:
                     db.commit()
                     db.refresh(target)
@@ -359,7 +475,7 @@ class VersionService:
                 raise
 
     @staticmethod
-    def repair_active_version_for_module(db: Session, module: ModuleContent) -> bool:
+    def repair_active_version_for_module(db: Session, module: ModuleContent, sync_tasks: bool = True) -> bool:
         """
         Transactional repair for broken active version state (Fix B06).
         Invariants:
@@ -371,63 +487,69 @@ class VersionService:
         lock = get_module_lock(module.id)
         with lock:
             VersionService._lock_module(db, module)
-            versions = db.query(ModuleVersion).filter(
-                ModuleVersion.module_content_id == module.id
-            ).order_by(ModuleVersion.version_number.asc()).all()
+            versions = VersionService._get_authoritative_versions(db, module.id, include_data=False)
 
             if not versions:
                 if module.active_version_id is not None:
                     module.active_version_id = None
+                    db.flush()
                     return True
                 return False
 
-            # Check if current pointer matches a valid version belonging to this module
             target = next((v for v in versions if v.id == module.active_version_id), None)
 
             if target is not None:
-                # Valid pointer exists! PRESERVE IT (even if it's an older restored version).
-                # Only repair mismatched is_active flags if any.
                 flags_changed = False
                 for v in versions:
                     expected_active = (v.id == target.id)
                     if v.is_active != expected_active:
                         v.is_active = expected_active
+                        flag_modified(v, "is_active")
                         flags_changed = True
+                if flags_changed:
+                    db.flush()
                 return flags_changed
 
-            # Pointer is missing (None) or invalid (points to non-existent or foreign module version).
-            # Fallback selection:
-            # If exactly one version has is_active == True, use it as fallback.
-            # Otherwise, use the newest version (highest version_number).
             active_flags = [v for v in versions if v.is_active]
             if len(active_flags) == 1:
                 chosen = active_flags[0]
             else:
-                chosen = max(versions, key=lambda v: (v.version_number, v.created_at or datetime.min))
+                chosen = max(versions, key=lambda v: (v.version_number, v.created_at or datetime.min, v.id))
 
             module.active_version_id = chosen.id
             for v in versions:
                 v.is_active = (v.id == chosen.id)
+                flag_modified(v, "is_active")
+            db.flush()
+
+            if sync_tasks and module.module_type in ("execution_roadmap", "detailed_roadmap"):
+                VersionService.sync_roadmap_working_tasks_to_active_version(db, module)
             return True
 
     @staticmethod
-    def prune_excess_versions_for_module(db: Session, module: ModuleContent, limit: int = MAX_VERSIONS_LIMIT) -> int:
+    def prune_excess_versions_for_module(
+        db: Session,
+        module: ModuleContent,
+        limit: int = MAX_VERSIONS_LIMIT,
+        sync_tasks: bool = True
+    ) -> int:
         """
         Prune excess versions beyond `limit` while strictly guaranteeing (Fix P07):
         - The active version is NEVER deleted (even if it is the oldest version V1).
         - Up to `limit - 1` newest other versions are preserved.
         - Deletes only unneeded older versions.
+        - Validates limit is a positive integer >= 1.
         - Returns the count of deleted versions.
         """
+        if not isinstance(limit, int) or limit < 1:
+            raise ValueError(f"limit must be a positive integer >= 1, got {limit}")
+
         lock = get_module_lock(module.id)
         with lock:
             VersionService._lock_module(db, module)
-            # Ensure active version state is coherent first
-            VersionService.repair_active_version_for_module(db, module)
+            VersionService.repair_active_version_for_module(db, module, sync_tasks=sync_tasks)
 
-            versions = db.query(ModuleVersion).filter(
-                ModuleVersion.module_content_id == module.id
-            ).order_by(ModuleVersion.version_number.asc()).all()
+            versions = VersionService._get_authoritative_versions(db, module.id, include_data=False)
 
             if len(versions) <= limit:
                 return 0
@@ -435,22 +557,22 @@ class VersionService:
             active_id = module.active_version_id
             active_ver = next((v for v in versions if v.id == active_id), None)
 
-            # Build keep set:
-            # 1. Guarantee active version is retained
-            # 2. Fill remaining slots up to limit with the newest other versions (sorted by version_number desc)
             keep_set = set()
             if active_ver:
                 keep_set.add(active_ver)
                 other_versions = [v for v in versions if v.id != active_id]
-                other_versions.sort(key=lambda v: (v.version_number, v.created_at or datetime.min), reverse=True)
+                other_versions.sort(key=lambda v: (v.version_number, v.created_at or datetime.min, v.id), reverse=True)
                 slots_remaining = limit - 1
                 keep_set.update(other_versions[:slots_remaining])
             else:
-                sorted_versions = sorted(versions, key=lambda v: (v.version_number, v.created_at or datetime.min), reverse=True)
+                sorted_versions = sorted(versions, key=lambda v: (v.version_number, v.created_at or datetime.min, v.id), reverse=True)
                 keep_set.update(sorted_versions[:limit])
                 module.active_version_id = sorted_versions[0].id
                 for v in versions:
                     v.is_active = (v.id == sorted_versions[0].id)
+                    flag_modified(v, "is_active")
+                if sync_tasks and module.module_type in ("execution_roadmap", "detailed_roadmap"):
+                    VersionService.sync_roadmap_working_tasks_to_active_version(db, module)
 
             to_delete = [v for v in versions if v not in keep_set]
             deleted_count = 0

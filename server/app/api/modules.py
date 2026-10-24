@@ -101,6 +101,9 @@ def _merge_legacy_roadmap_history(
     db.delete(legacy_module)
     db.flush()
 
+    if active_version_id and canonical_module.module_type in ("execution_roadmap", "detailed_roadmap"):
+        VersionService.sync_roadmap_working_tasks_to_active_version(db, canonical_module)
+
 
 def _get_or_create_canonical_module(db: Session, project_id: str, module_type: str) -> ModuleContent:
     """Reuse a legacy roadmap record on first write, preserving its full history."""
@@ -118,7 +121,8 @@ def _get_or_create_canonical_module(db: Session, project_id: str, module_type: s
                 ModuleContent.module_type == "detailed_roadmap"
             ).first()
             if legacy_module:
-                _merge_legacy_roadmap_history(db, module, legacy_module)
+                with project_first_lock(db, project_id, module.id):
+                    _merge_legacy_roadmap_history(db, module, legacy_module)
         return module
 
     if canonical_type == "execution_roadmap":
@@ -645,7 +649,8 @@ def rename_version(
 ):
     module_type = normalize_module_type(module_type)
     module = _get_or_create_canonical_module(db, project.id, module_type)
-    renamed = VersionService.rename_version(db, module, version_id, req.version_name)
+    with project_first_lock(db, project.id, module.id):
+        renamed = VersionService.rename_version(db, module, version_id, req.version_name)
     return {"message": "Version renamed successfully", "version_name": renamed.version_name}
 
 @router.delete("/{module_type}/versions/{version_id}", dependencies=[Depends(verify_csrf)])
@@ -660,13 +665,6 @@ def delete_version(
     try:
         with project_first_lock(db, project.id, module.id):
             VersionService.delete_version(db, module, version_id, commit=False)
-            if module_type == "execution_roadmap":
-                active_version = db.query(ModuleVersion).filter(
-                    ModuleVersion.id == module.active_version_id,
-                    ModuleVersion.module_content_id == module.id
-                ).first()
-                tasks_data = active_version.data.get("tasks", []) if active_version and isinstance(active_version.data, dict) else []
-                _reconcile_roadmap_tasks(db, project, tasks_data)
             db.commit()
     except HTTPException:
         db.rollback()
@@ -693,11 +691,6 @@ def restore_version(
     try:
         with project_first_lock(db, project.id, module.id):
             new_ver = VersionService.restore_version(db, module, version_id, commit=False)
-
-            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_ver.data, dict):
-                tasks_data = new_ver.data.get("tasks", [])
-                _reconcile_roadmap_tasks(db, project, tasks_data)
-
             db.commit()
             db.refresh(new_ver)
     except HTTPException:

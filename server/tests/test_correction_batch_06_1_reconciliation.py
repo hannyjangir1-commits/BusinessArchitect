@@ -1059,18 +1059,18 @@ def _run_pg_concurrency_test(test_fn):
             except Exception as e:
                 teardown_errors.append(f"test_engine disposal: {type(e).__name__}")
 
-        if bootstrap_engine is not None and schema_created:
-            try:
-                with bootstrap_engine.connect() as conn:
-                    conn.execution_options(isolation_level="AUTOCOMMIT")
-                    conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
-            except Exception as e:
-                teardown_errors.append(f"drop schema: {type(e).__name__}")
-            finally:
+        if bootstrap_engine is not None:
+            if schema_created:
                 try:
-                    bootstrap_engine.dispose()
+                    with bootstrap_engine.connect() as conn:
+                        conn.execution_options(isolation_level="AUTOCOMMIT")
+                        conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
                 except Exception as e:
-                    teardown_errors.append(f"bootstrap_engine disposal: {type(e).__name__}")
+                    teardown_errors.append(f"drop schema: {type(e).__name__}")
+            try:
+                bootstrap_engine.dispose()
+            except Exception as e:
+                teardown_errors.append(f"bootstrap_engine disposal: {type(e).__name__}")
 
         if teardown_errors:
             raise RuntimeError(f"Database harness teardown encountered errors: {', '.join(teardown_errors)}")
