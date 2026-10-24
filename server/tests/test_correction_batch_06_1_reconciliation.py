@@ -34,6 +34,7 @@ Covers:
    - Marked pending when isolated PostgreSQL harness is unavailable
 """
 import os
+from typing import Optional, List, Dict, Any, Set, Tuple
 import concurrent.futures
 from datetime import datetime, timezone
 import pytest
@@ -891,6 +892,8 @@ def test_validation_happens_before_partial_task_mutations_are_flushed(db: Sessio
 # ==============================================================================
 # 5. PostgreSQL Concurrency Tests (Isolated Disposable Harness)
 # ==============================================================================
+# 5. PostgreSQL Concurrency Tests (Isolated Disposable Harness)
+# ==============================================================================
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 
@@ -899,10 +902,12 @@ def validate_and_parse_test_db_url(raw_url: Optional[str]):
     """
     Parse and strictly validate TEST_DATABASE_URL for disposable test use.
 
-    Guarantees (Batch 06.3):
+    Guarantees:
     - Never falls back to production DATABASE_URL.
-    - Requires postgresql dialect (rejects mysql, sqlite, etc.).
-    - Strictly restricts host to local loopback (localhost, 127.0.0.1, ::1).
+    - Requires postgresql dialect (postgresql or postgresql+driver, rejects mysql, sqlite, etc.).
+    - Strictly restricts host to explicit local loopback ('localhost', '127.0.0.1', '::1').
+    - Rejects unspecified hosts and '0.0.0.0'.
+    - Rejects connection query options that can override destination routing (host, hostaddr, service, options).
     - Rejects remote hosts before any network connection attempt.
     - Masks credentials in all diagnostics and string representations.
     """
@@ -917,18 +922,28 @@ def validate_and_parse_test_db_url(raw_url: Optional[str]):
     except Exception:
         raise ValueError("Invalid database URL format for TEST_DATABASE_URL.") from None
 
-    # Dialect check
+    # 1. Dialect check: require PostgreSQL dialect
     if not (url.drivername == "postgresql" or url.drivername.startswith("postgresql+")):
         raise ValueError(f"TEST_DATABASE_URL must be a PostgreSQL dialect, got '{url.drivername}'.")
 
-    # Host validation: strictly local only
+    # 2. Host validation: strictly explicit loopback only
+    ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
     host = url.host
-    ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
-    if host is not None and host not in ALLOWED_HOSTS:
+    if not host or host not in ALLOWED_HOSTS:
         raise ValueError(
-            f"TEST_DATABASE_URL points to forbidden remote host '{host}'. "
-            f"For security, disposable tests only permit local instances ({', '.join(sorted(ALLOWED_HOSTS))})."
+            f"TEST_DATABASE_URL points to forbidden host '{host or 'unspecified'}'. "
+            f"Disposable tests strictly require explicit loopback ({', '.join(sorted(ALLOWED_HOSTS))})."
         )
+
+    # 3. Query parameters check: reject options that override host or service routing
+    FORBIDDEN_QUERY_KEYS = {"host", "hostaddr", "service", "options", "target_session_attrs"}
+    if url.query:
+        overlapping = set(url.query.keys()).intersection(FORBIDDEN_QUERY_KEYS)
+        if overlapping:
+            raise ValueError(
+                f"TEST_DATABASE_URL contains forbidden routing query parameter(s): {sorted(overlapping)}. "
+                f"Connection overrides are rejected to prevent routing hijacking."
+            )
 
     return url
 
@@ -943,10 +958,33 @@ def test_offline_guard_rejects_non_postgresql_url():
 
 def test_offline_guard_rejects_remote_hosts():
     """Offline unit test: Harness rejects remote hosts before any network connection attempt."""
-    with pytest.raises(ValueError, match="forbidden remote host"):
+    with pytest.raises(ValueError, match="forbidden host"):
         validate_and_parse_test_db_url("postgresql://user:pass@production.example.com:5432/proddb")
-    with pytest.raises(ValueError, match="forbidden remote host"):
+    with pytest.raises(ValueError, match="forbidden host"):
         validate_and_parse_test_db_url("postgresql://user:pass@192.168.1.100:5432/testdb")
+
+
+def test_offline_guard_rejects_unspecified_and_all_zero_hosts():
+    """Offline unit test: Harness rejects unspecified hosts and 0.0.0.0."""
+    with pytest.raises(ValueError, match="forbidden host"):
+        validate_and_parse_test_db_url("postgresql:///testdb")
+    with pytest.raises(ValueError, match="forbidden host"):
+        validate_and_parse_test_db_url("postgresql://0.0.0.0:5432/testdb")
+
+
+def test_offline_guard_rejects_routing_query_overrides():
+    """Offline unit test: Harness rejects connection query parameters that override destination routing."""
+    with pytest.raises(ValueError, match="forbidden routing query parameter"):
+        validate_and_parse_test_db_url("postgresql://user:pass@localhost:5432/testdb?host=remote.example.com")
+
+    with pytest.raises(ValueError):
+        validate_and_parse_test_db_url("postgresql:///testdb?host=remote.example.com")
+
+    with pytest.raises(ValueError, match="forbidden routing query parameter"):
+        validate_and_parse_test_db_url("postgresql://user:pass@localhost:5432/testdb?service=prod_service")
+
+    with pytest.raises(ValueError, match="forbidden routing query parameter"):
+        validate_and_parse_test_db_url("postgresql://user:pass@localhost:5432/testdb?hostaddr=10.0.0.1")
 
 
 def test_offline_guard_accepts_local_loopback_and_masks_credentials():
@@ -967,7 +1005,8 @@ def test_offline_guard_accepts_local_loopback_and_masks_credentials():
 def _run_pg_concurrency_test(test_fn):
     """
     Bootstrap an isolated, disposable PostgreSQL schema for concurrency testing.
-    Never prints or leaks credentials. Uses bounded timeouts and reliable teardown.
+    Never prints or leaks credentials. Uses bounded timeouts, defensive resource allocation,
+    and reliable teardown.
     """
     import uuid
     from sqlalchemy import create_engine, text, event
@@ -975,46 +1014,66 @@ def _run_pg_concurrency_test(test_fn):
     from app.db.base import Base
 
     url = validate_and_parse_test_db_url(TEST_DATABASE_URL)
-    url_str = url.render_as_string(hide_password=False)
+    clean_url = url.set(query={})
+    url_str = clean_url.render_as_string(hide_password=False)
 
     schema_name = f"conc_{uuid.uuid4().hex[:8]}"
-    bootstrap_engine = create_engine(
-        url_str,
-        connect_args={"connect_timeout": 3},
-        pool_pre_ping=True
-    )
-    with bootstrap_engine.connect() as conn:
-        conn.execution_options(isolation_level="AUTOCOMMIT")
-        conn.execute(text(f'CREATE SCHEMA "{schema_name}"'))
-
-    test_engine = create_engine(
-        url_str,
-        connect_args={
-            "connect_timeout": 3,
-            "options": f"-c search_path={schema_name} -c statement_timeout=5000 -c lock_timeout=5000"
-        },
-        pool_pre_ping=True
-    )
-
-    @event.listens_for(test_engine, "connect")
-    def set_search_path(dbapi_conn, conn_record):
-        with dbapi_conn.cursor() as cursor:
-            cursor.execute(f'SET search_path TO "{schema_name}"')
-
-    Base.metadata.create_all(bind=test_engine)
-    PGSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    bootstrap_engine = None
+    test_engine = None
+    schema_created = False
 
     try:
+        bootstrap_engine = create_engine(
+            url_str,
+            connect_args={"connect_timeout": 3},
+            pool_pre_ping=True
+        )
+        with bootstrap_engine.connect() as conn:
+            conn.execution_options(isolation_level="AUTOCOMMIT")
+            conn.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+        schema_created = True
+
+        test_engine = create_engine(
+            url_str,
+            connect_args={
+                "connect_timeout": 3,
+                "options": f"-c search_path={schema_name} -c statement_timeout=5000 -c lock_timeout=5000"
+            },
+            pool_pre_ping=True
+        )
+
+        @event.listens_for(test_engine, "connect")
+        def set_search_path(dbapi_conn, conn_record):
+            with dbapi_conn.cursor() as cursor:
+                cursor.execute(f'SET search_path TO "{schema_name}"')
+
+        Base.metadata.create_all(bind=test_engine)
+        PGSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
         test_fn(url_str, PGSessionLocal, schema_name)
     finally:
-        test_engine.dispose()
-        try:
-            with bootstrap_engine.connect() as conn:
-                conn.execution_options(isolation_level="AUTOCOMMIT")
-                conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
-            bootstrap_engine.dispose()
-        except Exception:
-            pass
+        teardown_errors = []
+        if test_engine is not None:
+            try:
+                test_engine.dispose()
+            except Exception as e:
+                teardown_errors.append(f"test_engine disposal: {type(e).__name__}")
+
+        if bootstrap_engine is not None and schema_created:
+            try:
+                with bootstrap_engine.connect() as conn:
+                    conn.execution_options(isolation_level="AUTOCOMMIT")
+                    conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+            except Exception as e:
+                teardown_errors.append(f"drop schema: {type(e).__name__}")
+            finally:
+                try:
+                    bootstrap_engine.dispose()
+                except Exception as e:
+                    teardown_errors.append(f"bootstrap_engine disposal: {type(e).__name__}")
+
+        if teardown_errors:
+            raise RuntimeError(f"Database harness teardown encountered errors: {', '.join(teardown_errors)}")
 
 
 def _find_distinct_stripe_project_ids() -> tuple:
@@ -1040,7 +1099,7 @@ def test_pg_manual_mutation_vs_roadmap_restore():
     """
     Worker A holds project transaction lock in Process A while mutating a manual task.
     Worker B attempts roadmap restore in Process B.
-    Using separate spawned processes proves that PostgreSQL SELECT FOR UPDATE row-locks
+    Using explicit spawn-context processes proves that PostgreSQL SELECT FOR UPDATE row-locks
     serialize the competing operations independently of in-process lock objects.
     """
     import multiprocessing as mp
@@ -1061,26 +1120,28 @@ def test_pg_manual_mutation_vs_roadmap_restore():
             proj_id = proj.id
             mod_id = mod.id
 
-        a_holding = mp.Event()
-        a_release = mp.Event()
-        b_started = mp.Event()
-        b_finished = mp.Event()
-        error_queue = mp.Queue()
+        ctx = mp.get_context("spawn")
+        a_holding = ctx.Event()
+        a_release = ctx.Event()
+        b_started = ctx.Event()
+        b_finished = ctx.Event()
+        error_queue = ctx.Queue()
 
-        p_a = mp.Process(
+        p_a = ctx.Process(
             target=worker_manual_mutation_hold,
             args=(db_url_str, schema, proj_id, mod_id, a_holding, a_release, error_queue)
         )
-        p_b = mp.Process(
+        p_b = ctx.Process(
             target=worker_roadmap_restore_compete,
             args=(db_url_str, schema, proj_id, mod_id, v1_id, a_holding, b_started, b_finished, error_queue)
         )
+        workers = [p_a, p_b]
 
         try:
             p_a.start()
             assert a_holding.wait(timeout=5), "Worker A must acquire lock"
             p_b.start()
-            assert b_started.wait(timeout=5), "Worker B must start"
+            assert b_started.wait(timeout=5), "Worker B must signal start"
 
             # Give Worker B time to attempt the row lock in PostgreSQL
             time.sleep(0.3)
@@ -1095,9 +1156,14 @@ def test_pg_manual_mutation_vs_roadmap_restore():
             p_b.join(timeout=5)
 
             errors = []
-            while not error_queue.empty():
-                errors.append(error_queue.get_nowait())
+            while True:
+                try:
+                    errors.append(error_queue.get_nowait())
+                except Exception:
+                    break
             assert not errors, f"Process worker errors: {errors}"
+            assert p_a.exitcode == 0, f"Worker A failed with exitcode {p_a.exitcode}"
+            assert p_b.exitcode == 0, f"Worker B failed with exitcode {p_b.exitcode}"
 
             with PGSessionLocal() as final_s:
                 tasks = {t.task_code: t for t in final_s.query(RoadmapTask).filter(RoadmapTask.project_id == proj_id).all()}
@@ -1105,10 +1171,20 @@ def test_pg_manual_mutation_vs_roadmap_restore():
                 assert "V1-01" in tasks
         finally:
             a_release.set()
-            for p in (p_a, p_b):
-                if p.is_alive():
-                    p.terminate()
-                    p.join(timeout=2)
+            try:
+                error_queue.close()
+                error_queue.join_thread()
+            except Exception:
+                pass
+            for p in workers:
+                try:
+                    if p.is_alive():
+                        p.terminate()
+                        p.join(timeout=2)
+                except Exception:
+                    pass
+            for p in workers:
+                assert not p.is_alive(), f"Worker process {p.name} failed to terminate."
 
     _run_pg_concurrency_test(run)
 
@@ -1134,24 +1210,26 @@ def test_pg_manual_mutation_vs_generation_persistence():
             proj_id = proj.id
             mod_id = mod.id
 
-        a_holding = mp.Event()
-        a_release = mp.Event()
-        b_started = mp.Event()
-        b_finished = mp.Event()
-        error_queue = mp.Queue()
+        ctx = mp.get_context("spawn")
+        a_holding = ctx.Event()
+        a_release = ctx.Event()
+        b_started = ctx.Event()
+        b_finished = ctx.Event()
+        error_queue = ctx.Queue()
 
         raw_tasks = [
             {"task_code": "TSK-02", "phase": "P1", "title": "Gen 2", "start_date": "2026-11-06", "end_date": "2026-11-10", "dependencies": []}
         ]
 
-        p_a = mp.Process(
+        p_a = ctx.Process(
             target=worker_gen_hold_mutation,
             args=(db_url_str, schema, proj_id, mod_id, a_holding, a_release, error_queue)
         )
-        p_b = mp.Process(
+        p_b = ctx.Process(
             target=worker_gen_compete_persistence,
             args=(db_url_str, schema, proj_id, mod_id, raw_tasks, a_holding, b_started, b_finished, error_queue)
         )
+        workers = [p_a, p_b]
 
         try:
             p_a.start()
@@ -1169,9 +1247,14 @@ def test_pg_manual_mutation_vs_generation_persistence():
             p_b.join(timeout=5)
 
             errors = []
-            while not error_queue.empty():
-                errors.append(error_queue.get_nowait())
+            while True:
+                try:
+                    errors.append(error_queue.get_nowait())
+                except Exception:
+                    break
             assert not errors, f"Process worker errors: {errors}"
+            assert p_a.exitcode == 0, f"Worker A failed with exitcode {p_a.exitcode}"
+            assert p_b.exitcode == 0, f"Worker B failed with exitcode {p_b.exitcode}"
 
             with PGSessionLocal() as final_s:
                 tasks = {t.task_code: t for t in final_s.query(RoadmapTask).filter(RoadmapTask.project_id == proj_id).all()}
@@ -1179,10 +1262,20 @@ def test_pg_manual_mutation_vs_generation_persistence():
                 assert "TSK-02" in tasks, "Generated task from Process B must persist"
         finally:
             a_release.set()
-            for p in (p_a, p_b):
-                if p.is_alive():
-                    p.terminate()
-                    p.join(timeout=2)
+            try:
+                error_queue.close()
+                error_queue.join_thread()
+            except Exception:
+                pass
+            for p in workers:
+                try:
+                    if p.is_alive():
+                        p.terminate()
+                        p.join(timeout=2)
+                except Exception:
+                    pass
+            for p in workers:
+                assert not p.is_alive(), f"Worker process {p.name} failed to terminate."
 
     _run_pg_concurrency_test(run)
 
@@ -1219,20 +1312,22 @@ def test_pg_restore_vs_repair_same_roadmap():
             mod_id = mod.id
             v1_id = v1.id
 
-        a_holding = mp.Event()
-        a_release = mp.Event()
-        b_started = mp.Event()
-        b_finished = mp.Event()
-        error_queue = mp.Queue()
+        ctx = mp.get_context("spawn")
+        a_holding = ctx.Event()
+        a_release = ctx.Event()
+        b_started = ctx.Event()
+        b_finished = ctx.Event()
+        error_queue = ctx.Queue()
 
-        p_a = mp.Process(
+        p_a = ctx.Process(
             target=worker_restore_hold,
             args=(db_url_str, schema, proj_id, mod_id, v1_id, a_holding, a_release, error_queue)
         )
-        p_b = mp.Process(
+        p_b = ctx.Process(
             target=worker_repair_compete,
             args=(db_url_str, schema, proj_id, mod_id, a_holding, b_started, b_finished, error_queue)
         )
+        workers = [p_a, p_b]
 
         try:
             p_a.start()
@@ -1250,9 +1345,14 @@ def test_pg_restore_vs_repair_same_roadmap():
             p_b.join(timeout=5)
 
             errors = []
-            while not error_queue.empty():
-                errors.append(error_queue.get_nowait())
+            while True:
+                try:
+                    errors.append(error_queue.get_nowait())
+                except Exception:
+                    break
             assert not errors, f"Process worker errors: {errors}"
+            assert p_a.exitcode == 0, f"Worker A failed with exitcode {p_a.exitcode}"
+            assert p_b.exitcode == 0, f"Worker B failed with exitcode {p_b.exitcode}"
 
             with PGSessionLocal() as final_s:
                 m = final_s.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
@@ -1289,10 +1389,20 @@ def test_pg_restore_vs_repair_same_roadmap():
                         assert d in all_codes, f"Dangling dependency '{d}' in task '{t.task_code}'"
         finally:
             a_release.set()
-            for p in (p_a, p_b):
-                if p.is_alive():
-                    p.terminate()
-                    p.join(timeout=2)
+            try:
+                error_queue.close()
+                error_queue.join_thread()
+            except Exception:
+                pass
+            for p in workers:
+                try:
+                    if p.is_alive():
+                        p.terminate()
+                        p.join(timeout=2)
+                except Exception:
+                    pass
+            for p in workers:
+                assert not p.is_alive(), f"Worker process {p.name} failed to terminate."
 
     _run_pg_concurrency_test(run)
 
@@ -1325,19 +1435,21 @@ def test_pg_independent_projects_progress_separately():
             init_s.add_all([u1, u2, proj1, proj2])
             init_s.commit()
 
-        p1_holding = mp.Event()
-        p1_release = mp.Event()
-        p2_finished = mp.Event()
-        error_queue = mp.Queue()
+        ctx = mp.get_context("spawn")
+        p1_holding = ctx.Event()
+        p1_release = ctx.Event()
+        p2_finished = ctx.Event()
+        error_queue = ctx.Queue()
 
-        p_a = mp.Process(
+        p_a = ctx.Process(
             target=worker_p1_hold,
             args=(db_url_str, schema, p1_id, p1_holding, p1_release, error_queue)
         )
-        p_b = mp.Process(
+        p_b = ctx.Process(
             target=worker_p2_compete,
             args=(db_url_str, schema, p2_id, p1_holding, p2_finished, error_queue)
         )
+        workers = [p_a, p_b]
 
         try:
             p_a.start()
@@ -1352,18 +1464,33 @@ def test_pg_independent_projects_progress_separately():
             p_b.join(timeout=5)
 
             errors = []
-            while not error_queue.empty():
-                errors.append(error_queue.get_nowait())
+            while True:
+                try:
+                    errors.append(error_queue.get_nowait())
+                except Exception:
+                    break
             assert not errors, f"Process worker errors: {errors}"
+            assert p_a.exitcode == 0, f"Worker A failed with exitcode {p_a.exitcode}"
+            assert p_b.exitcode == 0, f"Worker B failed with exitcode {p_b.exitcode}"
 
             with PGSessionLocal() as final_s:
                 p2_task = final_s.query(RoadmapTask).filter(RoadmapTask.project_id == p2_id, RoadmapTask.task_code == "P2-TASK").first()
                 assert p2_task is not None
         finally:
             p1_release.set()
-            for p in (p_a, p_b):
-                if p.is_alive():
-                    p.terminate()
-                    p.join(timeout=2)
+            try:
+                error_queue.close()
+                error_queue.join_thread()
+            except Exception:
+                pass
+            for p in workers:
+                try:
+                    if p.is_alive():
+                        p.terminate()
+                        p.join(timeout=2)
+                except Exception:
+                    pass
+            for p in workers:
+                assert not p.is_alive(), f"Worker process {p.name} failed to terminate."
 
     _run_pg_concurrency_test(run)

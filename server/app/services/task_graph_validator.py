@@ -1,13 +1,16 @@
 """Task identity, dependency graph, and schedule integrity validation service."""
 
 from contextlib import contextmanager
+import copy
 from datetime import datetime, date
 import re
 import threading
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, inspect
+from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.exc import ObjectDeletedError
 from app.models.all_models import RoadmapTask, Project
 
 # Fixed striped locks for in-process per-project synchronization.
@@ -331,14 +334,21 @@ def get_authoritative_project_tasks(db: Session, project_id: str) -> List[Roadma
     """
     Authoritative read of RoadmapTask rows for a project under transaction lock.
 
-    Freshness & pending-change contract:
-    - For existing persistent objects in the identity map that have NOT been modified by the caller
-      session, selectively expires them (db.expire(obj)). This forces SQLAlchemy to reload their
-      attributes from the database, authoritatively reflecting concurrent committed changes
-      (e.g., from Session B).
-    - For objects that HAVE pending local changes (db.is_modified(obj) is True), leaves them
-      unexpired and queries without populate_existing=True. This guarantees caller-owned pending
-      mutations (status, assignments, dates, dependencies) are NOT overwritten.
+    Freshness & pending-change contract (Batch 06.4 - Mixed-State Preservation):
+    - Safely merges authoritative database state with explicitly tracked caller changes under project lock.
+    - For objects with NO pending caller changes: expires them (db.expire(obj)) so fresh committed values
+      from concurrent sessions (e.g. Session B) are loaded.
+    - For objects with PENDING caller changes (db.is_modified(obj) is True):
+      * Inspects attribute histories to identify intentional caller modifications (dirty attributes).
+      * Captures dirty values (deep-copying lists/dicts).
+      * Preserves object ID before expiring, then expires the instance to load clean attributes from DB.
+      * Explicitly detects externally deleted rows; if deleted remotely, expunges the instance rather
+        than resurrecting it.
+      * Re-applies caller-owned dirty changes on top of the refreshed clean attributes.
+      * Same-Field Conflict Policy: In the event of a concurrent edit where Session B committed a new
+        value for field X while Session A also modified field X locally, Session A's explicit caller intent
+        within its active transaction takes precedence (local-intent-wins), while all other non-conflicting
+        fields (e.g. status, dependencies, dates, assignments) safely merge remote committed updates.
     - Excludes objects in db.deleted (pending deletions by caller).
     - Incorporates objects in db.new (pending creations by caller belonging to this project).
     - Never commits or flushes unrelated session state.
@@ -347,13 +357,46 @@ def get_authoritative_project_tasks(db: Session, project_id: str) -> List[Roadma
     if not clean_id:
         return []
 
-    # Selectively expire persistent, non-modified project tasks in identity map
+    # Process existing persistent tasks in identity map
     for obj in list(db):
         if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == clean_id:
-            if not db.is_modified(obj) and obj not in db.deleted and obj not in db.new:
-                db.expire(obj)
+            if obj in db.deleted or obj in db.new:
+                continue
 
-    # Query persistent tasks from database (without populate_existing to preserve pending modifications)
+            obj_id = obj.id
+            if not db.is_modified(obj):
+                # Clean persistent task: expire completely to observe newer remote commits
+                db.expire(obj)
+            else:
+                # Task with pending caller changes: deliberately track dirty attributes
+                ins = inspect(obj)
+                dirty_fields: Dict[str, Any] = {}
+                for attr in ins.attrs:
+                    try:
+                        hist = attr.history
+                        if hist.has_changes():
+                            val = getattr(obj, attr.key)
+                            dirty_fields[attr.key] = copy.deepcopy(val) if isinstance(val, (list, dict)) else val
+                    except Exception:
+                        pass
+
+                # Expire to refresh clean attributes from the authoritative database row
+                db.expire(obj)
+                try:
+                    exists = db.query(RoadmapTask.id).filter(RoadmapTask.id == obj_id).first() is not None
+                    if not exists:
+                        # Row was deleted externally by another session; expunge rather than resurrecting
+                        db.expunge(obj)
+                    else:
+                        # Row exists: re-apply caller-owned dirty changes on top of fresh clean attributes
+                        for k, v in dirty_fields.items():
+                            setattr(obj, k, v)
+                            if k in ("dependencies", "steps"):
+                                flag_modified(obj, k)
+                except ObjectDeletedError:
+                    db.expunge(obj)
+
+    # Query persistent tasks from database
     persisted = (
         db.query(RoadmapTask)
         .filter(RoadmapTask.project_id == clean_id)

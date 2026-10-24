@@ -166,7 +166,7 @@ def test_freshness_session_b_changes_retained_dependency_before_session_a_reconc
         session_a.commit()
 
         # Session A caches M with dependencies=["A"]
-        m_in_a = session_a.query(RoadmapTask).filter(RoadmapTask.task_code == "M").first()
+        m_in_a = session_a.query(RoadmapTask).filter(RoadmapTask.project_id == project.id, RoadmapTask.id == t_m.id).first()
         assert m_in_a.dependencies == ["A"]
 
         # Session B updates M to depend on B instead
@@ -182,7 +182,7 @@ def test_freshness_session_b_changes_retained_dependency_before_session_a_reconc
         session_a.commit()
 
         with SessionLocal() as fresh_s:
-            fresh_m = fresh_s.query(RoadmapTask).filter(RoadmapTask.task_code == "M").first()
+            fresh_m = fresh_s.query(RoadmapTask).filter(RoadmapTask.project_id == project.id, RoadmapTask.id == t_m.id).first()
             assert fresh_m.dependencies == ["B"]
     finally:
         session_a.close()
@@ -231,7 +231,7 @@ def test_freshness_session_b_changes_assignment_and_status_preserved_on_matching
         session_a.commit()
 
         with SessionLocal() as fresh_s:
-            fresh_t = fresh_s.query(RoadmapTask).filter(RoadmapTask.task_code == "T1").first()
+            fresh_t = fresh_s.query(RoadmapTask).filter(RoadmapTask.project_id == project.id, RoadmapTask.id == t1.id).first()
             assert fresh_t.title == "AI Refined Title"
             assert fresh_t.status == "In Progress", "User status updated by Session B must be preserved"
             assert fresh_t.assigned_to == "Engineer Bob", "User assignment updated by Session B must be preserved"
