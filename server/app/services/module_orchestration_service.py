@@ -119,6 +119,18 @@ class ModuleOrchestrationService:
             # Atomic save under project-first lock protocol
             from app.services.task_graph_validator import project_first_lock
             with project_first_lock(db, project.id, module.id):
+                if module_type in ("execution_roadmap", "detailed_roadmap"):
+                    if "tasks" not in data_dict or not isinstance(data_dict["tasks"], list):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Roadmap payload missing 'tasks' list."
+                        )
+                    canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(
+                        db, project, data_dict["tasks"]
+                    )
+                    data_dict = dict(data_dict)
+                    data_dict["tasks"] = canonical_tasks
+
                 new_ver = VersionService.save_new_version(
                     db=db,
                     module=module,
@@ -128,8 +140,7 @@ class ModuleOrchestrationService:
                 )
 
                 if module_type in ("execution_roadmap", "detailed_roadmap"):
-                    tasks_data = data_dict.get("tasks", [])
-                    RoadmapDomainService.reconcile_roadmap_tasks(db, project, tasks_data)
+                    RoadmapDomainService.reconcile_roadmap_tasks(db, project, data_dict["tasks"])
 
                 db.commit()
                 db.refresh(new_ver)
@@ -162,11 +173,12 @@ class ModuleOrchestrationService:
             db.rollback()
             dur_ms = int((time.time() - t0) * 1000)
             terminal_provider_error = ai_service._terminal_provider_error_message(e)
-            err_msg = terminal_provider_error or str(e)
+            raw_err = str(e)
+            err_msg = terminal_provider_error or "An unexpected internal error occurred during generation."
             err_cat = (
                 "provider_error" if terminal_provider_error
-                else ("timeout" if "timeout" in err_msg.lower()
-                else ("parse_error" if "json" in err_msg.lower() or "validation" in err_msg.lower()
+                else ("timeout" if "timeout" in raw_err.lower()
+                else ("parse_error" if "json" in raw_err.lower() or "validation" in raw_err.lower()
                 else "api_error"))
             )
             record_ai_operation(
@@ -177,7 +189,7 @@ class ModuleOrchestrationService:
                 operation_type="generate",
                 model_name=settings.GEMINI_MODEL,
                 duration_ms=dur_ms,
-                status="timeout" if "timeout" in err_msg.lower() else "failed",
+                status="timeout" if "timeout" in raw_err.lower() else "failed",
                 error_category=err_cat,
                 error_message=err_msg,
                 structured_validation_passed=False,

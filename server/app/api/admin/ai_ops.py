@@ -293,6 +293,17 @@ def retry_failed_operation(
         from app.services.task_graph_validator import project_first_lock
         module = VersionService.get_or_create_module(db, proj.id, module_type)
         with project_first_lock(db, proj.id, module.id):
+            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
+                from app.services.roadmap_service import RoadmapDomainService
+                if "tasks" not in data_dict or not isinstance(data_dict["tasks"], list):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Roadmap data must contain an explicit 'tasks' list."
+                    )
+                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(db, proj, data_dict["tasks"])
+                data_dict = dict(data_dict)
+                data_dict["tasks"] = canonical_tasks
+
             VersionService.save_new_version(
                 db=db,
                 module=module,
@@ -303,7 +314,7 @@ def retry_failed_operation(
 
             if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(data_dict, dict):
                 from app.api.modules import _reconcile_roadmap_tasks
-                _reconcile_roadmap_tasks(db, proj, data_dict.get("tasks", []))
+                _reconcile_roadmap_tasks(db, proj, data_dict["tasks"])
 
             op.status = "retried"
             op.retry_count += 1
@@ -346,6 +357,9 @@ def retry_failed_operation(
             "duration_ms": dur_ms,
             "status": "success"
         }
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
         db.rollback()
@@ -361,7 +375,7 @@ def retry_failed_operation(
             duration_ms=dur_ms,
             status="failed",
             error_category="api_error",
-            error_message=str(e),
+            error_message="Unexpected internal error during admin retry.",
             retry_count=op.retry_count,
             structured_validation_passed=False,
             persistence_status="failed",
@@ -379,8 +393,11 @@ def retry_failed_operation(
             target_type="ai_operation",
             target_id=op.id,
             outcome="failed",
-            reason=f"Admin {current_admin.username} retry attempt failed: {str(e)}",
-            details={"original_op_id": op.id, "new_op_id": new_op_id, "error": str(e)}
+            reason=f"Admin {current_admin.username} retry attempt failed due to an unexpected error",
+            details={"original_op_id": op.id, "new_op_id": new_op_id}
         )
 
-        raise HTTPException(status_code=500, detail=f"Retry execution failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Retry execution failed due to an unexpected internal error."
+        )

@@ -97,7 +97,17 @@ def _build_and_validate_candidate_graph(
     rewritten_dependents: Optional[dict] = None
 ) -> None:
     """Construct full candidate task graph for the project and validate atomically."""
-    all_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project_id).all()
+    for obj in list(db):
+        if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project_id:
+            if not db.is_modified(obj):
+                db.expire(obj)
+
+    all_tasks = (
+        db.query(RoadmapTask)
+        .filter(RoadmapTask.project_id == project_id)
+        .execution_options(populate_existing=True)
+        .all()
+    )
     nodes: List[TaskGraphNode] = []
     found_target = False
 
@@ -218,11 +228,15 @@ def update_task(
     db: Session = Depends(get_db)
 ):
     with project_first_lock(db, project.id):
+        for obj in list(db):
+            if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
+                if not db.is_modified(obj):
+                    db.expire(obj)
 
         task = db.query(RoadmapTask).filter(
             RoadmapTask.id == task_id,
             RoadmapTask.project_id == project.id
-        ).first()
+        ).execution_options(populate_existing=True).first()
 
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
@@ -252,7 +266,6 @@ def update_task(
                     status_code=400,
                     detail=f"Invalid priority '{req.priority}'. Allowed: {', '.join(VALID_PRIORITIES)}"
                 )
-            task.priority = req.priority
 
         if req.status:
             if req.status not in VALID_STATUSES:
@@ -260,8 +273,6 @@ def update_task(
                     status_code=400,
                     detail=f"Invalid status '{req.status}'. Allowed: Pending, In Progress, Finished"
                 )
-            status_val = "In Progress" if req.status in ("In Progress", "Ongoing") else req.status
-            task.status = status_val
 
         new_deps = req.dependencies if req.dependencies is not None else (task.dependencies or [])
 
@@ -294,6 +305,11 @@ def update_task(
         task.start_date = new_start
         task.end_date = new_end
         task.dependencies = new_deps
+
+        if req.priority:
+            task.priority = req.priority
+        if req.status:
+            task.status = "In Progress" if req.status in ("In Progress", "Ongoing") else req.status
 
         if req.phase is not None:
             task.phase = req.phase
@@ -335,20 +351,29 @@ def delete_task(
     db: Session = Depends(get_db)
 ):
     with project_first_lock(db, project.id):
+        for obj in list(db):
+            if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
+                if not db.is_modified(obj):
+                    db.expire(obj)
 
         task = db.query(RoadmapTask).filter(
             RoadmapTask.id == task_id,
             RoadmapTask.project_id == project.id
-        ).first()
+        ).execution_options(populate_existing=True).first()
 
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
 
         # Dependency safety check: prevent deleting if other tasks depend on this task's code
-        dependents = db.query(RoadmapTask).filter(
-            RoadmapTask.project_id == project.id,
-            RoadmapTask.id != task.id
-        ).all()
+        dependents = (
+            db.query(RoadmapTask)
+            .filter(
+                RoadmapTask.project_id == project.id,
+                RoadmapTask.id != task.id
+            )
+            .execution_options(populate_existing=True)
+            .all()
+        )
 
         blocking = [d.task_code for d in dependents if task.task_code in (d.dependencies or [])]
         if blocking:

@@ -281,7 +281,7 @@ def delete_module(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete {canonical_type.replace('_', ' ')}"
+            detail=f"Failed to delete {canonical_type.replace('_', ' ')} due to an unexpected internal error."
         )
 
     return {
@@ -412,6 +412,16 @@ def modify_module_with_ai(
 
         # Save new version and reconcile roadmap tasks in single atomic transaction under project-first lock
         with project_first_lock(db, project.id, module.id):
+            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
+                if "tasks" not in new_data or not isinstance(new_data["tasks"], list):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Roadmap data must contain an explicit 'tasks' list."
+                    )
+                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(db, project, new_data["tasks"])
+                new_data = dict(new_data)
+                new_data["tasks"] = canonical_tasks
+
             new_ver = VersionService.save_new_version(
                 db=db,
                 module=module,
@@ -422,8 +432,7 @@ def modify_module_with_ai(
 
             # Reconcile roadmap tasks if roadmap
             if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
-                tasks_data = new_data.get("tasks", [])
-                _reconcile_roadmap_tasks(db, project, tasks_data)
+                _reconcile_roadmap_tasks(db, project, new_data["tasks"])
 
             db.commit()
             db.refresh(new_ver)
@@ -464,8 +473,9 @@ def modify_module_with_ai(
         db.rollback()
         dur_ms = int((time.time() - t0) * 1000)
         terminal_provider_error = ai_service._terminal_provider_error_message(e)
-        err_msg = terminal_provider_error or str(e)
-        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in err_msg.lower() else "api_error")
+        raw_err = str(e)
+        err_msg = terminal_provider_error or "An unexpected internal error occurred during module modification."
+        err_cat = "provider_error" if terminal_provider_error else ("timeout" if "timeout" in raw_err.lower() else "api_error")
         record_ai_operation(
             db,
             user_id=project.user_id,
@@ -474,7 +484,7 @@ def modify_module_with_ai(
             operation_type="modify",
             model_name=settings.GEMINI_MODEL,
             duration_ms=dur_ms,
-            status="timeout" if "timeout" in err_msg.lower() else "failed",
+            status="timeout" if "timeout" in raw_err.lower() else "failed",
             error_category=err_cat,
             error_message=err_msg,
             structured_validation_passed=False,
@@ -579,6 +589,16 @@ def resolve_version_conflict(
 
     try:
         with project_first_lock(db, project.id, module.id):
+            if module_type in ("execution_roadmap", "detailed_roadmap"):
+                if not isinstance(new_data, dict) or "tasks" not in new_data or not isinstance(new_data["tasks"], list):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Roadmap data must contain an explicit 'tasks' list."
+                    )
+                canonical_tasks = RoadmapDomainService.canonicalize_incoming_tasks(db, project, new_data["tasks"])
+                new_data = dict(new_data)
+                new_data["tasks"] = canonical_tasks
+
             replaced_ver = VersionService.resolve_conflict_and_replace(
                 db=db,
                 module=module,
@@ -589,21 +609,19 @@ def resolve_version_conflict(
                 commit=False
             )
 
-            if module_type in ("execution_roadmap", "detailed_roadmap") and isinstance(new_data, dict):
-                tasks_data = new_data.get("tasks", [])
-                if tasks_data:
-                    _reconcile_roadmap_tasks(db, project, tasks_data)
+            if module_type in ("execution_roadmap", "detailed_roadmap"):
+                _reconcile_roadmap_tasks(db, project, new_data["tasks"])
 
             db.commit()
             db.refresh(replaced_ver)
     except HTTPException:
         db.rollback()
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Version replacement failed: {str(e)}"
+            detail="Version replacement failed due to an unexpected internal error."
         )
 
     versions = VersionService.get_versions(db, module.id)
@@ -653,9 +671,12 @@ def delete_version(
     except HTTPException:
         db.rollback()
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete version: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete version due to an unexpected internal error."
+        )
     return {"message": "Version successfully deleted"}
 
 @router.post("/{module_type}/versions/{version_id}/restore", response_model=ModuleDetailResponse, dependencies=[Depends(verify_csrf)])
@@ -682,9 +703,12 @@ def restore_version(
     except HTTPException:
         db.rollback()
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to restore version: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to restore version due to an unexpected internal error."
+        )
     versions = VersionService.get_versions(db, module.id)
 
     return ModuleDetailResponse(

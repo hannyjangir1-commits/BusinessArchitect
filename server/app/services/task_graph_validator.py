@@ -301,6 +301,32 @@ def validate_candidate_task_graph(
                 )
 
 
+def allocate_next_task_code_from_reserved(reserved_codes: Set[str]) -> str:
+    """
+    Allocate next unique TSK-XX code purely in memory from a reserved code set.
+    Derives from max(existing/reserved) + 1 to prevent delete/create collisions (B01).
+    Avoids database roundtrips during bulk task allocation.
+    """
+    max_num = 0
+    for code in reserved_codes:
+        m = re.match(r"^TSK-(\d+)$", code, re.IGNORECASE)
+        if m:
+            try:
+                num = int(m.group(1))
+                if num > max_num:
+                    max_num = num
+            except ValueError:
+                pass
+
+    candidate_num = max_num + 1
+    candidate_code = f"TSK-{str(candidate_num).zfill(2)}"
+    while candidate_code in reserved_codes:
+        candidate_num += 1
+        candidate_code = f"TSK-{str(candidate_num).zfill(2)}"
+
+    return candidate_code
+
+
 def allocate_next_task_code(
     db: Session,
     project_id: str,
@@ -309,8 +335,9 @@ def allocate_next_task_code(
     """
     Allocate the next unique automatic task code for a project.
 
-    Allocation policy (Batch 06.1):
+    Allocation policy (Batch 06.1/06.2):
     - Inspects all existing task codes in the project plus any explicitly reserved codes.
+    - Uses populate_existing=True to avoid stale identity-map data.
     - Extracts numeric indices from codes matching 'TSK-<number>'.
     - Determines the highest index N across existing and reserved tasks.
     - Next candidate code is TSK-(N + 1).
@@ -324,26 +351,10 @@ def allocate_next_task_code(
     existing_codes = {
         row[0] for row in db.query(RoadmapTask.task_code)
         .filter(RoadmapTask.project_id == project_id)
+        .execution_options(populate_existing=True)
         .all()
     }
     if reserved_codes:
         existing_codes.update(reserved_codes)
 
-    max_num = 0
-    for code in existing_codes:
-        m = re.match(r"^TSK-(\d+)$", code, re.IGNORECASE)
-        if m:
-            try:
-                num = int(m.group(1))
-                if num > max_num:
-                    max_num = num
-            except ValueError:
-                pass
-
-    candidate_num = max_num + 1
-    candidate_code = f"TSK-{str(candidate_num).zfill(2)}"
-    while candidate_code in existing_codes:
-        candidate_num += 1
-        candidate_code = f"TSK-{str(candidate_num).zfill(2)}"
-
-    return candidate_code
+    return allocate_next_task_code_from_reserved(existing_codes)

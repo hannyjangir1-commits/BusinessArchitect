@@ -220,6 +220,9 @@ def execute_repair(
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Repair transaction failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Repair transaction failed due to an unexpected internal error."
+        )

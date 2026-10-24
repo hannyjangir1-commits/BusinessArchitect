@@ -327,7 +327,7 @@ def test_omitted_ai_prerequisite_of_retained_manual_task_rejects_atomically(db: 
     with pytest.raises(HTTPException) as exc_info:
         RoadmapDomainService.reconcile_roadmap_tasks(db, project, incoming_plan)
 
-    assert exc_info.value.status_code in (400, 409)
+    assert exc_info.value.status_code == 400
     detail = exc_info.value.detail
     assert "retained task" in str(detail).lower() or "RETAINED_TASK_PREREQUISITE_MISSING" in str(detail)
 
@@ -375,7 +375,7 @@ def test_omitted_prerequisite_of_retained_completed_task_handled_safely(db: Sess
     with pytest.raises(HTTPException) as exc_info:
         RoadmapDomainService.reconcile_roadmap_tasks(db, project, incoming_plan)
 
-    assert exc_info.value.status_code in (400, 409)
+    assert exc_info.value.status_code == 400
     db.rollback()
     persisted = {t.task_code: t for t in db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()}
     assert "A" in persisted
@@ -405,7 +405,7 @@ def test_manual_generated_collision_does_not_overwrite_manual_work(db: Session):
     with pytest.raises(HTTPException) as exc_info:
         RoadmapDomainService.reconcile_roadmap_tasks(db, project, incoming_plan)
 
-    assert exc_info.value.status_code in (400, 409)
+    assert exc_info.value.status_code == 400
     assert "conflicts with an existing manual task" in str(exc_info.value.detail)
 
     db.rollback()
@@ -523,12 +523,13 @@ def test_conflict_replacement_with_invalid_graph_rolls_back(client: TestClient, 
             "replace_version_id": v1_id,
             "new_data": {
                 "phases": [{"name": "P1", "description": "D1"}],
-                "tasks": [{"task_code": "V2-01", "title": "T2", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": []}]
+                "tasks": [{"task_code": "V2-01", "phase": "P1", "title": "T2", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": []}]
             }
         },
         headers=headers
     )
-    assert resp.status_code in (400, 409, 422)
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error_code"] == "RETAINED_TASK_PREREQUISITE_MISSING"
 
     # Confirm V1 still exists and was not deleted
     db.expire_all()
@@ -581,7 +582,8 @@ def test_version_restore_with_invalid_graph_rolls_back(client: TestClient, db: S
         f"/api/projects/{project.id}/modules/execution_roadmap/versions/{v1.id}/restore",
         headers=headers
     )
-    assert resp.status_code in (400, 409)
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error_code"] == "RETAINED_TASK_PREREQUISITE_MISSING"
 
     # Active pointer must still point to V2
     db.expire_all()
@@ -601,13 +603,15 @@ def test_generation_save_with_invalid_graph_rolls_back(client: TestClient, db: S
             {"task_code": "TSK-01", "phase": "P1", "title": "T1", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": ["MISSING"]}
         ]
     }
-    with patch("app.ai.gemini_service.ai_service.generate_roadmap", return_value=mock_roadmap):
+    with patch("app.ai.gemini_service.ai_service.generate_roadmap", return_value=mock_roadmap) as mock_gen:
         resp = client.post(
             f"/api/projects/{project.id}/modules/execution_roadmap/generate",
             json={},
             headers=headers
         )
-    assert resp.status_code in (400, 409, 422, 500)
+        assert mock_gen.called, "Mock provider should be invoked to exercise post-provider graph validation"
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error_code"] == "MISSING_PREREQUISITE"
 
     db.expire_all()
     # Confirm no version was saved
@@ -644,13 +648,15 @@ def test_revision_modify_with_invalid_graph_rolls_back(client: TestClient, db: S
             {"task_code": "V2-01", "phase": "P1", "title": "T2", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": ["MISSING_DEP"]}
         ]
     }
-    with patch("app.ai.gemini_service.ai_service.modify_section", return_value=(mock_modified, "Summary")):
+    with patch("app.ai.gemini_service.ai_service.modify_section", return_value=(mock_modified, "Summary")) as mock_mod:
         resp = client.post(
             f"/api/projects/{project.id}/modules/execution_roadmap/modify",
             json={"instruction": "Add invalid dependency"},
             headers=headers
         )
-    assert resp.status_code in (400, 409, 422, 500)
+        assert mock_mod.called, "Mock provider should be invoked to exercise post-provider graph validation"
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error_code"] == "MISSING_PREREQUISITE"
 
     db.expire_all()
     # Confirm V1 is still the only version and active
@@ -886,37 +892,399 @@ def test_validation_happens_before_partial_task_mutations_are_flushed(db: Sessio
 # 5. PostgreSQL Concurrency Tests (Isolated Disposable Harness)
 # ==============================================================================
 
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
+
+def _run_pg_concurrency_test(test_fn):
+    """
+    Bootstrap an isolated, disposable PostgreSQL schema for concurrency testing.
+    Never prints or leaks credentials. Uses bounded timeouts and reliable teardown.
+    """
+    from urllib.parse import urlparse
+    import uuid
+    import threading
+    from sqlalchemy import create_engine, text, event
+    from sqlalchemy.orm import sessionmaker
+    from app.db.base import Base
+
+    schema_name = f"conc_{uuid.uuid4().hex[:8]}"
+    bootstrap_engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={"connect_timeout": 5},
+        pool_pre_ping=True
+    )
+    with bootstrap_engine.connect() as conn:
+        conn.execution_options(isolation_level="AUTOCOMMIT")
+        conn.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+
+    test_engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={
+            "connect_timeout": 5,
+            "options": f"-c search_path={schema_name}"
+        },
+        pool_pre_ping=True
+    )
+
+    @event.listens_for(test_engine, "connect")
+    def set_search_path(dbapi_conn, conn_record):
+        with dbapi_conn.cursor() as cursor:
+            cursor.execute(f'SET search_path TO "{schema_name}"')
+
+    Base.metadata.create_all(bind=test_engine)
+    PGSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    try:
+        test_fn(PGSessionLocal, schema_name)
+    finally:
+        test_engine.dispose()
+        try:
+            with bootstrap_engine.connect() as conn:
+                conn.execution_options(isolation_level="AUTOCOMMIT")
+                conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+            bootstrap_engine.dispose()
+        except Exception:
+            pass
+
+
 @pytest.mark.skipif(
-    not os.environ.get("POSTGRES_TEST_URL"),
-    reason="PostgreSQL disposable test harness unavailable in local SQLite environment (marked pending per Batch 06.1 instructions)"
+    not (os.environ.get("TEST_DATABASE_URL") and os.environ.get("TEST_DATABASE_URL").startswith("postgresql")),
+    reason="PostgreSQL disposable test harness unavailable (TEST_DATABASE_URL unset or non-PostgreSQL)."
 )
 def test_pg_manual_mutation_vs_roadmap_restore():
-    """Manual task mutation versus roadmap restore under PostgreSQL project-first row locks."""
-    pass
+    """
+    Worker A holds project lock on project P in transaction 1 and mutates manual task.
+    Worker B attempts roadmap restore on P in transaction 2.
+    Proves Worker B blocks until Worker A commits, then restores while preserving manual work.
+    """
+    import threading
+    import time
+
+    def run(PGSessionLocal, schema):
+        with PGSessionLocal() as init_s:
+            user, proj = create_user_and_project(init_s, "pg_mut_rest")
+            mod = VersionService.get_or_create_module(init_s, proj.id, "execution_roadmap")
+            v1 = VersionService.save_new_version(
+                init_s, mod,
+                data={"tasks": [{"task_code": "V1-01", "title": "V1", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": []}]},
+                change_summary="V1"
+            )
+            v1_id = v1.id
+            init_s.commit()
+            proj_id = proj.id
+            mod_id = mod.id
+
+        worker_a_holding = threading.Event()
+        worker_a_release = threading.Event()
+        worker_b_finished = threading.Event()
+        worker_errors = []
+
+        def worker_a():
+            try:
+                with PGSessionLocal() as s_a:
+                    with project_first_lock(s_a, proj_id, mod_id):
+                        task = RoadmapTask(
+                            project_id=proj_id,
+                            task_code="MAN-LOCK",
+                            phase="P1",
+                            title="Manual While Locked",
+                            start_date="2026-11-01",
+                            end_date="2026-11-05",
+                            status="Pending",
+                            dependencies=[],
+                            is_ai_generated=False
+                        )
+                        s_a.add(task)
+                        s_a.flush()
+                        worker_a_holding.set()
+                        if not worker_a_release.wait(timeout=5):
+                            raise TimeoutError("Worker A wait timed out")
+                        s_a.commit()
+            except Exception as e:
+                worker_errors.append(f"Worker A: {e}")
+
+        def worker_b():
+            try:
+                if not worker_a_holding.wait(timeout=5):
+                    raise TimeoutError("Worker B wait for A timed out")
+                with PGSessionLocal() as s_b:
+                    mod_b = s_b.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+                    with project_first_lock(s_b, proj_id, mod_id):
+                        VersionService.restore_version(s_b, mod_b, v1_id, commit=False)
+                        tasks_data = [{"task_code": "V1-01", "title": "V1", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": []}]
+                        RoadmapDomainService.reconcile_roadmap_tasks(s_b, mod_b.project, tasks_data)
+                        s_b.commit()
+                        worker_b_finished.set()
+            except Exception as e:
+                worker_errors.append(f"Worker B: {e}")
+
+        t_a = threading.Thread(target=worker_a)
+        t_b = threading.Thread(target=worker_b)
+        t_a.start()
+        t_b.start()
+
+        assert worker_a_holding.wait(timeout=5)
+        # Worker B must NOT finish while Worker A holds lock
+        time.sleep(0.3)
+        assert not worker_b_finished.is_set(), "Worker B must be blocked by Worker A's project lock"
+
+        # Release Worker A
+        worker_a_release.set()
+        t_a.join(timeout=5)
+        t_b.join(timeout=5)
+
+        assert not worker_errors, f"Thread errors: {worker_errors}"
+        assert worker_b_finished.is_set()
+
+        with PGSessionLocal() as final_s:
+            tasks = {t.task_code: t for t in final_s.query(RoadmapTask).filter(RoadmapTask.project_id == proj_id).all()}
+            assert "MAN-LOCK" in tasks, "Manual task created under lock must survive restore"
+            assert "V1-01" in tasks
+
+    _run_pg_concurrency_test(run)
 
 
 @pytest.mark.skipif(
-    not os.environ.get("POSTGRES_TEST_URL"),
-    reason="PostgreSQL disposable test harness unavailable in local SQLite environment (marked pending per Batch 06.1 instructions)"
+    not (os.environ.get("TEST_DATABASE_URL") and os.environ.get("TEST_DATABASE_URL").startswith("postgresql")),
+    reason="PostgreSQL disposable test harness unavailable (TEST_DATABASE_URL unset or non-PostgreSQL)."
 )
 def test_pg_manual_mutation_vs_generation_persistence():
-    """Manual task mutation versus generation persistence under PostgreSQL row locks."""
-    pass
+    """
+    Manual task creation serializes with concurrent roadmap generation persistence
+    under PostgreSQL row locks, preventing phantom code collisions.
+    """
+    import threading
+    import time
+
+    def run(PGSessionLocal, schema):
+        with PGSessionLocal() as init_s:
+            user, proj = create_user_and_project(init_s, "pg_mut_gen")
+            mod = VersionService.get_or_create_module(init_s, proj.id, "execution_roadmap")
+            init_s.commit()
+            proj_id = proj.id
+            mod_id = mod.id
+
+        a_locked = threading.Event()
+        a_release = threading.Event()
+        b_done = threading.Event()
+        errors = []
+
+        def worker_a():
+            try:
+                with PGSessionLocal() as s_a:
+                    with project_first_lock(s_a, proj_id, mod_id):
+                        t = RoadmapTask(
+                            project_id=proj_id,
+                            task_code="TSK-01",
+                            phase="P1",
+                            title="Manual 1",
+                            start_date="2026-11-01",
+                            end_date="2026-11-05",
+                            status="Pending",
+                            dependencies=[],
+                            is_ai_generated=False
+                        )
+                        s_a.add(t)
+                        s_a.flush()
+                        a_locked.set()
+                        if not a_release.wait(timeout=5):
+                            raise TimeoutError("A timed out")
+                        s_a.commit()
+            except Exception as e:
+                errors.append(f"Worker A: {e}")
+
+        def worker_b():
+            try:
+                if not a_locked.wait(timeout=5):
+                    raise TimeoutError("B wait timed out")
+                with PGSessionLocal() as s_b:
+                    mod_b = s_b.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+                    with project_first_lock(s_b, proj_id, mod_id):
+                        # Generation persistence allocates next code avoiding TSK-01
+                        payload = [{"title": "Generated 1", "start_date": "2026-11-06", "end_date": "2026-11-10", "dependencies": []}]
+                        reconciled = RoadmapDomainService.reconcile_roadmap_tasks(s_b, mod_b.project, payload)
+                        VersionService.save_new_version(
+                            s_b, mod_b,
+                            data={"tasks": reconciled},
+                            change_summary="Gen 1",
+                            commit=False
+                        )
+                        s_b.commit()
+                        b_done.set()
+            except Exception as e:
+                errors.append(f"Worker B: {e}")
+
+        t_a = threading.Thread(target=worker_a)
+        t_b = threading.Thread(target=worker_b)
+        t_a.start()
+        t_b.start()
+
+        assert a_locked.wait(timeout=5)
+        time.sleep(0.3)
+        assert not b_done.is_set(), "Generation persistence must wait for manual transaction to commit"
+
+        a_release.set()
+        t_a.join(timeout=5)
+        t_b.join(timeout=5)
+
+        assert not errors, f"Errors: {errors}"
+        assert b_done.is_set()
+
+        with PGSessionLocal() as final_s:
+            tasks = {t.task_code: t for t in final_s.query(RoadmapTask).filter(RoadmapTask.project_id == proj_id).all()}
+            assert "TSK-01" in tasks
+            assert "TSK-02" in tasks, "Generated task must receive next available code without colliding with TSK-01"
+
+    _run_pg_concurrency_test(run)
 
 
 @pytest.mark.skipif(
-    not os.environ.get("POSTGRES_TEST_URL"),
-    reason="PostgreSQL disposable test harness unavailable in local SQLite environment (marked pending per Batch 06.1 instructions)"
+    not (os.environ.get("TEST_DATABASE_URL") and os.environ.get("TEST_DATABASE_URL").startswith("postgresql")),
+    reason="PostgreSQL disposable test harness unavailable (TEST_DATABASE_URL unset or non-PostgreSQL)."
 )
 def test_pg_restore_vs_repair_same_roadmap():
-    """Restore versus repair affecting the same roadmap under PostgreSQL row locks."""
-    pass
+    """
+    Concurrent restore and repair targeting the same roadmap serialize cleanly
+    under PostgreSQL row locks without leaving broken pointers or dangling tasks.
+    """
+    import threading
+
+    def run(PGSessionLocal, schema):
+        with PGSessionLocal() as init_s:
+            user, proj = create_user_and_project(init_s, "pg_rest_rep")
+            mod = VersionService.get_or_create_module(init_s, proj.id, "execution_roadmap")
+            v1 = VersionService.save_new_version(
+                init_s, mod,
+                data={"tasks": [{"task_code": "V1", "title": "V1", "start_date": "2026-11-01", "end_date": "2026-11-05", "dependencies": []}]},
+                change_summary="V1"
+            )
+            v2 = VersionService.save_new_version(
+                init_s, mod,
+                data={"tasks": [{"task_code": "V2", "title": "V2", "start_date": "2026-11-06", "end_date": "2026-11-10", "dependencies": []}]},
+                change_summary="V2"
+            )
+            init_s.commit()
+            proj_id = proj.id
+            mod_id = mod.id
+            v1_id = v1.id
+
+        errors = []
+
+        def worker_restore():
+            try:
+                with PGSessionLocal() as s:
+                    m = s.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+                    with project_first_lock(s, proj_id, mod_id):
+                        VersionService.restore_version(s, m, v1_id, commit=False)
+                        RoadmapDomainService.reconcile_roadmap_tasks(s, m.project, m.active_version.data.get("tasks", []))
+                        s.commit()
+            except Exception as e:
+                errors.append(f"Restore error: {e}")
+
+        def worker_repair():
+            try:
+                with PGSessionLocal() as s:
+                    m = s.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+                    with project_first_lock(s, proj_id, mod_id):
+                        VersionService.repair_active_version_for_module(s, m)
+                        s.commit()
+            except Exception as e:
+                errors.append(f"Repair error: {e}")
+
+        t1 = threading.Thread(target=worker_restore)
+        t2 = threading.Thread(target=worker_repair)
+        t1.start()
+        t2.start()
+        t1.join(timeout=10)
+        t2.join(timeout=10)
+
+        assert not errors, f"Errors: {errors}"
+
+        with PGSessionLocal() as final_s:
+            m = final_s.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+            assert m.active_version_id is not None
+            active_v = final_s.query(ModuleVersion).filter(ModuleVersion.id == m.active_version_id).first()
+            assert active_v.is_active is True
+
+    _run_pg_concurrency_test(run)
 
 
 @pytest.mark.skipif(
-    not os.environ.get("POSTGRES_TEST_URL"),
-    reason="PostgreSQL disposable test harness unavailable in local SQLite environment (marked pending per Batch 06.1 instructions)"
+    not (os.environ.get("TEST_DATABASE_URL") and os.environ.get("TEST_DATABASE_URL").startswith("postgresql")),
+    reason="PostgreSQL disposable test harness unavailable (TEST_DATABASE_URL unset or non-PostgreSQL)."
 )
 def test_pg_independent_projects_progress_separately():
-    """Independent projects proceed separately without cross-project database lock contention."""
-    pass
+    """
+    Independent projects proceed separately: holding lock on Project 1 does not block
+    task mutations or generation on Project 2.
+    """
+    import threading
+    import time
+
+    def run(PGSessionLocal, schema):
+        with PGSessionLocal() as init_s:
+            u1, p1 = create_user_and_project(init_s, "pg_indep_p1")
+            u2, p2 = create_user_and_project(init_s, "pg_indep_p2")
+            init_s.commit()
+            p1_id = p1.id
+            p2_id = p2.id
+
+        p1_holding = threading.Event()
+        p1_release = threading.Event()
+        p2_done = threading.Event()
+        errors = []
+
+        def worker_p1():
+            try:
+                with PGSessionLocal() as s1:
+                    with project_first_lock(s1, p1_id):
+                        p1_holding.set()
+                        if not p1_release.wait(timeout=5):
+                            raise TimeoutError("P1 timed out")
+                        s1.commit()
+            except Exception as e:
+                errors.append(f"P1: {e}")
+
+        def worker_p2():
+            try:
+                if not p1_holding.wait(timeout=5):
+                    raise TimeoutError("P2 wait timed out")
+                with PGSessionLocal() as s2:
+                    # While P1 is locked, P2 must complete immediately without waiting
+                    with project_first_lock(s2, p2_id):
+                        t = RoadmapTask(
+                            project_id=p2_id,
+                            task_code="P2-TASK",
+                            phase="P1",
+                            title="P2 Task",
+                            start_date="2026-11-01",
+                            end_date="2026-11-05",
+                            status="Pending",
+                            dependencies=[],
+                            is_ai_generated=True
+                        )
+                        s2.add(t)
+                        s2.commit()
+                        p2_done.set()
+            except Exception as e:
+                errors.append(f"P2: {e}")
+
+        t1 = threading.Thread(target=worker_p1)
+        t2 = threading.Thread(target=worker_p2)
+        t1.start()
+        t2.start()
+
+        assert p1_holding.wait(timeout=5)
+        # P2 must finish while P1 is STILL holding its lock!
+        assert p2_done.wait(timeout=3), "Project 2 operation must complete without waiting for Project 1 lock"
+
+        p1_release.set()
+        t1.join(timeout=5)
+        t2.join(timeout=5)
+
+        assert not errors, f"Errors: {errors}"
+        with PGSessionLocal() as final_s:
+            p2_task = final_s.query(RoadmapTask).filter(RoadmapTask.project_id == p2_id, RoadmapTask.task_code == "P2-TASK").first()
+            assert p2_task is not None
+
+    _run_pg_concurrency_test(run)

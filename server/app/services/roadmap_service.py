@@ -17,7 +17,8 @@ class RoadmapDomainService:
             return value
         if isinstance(value, str):
             try:
-                return date.fromisoformat(value[:10])
+                clean_val = value.strip()
+                return date.fromisoformat(clean_val[:10])
             except ValueError:
                 return None
         return None
@@ -150,58 +151,56 @@ class RoadmapDomainService:
         return result
 
     @staticmethod
-    def reconcile_roadmap_tasks(
+    def canonicalize_incoming_tasks(
         db: Session,
         project: Project,
         tasks_data: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Synchronize the relational RoadmapTask table with the roadmap JSON tasks.
+        Validate and canonicalize incoming roadmap tasks into a pure canonical dictionary list.
+        Does NOT mutate caller-owned dictionaries.
 
-        Multi-stage pipeline:
-        Stage 1: Acquire the required project transaction lock (Project-first protocol).
-        Stage 2: Read authoritative current task state.
-        Stage 3: Validate incoming structure and canonical identifiers.
-        Stage 4: Construct the complete proposed final task set in memory.
-        Stage 5: Validate candidate merged graph (no cycles, no missing refs, correct schedule order).
-        Stage 6: Apply inserts, updates, and deletions in relational table.
-        Stage 7: Flush without committing (caller transaction retains commit ownership).
+        Guarantees:
+        - Acquires project transaction lock to read authoritative existing codes.
+        - Refreshes identity map via populate_existing=True.
+        - Two-pass code reservation: collects all valid explicit incoming codes before
+          allocating missing codes, preventing collisions with explicit subsequent tasks.
+        - Deterministically allocates missing codes against reserved existing and incoming codes.
+        - Normalizes whitespace on task codes and dependencies identically.
+        - Rejects non-string codes/deps and invalid date ranges (end < start).
         """
         from fastapi import HTTPException, status
-        from sqlalchemy.orm.attributes import flag_modified
         from app.services.task_graph_validator import (
             project_first_lock,
-            allocate_next_task_code,
-            validate_candidate_task_graph,
-            TaskGraphNode,
+            allocate_next_task_code_from_reserved,
             IncompatibleTaskGraphError,
             parse_iso_date,
         )
 
         with project_first_lock(db, project.id):
-            # Stage 2: Read authoritative current task state
-            existing_tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
+            # Authoritative read of existing task codes with identity-map freshness
+            for obj in list(db):
+                if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
+                    if not db.is_modified(obj):
+                        db.expire(obj)
+
+            existing_tasks = (
+                db.query(RoadmapTask)
+                .filter(RoadmapTask.project_id == project.id)
+                .execution_options(populate_existing=True)
+                .all()
+            )
             existing_by_code = {t.task_code: t for t in existing_tasks}
-            existing_manual_tasks = [t for t in existing_tasks if not t.is_ai_generated]
-            existing_completed_ai_tasks = [
-                t for t in existing_tasks
-                if t.is_ai_generated and t.status in ("Finished", "Completed")
-            ]
-
             base_date_str = project.created_at.strftime("%Y-%m-%d") if project.created_at else "2026-10-01"
-            seen_incoming_codes: set = set()
-            reserved_codes = set(existing_by_code.keys())
 
-            # Stage 3: Validate incoming structure and canonical identifiers
-            normalized_incoming: List[Dict[str, Any]] = []
+            # Pass 1: Validate input types and collect all explicit incoming codes
+            explicit_incoming_codes: set = set()
             for idx, t in enumerate(tasks_data):
                 if not isinstance(t, dict):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Invalid task entry at index {idx}. Task items must be JSON objects."
                     )
-
-                # 1. Validate & canonicalize task code
                 raw_code = t.get("task_code")
                 if raw_code is not None:
                     if not isinstance(raw_code, str):
@@ -210,29 +209,37 @@ class RoadmapDomainService:
                             detail=f"Non-string task code '{raw_code}' received. Task codes must be strings."
                         )
                     code = raw_code.strip()
-                    if not code:
-                        code = allocate_next_task_code(db, project.id, reserved_codes=reserved_codes | seen_incoming_codes)
-                else:
-                    code = allocate_next_task_code(db, project.id, reserved_codes=reserved_codes | seen_incoming_codes)
+                    if code:
+                        # Reject duplicate incoming explicit codes
+                        if code in explicit_incoming_codes:
+                            raise IncompatibleTaskGraphError(
+                                error_code="DUPLICATE_TASK_CODE",
+                                message=f"Duplicate task code '{code}' detected in incoming roadmap plan.",
+                                affected_task_codes=[code]
+                            )
+                        explicit_incoming_codes.add(code)
 
-                # Reject duplicate incoming codes (Reproduction C & C2)
-                if code in seen_incoming_codes:
-                    raise IncompatibleTaskGraphError(
-                        error_code="DUPLICATE_TASK_CODE",
-                        message=f"Duplicate task code '{code}' detected in incoming roadmap plan.",
-                        affected_task_codes=[code]
-                    )
-                seen_incoming_codes.add(code)
+                        # Reject collision with existing manual tasks
+                        if code in existing_by_code and not existing_by_code[code].is_ai_generated:
+                            raise IncompatibleTaskGraphError(
+                                error_code="MANUAL_TASK_COLLISION",
+                                message=f"Incoming task code '{code}' conflicts with an existing manual task.",
+                                affected_task_codes=[code]
+                            )
 
-                # Reject collision with existing manual tasks (Preserve user work)
-                if code in existing_by_code and not existing_by_code[code].is_ai_generated:
-                    raise IncompatibleTaskGraphError(
-                        error_code="MANUAL_TASK_COLLISION",
-                        message=f"Incoming task code '{code}' conflicts with an existing manual task.",
-                        affected_task_codes=[code]
-                    )
+            # Reservation set = all existing project codes + all explicit incoming codes
+            reserved_codes = set(existing_by_code.keys()) | explicit_incoming_codes
 
-                # 2. Validate & normalize dependencies
+            # Pass 2: Allocate missing codes in input order and canonicalize fields
+            canonical_tasks: List[Dict[str, Any]] = []
+            for idx, t in enumerate(tasks_data):
+                raw_code = t.get("task_code")
+                code = raw_code.strip() if (raw_code is not None and isinstance(raw_code, str)) else None
+                if not code:
+                    code = allocate_next_task_code_from_reserved(reserved_codes)
+                    reserved_codes.add(code)
+
+                # Validate dependencies
                 raw_deps = t.get("dependencies") or []
                 if not isinstance(raw_deps, list):
                     raise HTTPException(
@@ -250,7 +257,7 @@ class RoadmapDomainService:
                     if trimmed_d:
                         clean_deps.append(trimmed_d)
 
-                # 3. Validate dates (NO silent clamping)
+                # Validate dates
                 raw_s_date = t.get("start_date") or base_date_str
                 raw_e_date = t.get("end_date") or raw_s_date
                 s_date_obj = parse_iso_date(raw_s_date)
@@ -261,15 +268,68 @@ class RoadmapDomainService:
                         detail=f"End date ({e_date_obj.isoformat()}) cannot be earlier than start date ({s_date_obj.isoformat()}) for task '{code}'."
                     )
 
-                # Write canonical normalized fields back into input dict
-                t["task_code"] = code
-                t["start_date"] = s_date_obj.isoformat()
-                t["end_date"] = e_date_obj.isoformat()
-                t["dependencies"] = clean_deps
-                normalized_incoming.append(t)
+                # Build pure copy with canonicalized attributes
+                canonical_t = dict(t)
+                canonical_t["task_code"] = code
+                canonical_t["start_date"] = s_date_obj.isoformat()
+                canonical_t["end_date"] = e_date_obj.isoformat()
+                canonical_t["dependencies"] = clean_deps
+                canonical_tasks.append(canonical_t)
+
+            return canonical_tasks
+
+    @classmethod
+    def reconcile_roadmap_tasks(
+        cls,
+        db: Session,
+        project: Project,
+        tasks_data: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Synchronize the relational RoadmapTask table with the roadmap JSON tasks.
+
+        Multi-stage pipeline:
+        Stage 1: Acquire the required project transaction lock (Project-first protocol).
+        Stage 2: Read authoritative current task state with identity-map freshness.
+        Stage 3: Validate incoming structure and canonical identifiers via canonicalize_incoming_tasks.
+        Stage 4: Construct the complete proposed final task set in memory.
+        Stage 5: Validate candidate merged graph (no cycles, no missing refs, correct schedule order).
+        Stage 6: Apply inserts, updates, and deletions in relational table.
+        Stage 7: Flush without committing (caller transaction retains commit ownership).
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+        from app.services.task_graph_validator import (
+            project_first_lock,
+            validate_candidate_task_graph,
+            TaskGraphNode,
+            IncompatibleTaskGraphError,
+        )
+
+        with project_first_lock(db, project.id):
+            # Stage 2 & 3: Authoritative canonicalization under project lock
+            normalized_incoming = cls.canonicalize_incoming_tasks(db, project, tasks_data)
+
+            # Authoritative read of current tasks
+            for obj in list(db):
+                if isinstance(obj, RoadmapTask) and getattr(obj, "project_id", None) == project.id:
+                    if not db.is_modified(obj):
+                        db.expire(obj)
+
+            existing_tasks = (
+                db.query(RoadmapTask)
+                .filter(RoadmapTask.project_id == project.id)
+                .execution_options(populate_existing=True)
+                .all()
+            )
+            existing_by_code = {t.task_code: t for t in existing_tasks}
+            existing_manual_tasks = [t for t in existing_tasks if not t.is_ai_generated]
+            existing_completed_ai_tasks = [
+                t for t in existing_tasks
+                if t.is_ai_generated and t.status in ("Finished", "Completed")
+            ]
 
             # Stage 4: Construct proposed complete final task set in memory
-            active_incoming_codes = seen_incoming_codes
+            active_incoming_codes = {t["task_code"] for t in normalized_incoming}
 
             # Candidate deletion set: Unfinished AI tasks omitted from incoming plan
             candidate_deletions = [
