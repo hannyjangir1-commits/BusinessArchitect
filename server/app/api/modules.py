@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from app.db.session import get_db
 from app.core.config import settings
 from app.models.all_models import Project, ModuleContent, ModuleVersion, RoadmapTask
@@ -89,10 +90,12 @@ def _merge_legacy_roadmap_history(
     for offset, version in enumerate(legacy_versions):
         version.module_content_id = canonical_module.id
         version.version_number = next_number + offset
-        version.is_active = version.id == active_version_id
+        version.is_active = (version.id == active_version_id)
+        flag_modified(version, "is_active")
 
     for version in canonical_versions:
-        version.is_active = version.id == active_version_id
+        version.is_active = (version.id == active_version_id)
+        flag_modified(version, "is_active")
 
     canonical_module.active_version_id = active_version_id
     # Flush the foreign-key moves before deleting the now-empty legacy parent;
@@ -612,9 +615,6 @@ def resolve_version_conflict(
                 change_summary=change_summary,
                 commit=False
             )
-
-            if module_type in ("execution_roadmap", "detailed_roadmap"):
-                _reconcile_roadmap_tasks(db, project, new_data["tasks"])
 
             db.commit()
             db.refresh(replaced_ver)

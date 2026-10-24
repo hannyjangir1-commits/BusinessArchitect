@@ -146,6 +146,7 @@ def execute_repair(
     repaired_count = 0
 
     try:
+        errors = []
         if action == "clean_expired_sessions":
             now = datetime.now(timezone.utc)
             repaired_count = db.query(DBSession).filter(DBSession.expires_at < now).delete()
@@ -159,11 +160,19 @@ def execute_repair(
                 proj = db.query(Project).filter(Project.id == m.project_id).first()
                 if not proj:
                     continue
-                with project_first_lock(db, proj.id, m.id):
-                    was_repaired = VersionService.repair_active_version_for_module(db, m)
-                    if was_repaired:
-                        repaired_count += 1
-                        db.commit()
+                try:
+                    with project_first_lock(db, proj.id, m.id):
+                        was_repaired = VersionService.repair_active_version_for_module(db, m)
+                        if was_repaired:
+                            repaired_count += 1
+                            db.commit()
+                except Exception as mod_err:
+                    db.rollback()
+                    errors.append({
+                        "module_id": m.id,
+                        "project_id": m.project_id,
+                        "error": str(mod_err)
+                    })
 
         elif action == "prune_excess_versions":
             from app.services.task_graph_validator import project_first_lock
@@ -176,10 +185,19 @@ def execute_repair(
             )
             excess_modules.sort(key=lambda m: (m.project_id, m.id))
             for m in excess_modules:
-                with project_first_lock(db, m.project_id, m.id):
-                    deleted = VersionService.prune_excess_versions_for_module(db, m, limit=5)
-                    repaired_count += deleted
-                    db.commit()
+                try:
+                    with project_first_lock(db, m.project_id, m.id):
+                        deleted = VersionService.prune_excess_versions_for_module(db, m, limit=5)
+                        if deleted > 0:
+                            repaired_count += deleted
+                            db.commit()
+                except Exception as mod_err:
+                    db.rollback()
+                    errors.append({
+                        "module_id": m.id,
+                        "project_id": m.project_id,
+                        "error": str(mod_err)
+                    })
 
         elif action == "clean_orphaned_records":
             # Delete orphaned tasks
@@ -196,21 +214,34 @@ def execute_repair(
         else:
             raise HTTPException(status_code=400, detail=f"Unrecognized repair action: '{action}'")
 
+        outcome = "partial_success" if errors and repaired_count > 0 else ("failed" if errors else "success")
         record_audit_log(
             db,
             actor_id=current_admin.id,
             action=f"integrity_repair_{action}",
             target_type="data_repair",
             target_id=action,
-            outcome="success",
-            reason=f"Admin executed transactional repair '{action}'",
-            details={"repaired_count": repaired_count}
+            outcome=outcome,
+            reason=f"Admin executed transactional repair '{action}' (repaired: {repaired_count}, failed: {len(errors)})",
+            details={"repaired_count": repaired_count, "errors": errors}
         )
 
+        if errors and repaired_count == 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Repair '{action}' failed for all targeted modules: {errors[0].get('error')}"
+            )
+
+        msg = f"Successfully executed repair '{action}'. Repaired {repaired_count} record(s)."
+        if errors:
+            msg = f"Executed repair '{action}' with partial completion. Repaired {repaired_count} record(s), {len(errors)} module(s) failed."
+
         return {
-            "message": f"Successfully executed repair '{action}'. Repaired {repaired_count} record(s).",
+            "message": msg,
             "action": action,
-            "repaired_count": repaired_count
+            "repaired_count": repaired_count,
+            "status": outcome,
+            "errors": errors if errors else None
         }
     except HTTPException:
         raise

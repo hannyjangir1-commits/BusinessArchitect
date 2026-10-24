@@ -87,3 +87,5 @@ client/src/__tests__/
 client/test_*.cjs
 *.key
 *.pem
+COMPLETION_REGISTER.md
+not_necessary_items/

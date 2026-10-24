@@ -53,6 +53,18 @@ class VersionService:
            - For clean instances, attributes are expired so populate_existing reloads authoritative DB state.
         3. When include_data is False, loads metadata only (deferring large 'data' JSON payload).
         """
+        # Deliberately handle pending additions and deletions in the session for this module
+        pending_new = [
+            obj for obj in db.new
+            if isinstance(obj, ModuleVersion) and getattr(obj, "module_content_id", None) == module_content_id
+        ]
+        pending_deleted = [
+            obj for obj in db.deleted
+            if isinstance(obj, ModuleVersion) and getattr(obj, "module_content_id", None) == module_content_id
+        ]
+        if pending_new or pending_deleted:
+            db.flush()
+
         cached_versions = [
             obj for obj in db.identity_map.values()
             if isinstance(obj, ModuleVersion) and getattr(obj, "module_content_id", None) == module_content_id

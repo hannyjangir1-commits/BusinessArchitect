@@ -614,3 +614,177 @@ def test_metadata_listing_and_historical_immutability():
         fresh_v2 = fresh_s.query(ModuleVersion).filter(ModuleVersion.id == v2_id).first()
         assert fresh_v1.data == {"complex": "data_v1"}, "V1 payload must remain immutable"
         assert fresh_v2.data == {"complex": "data_v2"}, "V2 payload must remain immutable"
+
+
+# ==============================================================================
+# SECTION 2: DIRTY CALLER STATE AND PENDING NEW/DELETED HANDLING
+# ==============================================================================
+
+def test_dirty_and_remote_clean_attributes_merged_correctly():
+    """
+    Verify that _get_authoritative_versions:
+    - Preserves caller-owned dirty attributes on in-memory versions.
+    - Loads fresh clean attributes from remote database commits (no stale clean attributes).
+    - Preserves caller modifications on unrelated objects in the session.
+    """
+    with SessionLocal() as s:
+        user = create_user(s, "dirty_caller_user")
+        proj = create_project(s, user, "Dirty Caller Proj")
+        mod = VersionService.get_or_create_module(s, proj.id, "bmc")
+        v1 = VersionService.save_new_version(
+            s, mod, {"key": "initial"},
+            custom_name="Initial Name",
+            change_summary="Initial Summary"
+        )
+        s.commit()
+        mod_id = mod.id
+        v1_id = v1.id
+        proj_id = proj.id
+
+    s_a = SessionLocal()
+    try:
+        mod_a = s_a.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+        proj_a = s_a.query(Project).filter(Project.id == proj_id).first()
+        v1_a = s_a.query(ModuleVersion).filter(ModuleVersion.id == v1_id).first()
+
+        # Caller modifies v1 locally (dirty attribute) and modifies project locally
+        v1_a.version_name = "Caller Local Name"
+        proj_a.name = "Caller Local Proj Name"
+        assert s_a.is_modified(v1_a)
+        assert s_a.is_modified(proj_a)
+
+        # Session B updates clean attribute in DB and commits
+        with SessionLocal() as s_b:
+            v1_b = s_b.query(ModuleVersion).filter(ModuleVersion.id == v1_id).first()
+            v1_b.change_summary = "Remote Committed Summary"
+            s_b.commit()
+
+        # Session A requests authoritative versions
+        auth_versions = VersionService._get_authoritative_versions(s_a, mod_id, include_data=False)
+        target_a = next(v for v in auth_versions if v.id == v1_id)
+
+        # 1. Caller's dirty attribute must be preserved
+        assert target_a.version_name == "Caller Local Name"
+        # 2. Remote clean attribute must be refreshed from DB
+        assert target_a.change_summary == "Remote Committed Summary"
+        # 3. Object remains modified in Session A
+        assert s_a.is_modified(target_a)
+        # 4. Unrelated object in Session A was not discarded/expired
+        assert proj_a.name == "Caller Local Proj Name"
+        assert s_a.is_modified(proj_a)
+
+        s_a.commit()
+    finally:
+        s_a.close()
+
+    # Fresh session verification: both caller dirty and remote clean changes were persisted
+    with SessionLocal() as fresh_s:
+        fresh_v1 = fresh_s.query(ModuleVersion).filter(ModuleVersion.id == v1_id).first()
+        assert fresh_v1.version_name == "Caller Local Name"
+        assert fresh_v1.change_summary == "Remote Committed Summary"
+
+
+def test_pending_new_and_deleted_versions_handled_deliberately():
+    """Verify that uncommitted db.new and db.deleted versions are deliberately flushed and handled."""
+    with SessionLocal() as s:
+        user = create_user(s, "pending_caller_user")
+        proj = create_project(s, user, "Pending Caller Proj")
+        mod = VersionService.get_or_create_module(s, proj.id, "bmc")
+        v1 = VersionService.save_new_version(s, mod, {"v": 1}, custom_name="V1")
+        v2 = VersionService.save_new_version(s, mod, {"v": 2}, custom_name="V2")
+        s.commit()
+        mod_id = mod.id
+        v2_id = v2.id
+
+    with SessionLocal() as s:
+        mod = s.query(ModuleContent).filter(ModuleContent.id == mod_id).first()
+        v2 = s.query(ModuleVersion).filter(ModuleVersion.id == v2_id).first()
+
+        # Pending deletion
+        s.delete(v2)
+        assert v2 in s.deleted
+
+        # Pending addition
+        v3_new = ModuleVersion(
+            id=gen_id("ver_"),
+            module_content_id=mod_id,
+            version_number=3,
+            version_name="V3 Pending",
+            data={"v": 3},
+            change_summary="Pending Add",
+            is_active=False
+        )
+        s.add(v3_new)
+        assert v3_new in s.new
+
+        # Call _get_authoritative_versions
+        auth_versions = VersionService._get_authoritative_versions(s, mod_id, include_data=False)
+        auth_ids = {v.id for v in auth_versions}
+
+        assert v3_new.id in auth_ids, "Pending added version must be deliberately handled and included"
+        assert v2_id not in auth_ids, "Pending deleted version must be deliberately handled and excluded"
+
+
+def test_admin_integrity_repair_partial_completion_and_audit(client: TestClient):
+    """
+    When admin repair encounters an error on a module after earlier modules succeed:
+    - Earlier modules remain committed.
+    - Response accurately reports partial completion (does not lie that entire repair failed).
+    - Audit log records outcome='partial_success' with exact counts and error details.
+    """
+    with SessionLocal() as s:
+        admin = create_user(s, "admin_partial_repair", role="super_admin")
+        user = create_user(s, "user_partial_repair")
+
+        proj1 = create_project(s, user, "Proj 1")
+        mod1 = VersionService.get_or_create_module(s, proj1.id, "bmc")
+        v1_1 = VersionService.save_new_version(s, mod1, {"k": 1})
+        mod1.active_version_id = None  # broken pointer
+        s.commit()
+        mod1_id = mod1.id
+        v1_1_id = v1_1.id
+
+        proj2 = create_project(s, user, "Proj 2")
+        mod2 = VersionService.get_or_create_module(s, proj2.id, "bmc")
+        v2_1 = VersionService.save_new_version(s, mod2, {"k": 2})
+        mod2.active_version_id = None  # broken pointer
+        s.commit()
+        mod2_id = mod2.id
+
+    auth = login(client, "admin_partial_repair", role="super_admin")
+
+    # Mock VersionService.repair_active_version_for_module to fail for mod2
+    orig_repair = VersionService.repair_active_version_for_module
+
+    def mock_repair(db, module, sync_tasks=True):
+        if module.id == mod2_id:
+            raise RuntimeError("Simulated failure on module 2")
+        return orig_repair(db, module, sync_tasks=sync_tasks)
+
+    with patch.object(VersionService, "repair_active_version_for_module", side_effect=mock_repair):
+        resp = client.post(
+            "/api/admin/integrity/repair",
+            json={"action": "fix_missing_active_versions", "confirmation": True},
+            cookies=auth["cookies"],
+            headers=auth["headers"]
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "partial_success"
+        assert data["repaired_count"] >= 1
+        assert len(data["errors"]) == 1
+        assert data["errors"][0]["module_id"] == mod2_id
+
+    # Verify audit log recorded partial_success
+    with SessionLocal() as s:
+        audit = s.query(AuditLog).filter(
+            AuditLog.action == "integrity_repair_fix_missing_active_versions"
+        ).order_by(AuditLog.created_at.desc()).first()
+        assert audit is not None
+        assert audit.outcome == "partial_success"
+        assert audit.details["repaired_count"] >= 1
+        assert len(audit.details["errors"]) == 1
+
+        # Verify module 1 repair actually persisted
+        m1 = s.query(ModuleContent).filter(ModuleContent.id == mod1_id).first()
+        assert m1.active_version_id == v1_1_id, "Module 1 repair must remain committed"
