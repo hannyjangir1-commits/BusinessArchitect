@@ -13,6 +13,14 @@ from app.schemas.auth import (
 from app.api.deps import get_current_user, get_request_session_token, verify_csrf
 from app.core.telemetry import record_analytics_event, record_security_event
 from app.services.system_setting_service import get_setting_bool, get_setting_int
+from app.core.client_identity import extract_client_ip
+from app.core.auth_limiter import (
+    normalize_account_identifier,
+    check_login_rate_limits,
+    record_login_failure,
+    record_login_success,
+    check_and_record_registration_admission,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -42,26 +50,18 @@ def _set_auth_cookies(response: Response, session_token: str, expiry_days: int =
     )
     return csrf_token
 
-def _check_user_login_rate_limit(db: Session, ip: str, window_minutes: int = 15, max_attempts: int = 5):
-    """Abuse protection for public user login using shared database events."""
-    if not ip or ip == "unknown" or ip == "testclient" or getattr(settings, "APP_ENV", "") == "test":
-        return
-    window_start = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
-    failed_attempts = db.query(func.count(SecurityEvent.id)).filter(
-        SecurityEvent.event_type == "login_failure",
-        SecurityEvent.ip_address == ip,
-        SecurityEvent.created_at >= window_start
-    ).scalar() or 0
-
-    if failed_attempts >= max_attempts:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed login attempts. Please try again later."
-        )
-
 @router.post("/register", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
-def register(req: UserRegisterRequest, response: Response, db: Session = Depends(get_db)):
-    # Check if public registration is enabled
+def register(
+    req: UserRegisterRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db)
+):
+    # 1. Admission protection against registration floods before expensive Argon2 password hashing
+    client_ip = extract_client_ip(request, settings.TRUSTED_PROXIES)
+    check_and_record_registration_admission(db, client_ip)
+
+    # 2. Check if public registration is enabled
     if not get_setting_bool(db, "public_registration_enabled", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -106,27 +106,31 @@ def register(req: UserRegisterRequest, response: Response, db: Session = Depends
 
 @router.post("/login", response_model=SessionResponse)
 def login(req: UserLoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    client_ip = extract_client_ip(request, settings.TRUSTED_PROXIES)
+    normalized_account = normalize_account_identifier(req.email_or_username)
 
-    # Enforce database-backed abuse protection for user logins
-    _check_user_login_rate_limit(db, ip)
+    # Enforce shared database-backed dual-bucket abuse protection (IP + account)
+    check_login_rate_limits(db, client_ip, normalized_account, is_admin=False)
 
     # Support login with either email or username
     user = db.query(User).filter(
-        (User.email == req.email_or_username) | (User.username == req.email_or_username)
+        (User.email == normalized_account) | (User.username == req.email_or_username.strip())
     ).first()
 
     if not user or not verify_password(req.password, user.hashed_password):
+        record_login_failure(client_ip, normalized_account, is_admin=False)
         record_security_event(
             db,
             event_type="login_failure",
             severity="low",
-            ip_address=ip,
+            ip_address=client_ip,
             request_path="/api/auth/login",
-            details={"attempted": req.email_or_username}
+            details={"attempted": normalized_account}
         )
         raise HTTPException(status_code=401, detail="Invalid email/username or password")
+
+    # Clear failed attempt counter for this account upon verified credentials
+    record_login_success(client_ip, normalized_account, is_admin=False)
 
     if getattr(user, "is_suspended", False):
         record_security_event(
@@ -134,7 +138,7 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
             event_type="suspended_user_login_attempt",
             severity="medium",
             actor_id=user.id,
-            ip_address=ip,
+            ip_address=client_ip,
             request_path="/api/auth/login"
         )
         raise HTTPException(status_code=403, detail="Account has been suspended. Please contact administrative support.")

@@ -79,6 +79,33 @@ class Settings:
             )
         self.USER_ACTIVITY_THROTTLE_SECONDS: int = parsed_throttle
 
+        # Trusted Reverse Proxies (Batch 05)
+        # Comma-separated list of IP addresses or CIDR blocks for reverse proxies allowed to set X-Forwarded-For.
+        # Default: empty (conservative: only direct TCP connection peer is trusted).
+        raw_trusted_proxies = os.getenv("TRUSTED_PROXIES", "")
+        self.TRUSTED_PROXIES: List[str] = [
+            p.strip() for p in raw_trusted_proxies.split(",") if p.strip()
+        ]
+
+        # Authentication Abuse Protection Limits (Batch 05)
+        self.AUTH_RATE_LIMITING_ENABLED: bool = os.getenv("AUTH_RATE_LIMITING_ENABLED", "true").lower() in ("true", "1", "yes")
+
+        # Public Login Limits
+        self.AUTH_LOGIN_IP_MAX_ATTEMPTS: int = int(os.getenv("AUTH_LOGIN_IP_MAX_ATTEMPTS", "5"))
+        self.AUTH_LOGIN_IP_WINDOW_SECONDS: int = int(os.getenv("AUTH_LOGIN_IP_WINDOW_SECONDS", "900"))
+        self.AUTH_LOGIN_ACCOUNT_MAX_ATTEMPTS: int = int(os.getenv("AUTH_LOGIN_ACCOUNT_MAX_ATTEMPTS", "5"))
+        self.AUTH_LOGIN_ACCOUNT_WINDOW_SECONDS: int = int(os.getenv("AUTH_LOGIN_ACCOUNT_WINDOW_SECONDS", "900"))
+
+        # Admin Login Limits
+        self.ADMIN_LOGIN_IP_MAX_ATTEMPTS: int = int(os.getenv("ADMIN_LOGIN_IP_MAX_ATTEMPTS", "5"))
+        self.ADMIN_LOGIN_IP_WINDOW_SECONDS: int = int(os.getenv("ADMIN_LOGIN_IP_WINDOW_SECONDS", "900"))
+        self.ADMIN_LOGIN_ACCOUNT_MAX_ATTEMPTS: int = int(os.getenv("ADMIN_LOGIN_ACCOUNT_MAX_ATTEMPTS", "3"))
+        self.ADMIN_LOGIN_ACCOUNT_WINDOW_SECONDS: int = int(os.getenv("ADMIN_LOGIN_ACCOUNT_WINDOW_SECONDS", "900"))
+
+        # Public Registration Admission Limits
+        self.AUTH_REGISTER_IP_MAX_ATTEMPTS: int = int(os.getenv("AUTH_REGISTER_IP_MAX_ATTEMPTS", "5"))
+        self.AUTH_REGISTER_IP_WINDOW_SECONDS: int = int(os.getenv("AUTH_REGISTER_IP_WINDOW_SECONDS", "3600"))
+
 
     # CORS
     @property

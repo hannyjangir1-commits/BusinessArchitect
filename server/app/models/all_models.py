@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint, text, false
+    Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint, Index, text, false
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -211,3 +211,17 @@ class SystemSetting(Base):
     is_secret = Column(Boolean, default=False, nullable=False)
     updated_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class AuthRateLimitEvent(Base):
+    __tablename__ = "auth_rate_limit_events"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("lim_"))
+    scope = Column(String(32), nullable=False)  # login_ip, login_account, admin_login_ip, admin_login_account, register_ip
+    key_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        Index("ix_auth_rate_limit_scope_key_created", "scope", "key_hash", "created_at"),
+        Index("ix_auth_rate_limit_created_at", "created_at"),
+    )

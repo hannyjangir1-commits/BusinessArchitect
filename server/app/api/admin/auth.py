@@ -12,25 +12,17 @@ from app.core.security import (
 from app.models.all_models import User, Session as DBSession
 from app.api.deps import get_current_user, get_request_session_token, require_admin, verify_csrf, ADMIN_ROLES, _get_permissions_for_role
 from app.core.telemetry import record_security_event, record_audit_log
+from app.core.client_identity import extract_client_ip
+from app.core.auth_limiter import (
+    normalize_account_identifier,
+    check_login_rate_limits,
+    record_login_failure,
+    record_login_success,
+)
 
 router = APIRouter(prefix="/auth", tags=["Admin Authentication"])
 
-# In-memory IP rate limiting for login attempts (10 attempts per minute per IP)
-_login_attempts: Dict[str, List[float]] = {}
 
-def _check_rate_limit(ip: str):
-    limit = 100 if ip == "testclient" or getattr(settings, "APP_ENV", "") == "test" else 10
-    now = time.time()
-    attempts = _login_attempts.get(ip, [])
-    # Keep attempts from last 60 seconds
-    attempts = [t for t in attempts if now - t < 60]
-    _login_attempts[ip] = attempts
-    if len(attempts) >= limit:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many administrative login attempts. Please wait 60 seconds before trying again."
-        )
-    _login_attempts[ip].append(now)
 
 class AdminLoginRequest(BaseModel):
     username: str
@@ -71,22 +63,26 @@ def admin_login(
     response: Response,
     db: Session = Depends(get_db)
 ):
-    ip = request.client.host if request.client else "unknown"
-    _check_rate_limit(ip)
-
+    client_ip = extract_client_ip(request, settings.TRUSTED_PROXIES)
     username_clean = req.username.strip()
+    normalized_account = normalize_account_identifier(username_clean)
+
+    # Enforce shared database-backed dual-bucket abuse protection (IP + account) for admin logins
+    check_login_rate_limits(db, client_ip, normalized_account, is_admin=True)
+
     user = db.query(User).filter(
         (User.username == username_clean) | (User.email == username_clean)
     ).first()
 
     # Fail safely with constant-like message to avoid username enumeration
     if not user or not verify_password(req.password, user.hashed_password):
+        record_login_failure(client_ip, normalized_account, is_admin=True)
         record_security_event(
             db,
             event_type="admin_login_failure",
             severity="medium",
             actor_id=user.id if user else None,
-            ip_address=ip,
+            ip_address=client_ip,
             user_agent=request.headers.get("User-Agent"),
             request_path="/api/admin/auth/login",
             details={"attempted_username": username_clean}
@@ -98,12 +94,13 @@ def admin_login(
 
     # Check if user has an authorized administrative role
     if user.role not in ADMIN_ROLES:
+        record_login_failure(client_ip, normalized_account, is_admin=True)
         record_security_event(
             db,
             event_type="unauthorized_admin_login_attempt",
             severity="high",
             actor_id=user.id,
-            ip_address=ip,
+            ip_address=client_ip,
             user_agent=request.headers.get("User-Agent"),
             request_path="/api/admin/auth/login",
             details={"username": username_clean, "actual_role": user.role}
@@ -113,13 +110,16 @@ def admin_login(
             detail="Invalid administrator credentials"
         )
 
+    # Clear failed attempts for this account upon verified credentials
+    record_login_success(client_ip, normalized_account, is_admin=True)
+
     if user.is_suspended:
         record_security_event(
             db,
             event_type="suspended_admin_login_attempt",
             severity="high",
             actor_id=user.id,
-            ip_address=ip,
+            ip_address=client_ip,
             user_agent=request.headers.get("User-Agent"),
             request_path="/api/admin/auth/login"
         )
@@ -168,7 +168,7 @@ def admin_login(
         event_type="admin_login_success",
         severity="info",
         actor_id=user.id,
-        ip_address=ip,
+        ip_address=client_ip,
         user_agent=request.headers.get("User-Agent"),
         request_path="/api/admin/auth/login"
     )
@@ -180,7 +180,7 @@ def admin_login(
         target_type="user",
         target_id=user.id,
         outcome="success",
-        details={"ip": ip}
+        details={"ip": client_ip}
     )
 
     perms = _get_permissions_for_role(user.role)

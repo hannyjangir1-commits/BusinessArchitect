@@ -40,6 +40,24 @@ def pytest_sessionstart(session):
     command.upgrade(config, "head")
 
 
+import pytest
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit_state():
+    """Ensure clean auth rate limit state across test runs."""
+    try:
+        from app.core.auth_limiter import reset_auth_limiter_state
+        reset_auth_limiter_state()
+    except Exception:
+        pass
+    yield
+    try:
+        from app.core.auth_limiter import reset_auth_limiter_state
+        reset_auth_limiter_state()
+    except Exception:
+        pass
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Close SQLite connections and remove only the temporary DB created above."""
     try:

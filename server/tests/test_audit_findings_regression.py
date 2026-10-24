@@ -87,6 +87,12 @@ def test_f02_admin_bootstrap_missing_or_weak_credentials(db, monkeypatch):
 def test_f02_admin_bootstrap_idempotent(db, monkeypatch):
     """Restarting must not reset an existing admin's password or re-create an account."""
     admin = db.query(User).filter(User.role == "super_admin").first()
+    if not admin:
+        monkeypatch.setattr(settings, "ADMIN_BOOTSTRAP_ENABLED", True)
+        monkeypatch.setattr(settings, "INITIAL_ADMIN_USERNAME", "SecAdmin")
+        monkeypatch.setattr(settings, "INITIAL_ADMIN_PASSWORD", "InitialStrongPass123!@#")
+        assert provision_initial_admin(db) is True
+        admin = db.query(User).filter(User.role == "super_admin").first()
     assert admin is not None
     original_hash = admin.hashed_password
 
@@ -449,21 +455,12 @@ def test_f12_health_checks(client):
 # =====================================================================
 def test_f13_user_login_rate_limiting(client, db, monkeypatch):
     """Exceeding failed login limit triggers 429 Too Many Requests."""
-    # The limiter is deliberately disabled in APP_ENV=test. Exercise the same
-    # request path in development mode while keeping the test database isolated.
     from app.core.config import settings
-    monkeypatch.setattr(settings, "APP_ENV", "development")
-    # Log 5 failures
+    from app.core.auth_limiter import record_login_failure
+    monkeypatch.setattr(settings, "TRUSTED_PROXIES", ["testclient", "127.0.0.1"])
     ip = "192.0.2.100"
     for i in range(5):
-        event = SecurityEvent(
-            event_type="login_failure",
-            severity="warning",
-            ip_address=ip,
-            details={"email_or_username": "nonexistent"}
-        )
-        db.add(event)
-    db.commit()
+        record_login_failure(ip, "nonexistent", is_admin=False)
 
     # Next attempt from same IP should get 429
     resp = client.post("/api/auth/login", json={
