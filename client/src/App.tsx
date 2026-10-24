@@ -117,6 +117,7 @@ export const App: React.FC = () => {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [activeModule, setActiveModule] = useState<string>('execution_roadmap');
   const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
+  const [restorationError, setRestorationError] = useState<{ projectId: string; module: string; message: string } | null>(null);
 
   // Active Module State
   const [moduleDetail, setModuleDetail] = useState<ModuleDetail | null>(null);
@@ -215,6 +216,9 @@ export const App: React.FC = () => {
     setConflictData(null);
     setModuleLoading(false);
     setModuleBadges(INITIAL_MODULE_BADGES);
+    setRestorationError(null);
+    setRequestedDestination(null);
+    setDestinationState('idle');
   };
 
   const clearSession = () => {
@@ -235,6 +239,7 @@ export const App: React.FC = () => {
     setAuthState('rejected');
     setDestinationState('idle');
     setRequestedDestination(null);
+    setRestorationError(null);
     document.body.style.removeProperty('font-family');
   };
 
@@ -348,16 +353,28 @@ export const App: React.FC = () => {
           const onAdmin = window.location.pathname.startsWith('/admin');
 
           if (deepProjectId && !onAdmin) {
-            const projectExists = projs && projs.some(p => p.id === deepProjectId);
-            if (projectExists) {
-              setDestinationState('valid');
-              setUserIntendsWorkspace(true);
-              await openProjectRef.current(deepProjectId, route.get('module') || undefined, false);
+            if (projs !== null) {
+              const projectExists = projs.some(p => p.id === deepProjectId);
+              if (projectExists) {
+                setDestinationState('valid');
+                setUserIntendsWorkspace(true);
+                await openProjectRef.current(deepProjectId, route.get('module') || undefined, false);
+              } else {
+                setDestinationState('invalid');
+                setRequestedDestination(null);
+                setUserIntendsWorkspace(true);
+                window.history.replaceState({}, '', '/?workspace=true');
+              }
             } else {
-              setDestinationState('invalid');
-              setRequestedDestination(null);
+              // Transient failure when preloading project list!
+              // Deep-link intent is retained, show inline recoverable error in the neutral workspace shell
+              setDestinationState('pending');
               setUserIntendsWorkspace(true);
-              window.history.replaceState({}, '', '/?workspace=true');
+              setRestorationError({
+                projectId: deepProjectId,
+                module: normalizeModuleType(route.get('module') || 'execution_roadmap'),
+                message: 'Failed to load projects. Please check your connection and retry.'
+              });
             }
           } else if (!onAdmin && route.get('workspace') === 'true') {
             setUserIntendsWorkspace(true);
@@ -367,7 +384,7 @@ export const App: React.FC = () => {
             const savedDest = getNavDestination(userScope);
             if (savedDest && projs && projs.some(p => p.id === savedDest.projectId)) {
               await openProjectRef.current(savedDest.projectId, savedDest.module, true);
-            } else if (savedDest) {
+            } else if (savedDest && projs !== null) {
               clearNavDestination(userScope);
             }
           } else {
@@ -465,9 +482,22 @@ export const App: React.FC = () => {
 
   // 2. Open Project & Restore Navigation Memory (Section 4 & 5)
   const handleOpenProject = async (projectId: string, targetModuleOverride?: string, writeHistory = true) => {
-    clearWorkspace();
+    const navId = ++navigationRef.current;
     activeProjectIdRef.current = projectId;
     setModuleLoading(true);
+    setRestorationError(null);
+    setRequestedDestination({
+      projectId,
+      module: normalizeModuleType(targetModuleOverride || 'execution_roadmap')
+    });
+
+    const isCurrentActive = currentProject?.id === projectId;
+
+    if (!isCurrentActive && currentProject) {
+      clearWorkspace();
+      activeProjectIdRef.current = projectId;
+      setModuleLoading(true);
+    }
 
     // Optimistically use cached project metadata if available for the same project
     const cachedProj = queryCache.getCached<Project>(`project:${projectId}`, currentUser?.id) ||
@@ -486,10 +516,10 @@ export const App: React.FC = () => {
           execution_roadmap: { version: 'V1', isGenerated: genSet.has('execution_roadmap'), status: genSet.has('execution_roadmap') ? 'generated' : 'not-generated' },
           blueprint_copilot: { version: 'V1', isGenerated: true, status: 'generated' }
         });
-      } else {
+      } else if (!isCurrentActive) {
         setModuleBadges(INITIAL_MODULE_BADGES);
       }
-    } else {
+    } else if (!isCurrentActive) {
       setModuleBadges(INITIAL_MODULE_BADGES);
     }
 
@@ -499,7 +529,7 @@ export const App: React.FC = () => {
         () => api.projects.get(projectId),
         { staleTimeMs: 60000, userScope: currentUser?.id }
       );
-      if (activeProjectIdRef.current !== projectId) return;
+      if (activeProjectIdRef.current !== projectId || navigationRef.current !== navId) return;
       setCurrentProject(proj);
 
       const genModules = new Set(proj.generated_modules || []);
@@ -532,7 +562,11 @@ export const App: React.FC = () => {
         persistNavigationToServer(proj.id, targetModule);
       }
     } catch (err: any) {
-      if (isViewing(projectId)) {
+      if (activeProjectIdRef.current !== projectId || navigationRef.current !== navId) {
+        return;
+      }
+
+      if (isCurrentActive) {
         // Failed metadata refresh must not turn generated modules into "Not generated"
         setModuleBadges(prev => {
           const next = { ...prev };
@@ -543,10 +577,84 @@ export const App: React.FC = () => {
           }
           return next;
         });
-        clearWorkspace();
-        alert(err.message || 'Failed to open project');
+        setModuleLoading(false);
+        setModuleError('Failed to refresh project metadata: ' + (err.message || 'Network error'));
+      } else {
+        setModuleLoading(false);
+
+        const isNotFound = err?.status === 404 || err?.status === 403 ||
+          err?.response?.status === 404 || err?.response?.status === 403 ||
+          (err?.message && (err.message.includes('404') || err.message.toLowerCase().includes('not found') || err.message.toLowerCase().includes('unauthorized')));
+
+        if (isNotFound) {
+          setRequestedDestination(null);
+          setDestinationState('invalid');
+          clearWorkspace();
+          setUserIntendsWorkspace(true);
+          window.history.replaceState({}, '', '/?workspace=true');
+          setProjectsError('The requested project could not be found or you do not have permission to access it.');
+        } else {
+          // Transient network/server failure:
+          // Keep shell stable, show recoverable inline error with Retry & Back to portfolio
+          setCurrentProject(null);
+          setRestorationError({
+            projectId,
+            module: targetModuleOverride || 'execution_roadmap',
+            message: err.message || 'Failed to load project details. Please check your connection and retry.'
+          });
+        }
       }
     }
+  };
+
+  const handleBackToPortfolioFromRestoration = () => {
+    activeProjectIdRef.current = null;
+    navigationRef.current++;
+    setRestorationError(null);
+    setRequestedDestination(null);
+    setDestinationState('idle');
+    setUserIntendsWorkspace(true);
+    clearWorkspace();
+    window.history.pushState({}, '', '/?workspace=true');
+  };
+
+  const handleRetryRestoration = async () => {
+    const targetProjId = restorationError?.projectId || requestedDestination?.projectId;
+    const targetMod = restorationError?.module || requestedDestination?.module || 'execution_roadmap';
+    setRestorationError(null);
+    setModuleLoading(true);
+
+    if (!targetProjId) return;
+
+    const userScope = currentUser?.id;
+    let projsList = projects;
+    if (projectsStatus !== 'success-with-data' && projectsStatus !== 'success-empty') {
+      const fresh = await loadProjects(userScope, true);
+      if (!fresh) {
+        setModuleLoading(false);
+        setRestorationError({
+          projectId: targetProjId,
+          module: targetMod,
+          message: 'Failed to load projects. Please check your connection and retry.'
+        });
+        return;
+      }
+      projsList = fresh;
+    }
+
+    const projectExists = projsList.some(p => p.id === targetProjId);
+    if (!projectExists) {
+      setModuleLoading(false);
+      setDestinationState('invalid');
+      setRequestedDestination(null);
+      clearWorkspace();
+      window.history.replaceState({}, '', '/?workspace=true');
+      setProjectsError('The requested project could not be found or you do not have permission to access it.');
+      return;
+    }
+
+    setDestinationState('valid');
+    await openProjectRef.current(targetProjId, targetMod, false);
   };
 
   useEffect(() => {
@@ -1024,12 +1132,7 @@ export const App: React.FC = () => {
             setRequestedDestination(prev => prev ? { ...prev, module: canonical } : null);
             setActiveModule(canonical);
           }}
-          onBackToDashboard={() => {
-            setRequestedDestination(null);
-            setDestinationState('idle');
-            clearWorkspace();
-            window.history.pushState({}, '', '/?workspace=true');
-          }}
+          onBackToDashboard={handleBackToPortfolioFromRestoration}
           onCreateNewProject={() => {}}
           onExportFullPdf={() => {}}
           moduleVersionBadges={INITIAL_MODULE_BADGES}
@@ -1041,7 +1144,37 @@ export const App: React.FC = () => {
             onLogout={logout}
           />
           <main className="content-area">
-            <ModuleSkeleton moduleType={targetModule} />
+            {restorationError ? (
+              <div className="card" role="alert" style={{ maxWidth: 520, margin: '40px auto', padding: '24px 28px', textAlign: 'center' }}>
+                <div style={{ color: 'var(--accent-red, #ef4444)', marginBottom: 12 }}>
+                  <AlertCircle size={32} style={{ margin: '0 auto' }} />
+                </div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0' }}>
+                  Unable to load workspace
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 20px 0' }}>
+                  {restorationError.message}
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleRetryRestoration}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleBackToPortfolioFromRestoration}
+                  >
+                    Back to portfolio
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <ModuleSkeleton moduleType={targetModule} />
+            )}
           </main>
         </div>
       </div>
@@ -1090,7 +1223,7 @@ export const App: React.FC = () => {
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
         onPrefetchModule={(mod) => prefetchModule(currentProject.id, mod, currentUser?.id)}
-        onBackToDashboard={() => { clearWorkspace(); window.history.pushState({}, '', '/?workspace=true'); }}
+        onBackToDashboard={handleBackToPortfolioFromRestoration}
         onCreateNewProject={() => setIsWizardOpen(true)}
         onExportFullPdf={() => api.exports.downloadFullProjectPdf(currentProject.id, currentProject.name)}
         moduleVersionBadges={moduleBadges}

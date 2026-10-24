@@ -194,39 +194,246 @@ describe('Batch 03.1 — Live Validation Fixes Regression Suite', () => {
       expect(screen.queryByText(/your venture portfolio/i)).toBeNull();
     });
 
-    it('does not allow slow old requests to overwrite restored destination', async () => {
-      window.history.replaceState({}, '', '/?project=proj-2&module=tech_stack');
-
+    it('does not allow slow old requests to overwrite restored destination in true navigation race', async () => {
       const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
-      const proj2 = createMockProject('proj-2', 'Fast Project', 'Growth', ['tech_stack']);
+      const projA = createMockProject('proj-A', 'Venture Alpha', 'Idea', ['bmc']);
+      const projB = createMockProject('proj-B', 'Venture Beta', 'Growth', ['tech_stack']);
 
       vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
-      vi.spyOn(api.projects, 'list').mockResolvedValue([proj2] as any);
-      vi.spyOn(api.projects, 'get').mockResolvedValue(proj2 as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([projA, projB] as any);
 
-      let resolveSlowModule: any;
-      const slowPromise = new Promise((resolve) => { resolveSlowModule = resolve; });
-      vi.spyOn(api.modules, 'get').mockImplementation(async (pId, mod) => {
-        if (pId === 'old-proj') {
-          return slowPromise as any;
+      let resolveProjA: (value: any) => void;
+      const projAPromise = new Promise((resolve) => { resolveProjA = resolve; });
+
+      const getSpy = vi.spyOn(api.projects, 'get').mockImplementation(async (id) => {
+        if (id === 'proj-A') {
+          return projAPromise as any;
         }
-        return { id: 'mod-tech', project_id: 'proj-2', module_type: 'tech_stack', data: { frontend: ['React'] } } as any;
+        if (id === 'proj-B') {
+          return projB as any;
+        }
+        throw new Error('Not found');
       });
+
+      vi.spyOn(api.modules, 'get').mockResolvedValue({
+        id: 'mod-tech',
+        project_id: 'proj-B',
+        module_type: 'tech_stack',
+        data: { frontend: ['React'] }
+      } as any);
+
+      // 1. Initial destination is proj-A. Request A actually starts!
+      window.history.replaceState({}, '', '/?project=proj-A&module=bmc');
+      render(<App />);
+
+      // Verify request A has actually started
+      await waitFor(() => {
+        expect(getSpy).toHaveBeenCalledWith('proj-A');
+      });
+
+      // 2. User navigates to proj-B (via popstate)
+      await act(async () => {
+        window.history.pushState({}, '', '/?project=proj-B&module=tech_stack');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // 3. Request B starts and resolves
+      await waitFor(() => {
+        expect(getSpy).toHaveBeenCalledWith('proj-B');
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Venture Beta').length).toBeGreaterThan(0);
+      });
+
+      // 4. Request A resolves afterward!
+      await act(async () => {
+        resolveProjA(projA);
+      });
+
+      // 5. Venture Beta remains visible and stored as destination
+      expect(screen.getAllByText('Venture Beta').length).toBeGreaterThan(0);
+      expect(screen.queryByText('Venture Alpha')).toBeNull();
+      const savedDest = getNavDestination('user-1');
+      expect(savedDest?.projectId).toBe('proj-B');
+
+      // Assert that both requests were actually called
+      expect(getSpy).toHaveBeenCalledWith('proj-A');
+      expect(getSpy).toHaveBeenCalledWith('proj-B');
+    });
+
+    it('auth succeeds, list includes p1, detail rejects: shows inline recoverable error and retry works', async () => {
+      window.history.replaceState({}, '', '/?project=p1&module=bmc');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const proj1 = createMockProject('p1', 'Alpha Venture', 'Idea', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([proj1] as any);
+
+      const getSpy = vi.spyOn(api.projects, 'get')
+        .mockRejectedValueOnce(new Error('Network gateway timeout'))
+        .mockResolvedValue(proj1 as any);
+
+      vi.spyOn(api.modules, 'get').mockResolvedValue({
+        id: 'mod-bmc',
+        project_id: 'p1',
+        module_type: 'bmc',
+        data: { value: 'Loaded BMC' }
+      } as any);
+
+      render(<App />);
+
+      // 1. Loading skeleton disappears, inline error appears
+      await waitFor(() => {
+        expect(screen.getByText('Unable to load workspace')).toBeDefined();
+        expect(screen.getByText('Network gateway timeout')).toBeDefined();
+      });
+
+      // No permanent loading skeleton
+      expect(screen.queryByRole('status', { name: /loading bmc/i })).toBeNull();
+
+      // Retry and Back to portfolio buttons appear
+      const retryBtn = screen.getByRole('button', { name: /^retry$/i });
+      const backBtn = screen.getByRole('button', { name: /back to portfolio/i });
+      expect(retryBtn).toBeDefined();
+      expect(backBtn).toBeDefined();
+
+      // 2. Click Retry: successful retry populates requested module
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Alpha Venture').length).toBeGreaterThan(0);
+      });
+
+      expect(getSpy).toHaveBeenCalledTimes(2);
+      expect(api.modules.get).toHaveBeenCalledWith('p1', 'bmc');
+    });
+
+    it('auth succeeds, list includes p1, detail rejects: back to portfolio clears restoration intent', async () => {
+      window.history.replaceState({}, '', '/?project=p1&module=bmc');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const proj1 = createMockProject('p1', 'Alpha Venture');
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([proj1] as any);
+      vi.spyOn(api.projects, 'get').mockRejectedValueOnce(new Error('Network failure'));
 
       render(<App />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('Fast Project').length).toBeGreaterThan(0);
+        expect(screen.getByText('Unable to load workspace')).toBeDefined();
       });
 
-      // Even if old slow request resolves later, active workspace is proj-2
-      resolveSlowModule({ id: 'mod-old', project_id: 'old-proj', module_type: 'bmc', data: { stale: true } });
-
+      const backBtn = screen.getByRole('button', { name: /back to portfolio/i });
       await act(async () => {
-        await Promise.resolve();
+        fireEvent.click(backBtn);
       });
 
-      expect(screen.getAllByText('Fast Project').length).toBeGreaterThan(0);
+      // User returns to portfolio dashboard
+      await waitFor(() => {
+        expect(screen.getByText(/your venture portfolio/i)).toBeDefined();
+        expect(screen.getAllByText('Alpha Venture').length).toBeGreaterThan(0);
+      });
+
+      expect(window.location.search).toBe('?workspace=true');
+    });
+
+    it('project-list request fails temporarily: deep-link intent is retained, user sees recoverable error, retry restores destination', async () => {
+      window.history.replaceState({}, '', '/?project=p1&module=bmc');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const proj1 = createMockProject('p1', 'Alpha Venture', 'Idea', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+
+      const listSpy = vi.spyOn(api.projects, 'list')
+        .mockRejectedValueOnce(new Error('Failed to reach server'))
+        .mockResolvedValue([proj1] as any);
+
+      vi.spyOn(api.projects, 'get').mockResolvedValue(proj1 as any);
+      vi.spyOn(api.modules, 'get').mockResolvedValue({
+        id: 'mod-bmc',
+        project_id: 'p1',
+        module_type: 'bmc',
+        data: { value: 'BMC Data' }
+      } as any);
+
+      render(<App />);
+
+      // Deep link intent is retained, user sees recoverable error in neutral shell
+      await waitFor(() => {
+        expect(screen.getByText('Unable to load workspace')).toBeDefined();
+        expect(screen.getByText(/failed to load projects/i)).toBeDefined();
+      });
+
+      expect(window.location.search).toBe('?project=p1&module=bmc');
+
+      // Click Retry
+      const retryBtn = screen.getByRole('button', { name: /^retry$/i });
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
+
+      // Restores destination
+      await waitFor(() => {
+        expect(screen.getAllByText('Alpha Venture').length).toBeGreaterThan(0);
+      });
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(api.modules.get).toHaveBeenCalledWith('p1', 'bmc');
+    });
+
+    it('navigation away during retry: late completion cannot overwrite the new destination', async () => {
+      window.history.replaceState({}, '', '/?project=p1&module=bmc');
+
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const proj1 = createMockProject('p1', 'Alpha Venture', 'Idea', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([proj1] as any);
+
+      let resolveRetry: (value: any) => void;
+      const retryPromise = new Promise((resolve) => { resolveRetry = resolve; });
+
+      vi.spyOn(api.projects, 'get')
+        .mockRejectedValueOnce(new Error('Initial failure'))
+        .mockImplementationOnce(() => retryPromise as any);
+
+      const { container } = render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Unable to load workspace')).toBeDefined();
+      });
+
+      // 1. Click Retry
+      const retryBtn = screen.getByRole('button', { name: /^retry$/i });
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
+
+      // 2. While retry is pending, user navigates away by clicking Back to Dashboard
+      const backBtn = (container.querySelector('.back-to-dashboard-btn') as HTMLElement) || screen.getByRole('button', { name: /back to/i });
+      await act(async () => {
+        fireEvent.click(backBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/your venture portfolio/i)).toBeDefined();
+      });
+
+      // 3. Late retry completion finishes afterward
+      await act(async () => {
+        resolveRetry(proj1);
+      });
+
+      // 4. Portfolio remains visible, late completion does NOT reopen project workspace
+      expect(screen.getByText(/your venture portfolio/i)).toBeDefined();
+      expect(container.querySelector('.workspace-scroll-area')).toBeNull();
+      expect(window.location.search).toBe('?workspace=true');
     });
   });
 
@@ -375,6 +582,47 @@ describe('Batch 03.1 — Live Validation Fixes Regression Suite', () => {
       // Error status must NOT show a gray dot (not-generated)
       expect(techBtn?.querySelector('.status-dot-gray')).toBeNull();
     });
+
+    it('metadata refresh failure preserves confirmed generated badges in workspace without resetting', async () => {
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const proj = createMockProject('p1', 'Active Venture', 'MVP', ['bmc', 'tech_stack']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([proj] as any);
+      vi.spyOn(api.projects, 'get').mockResolvedValue(proj as any);
+      vi.spyOn(api.modules, 'get').mockResolvedValue({
+        id: 'mod-1',
+        project_id: 'p1',
+        module_type: 'bmc',
+        data: { value: 'BMC Data' }
+      } as any);
+
+      window.history.replaceState({}, '', '/?project=p1&module=bmc');
+      const { container } = render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Active Venture').length).toBeGreaterThan(0);
+      });
+
+      // Confirm generated badge is present on non-active generated module tech_stack
+      const techBtn = container.querySelector('[data-module-id="tech_stack"]');
+      expect(techBtn?.querySelector('.status-dot-green')).not.toBeNull();
+
+      // Now simulate a background metadata refresh failure
+      vi.spyOn(api.projects, 'get').mockRejectedValueOnce(new Error('500 Server Error'));
+
+      // Trigger popstate on same project
+      await act(async () => {
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // Project remains active (not cleared)
+      expect(screen.getAllByText('Active Venture').length).toBeGreaterThan(0);
+
+      // Previously confirmed generated badge remains generated (not reset to INITIAL_MODULE_BADGES or not-generated)
+      const techBtnAfter = container.querySelector('[data-module-id="tech_stack"]');
+      expect(techBtnAfter?.querySelector('.status-dot-green')).not.toBeNull();
+    });
   });
 
   // =========================================================================
@@ -466,6 +714,7 @@ describe('Batch 03.1 — Live Validation Fixes Regression Suite', () => {
           project={createMockProject('p1', 'Alpha')}
           messages={messages}
           onSendMessage={async () => {}}
+          isLoading={false}
         />
       );
 
@@ -515,6 +764,7 @@ describe('Batch 03.1 — Live Validation Fixes Regression Suite', () => {
           project={createMockProject('p1', 'Alpha')}
           messages={messages}
           onSendMessage={async () => {}}
+          isLoading={false}
         />
       );
 
