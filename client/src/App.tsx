@@ -482,6 +482,13 @@ export const App: React.FC = () => {
 
   // 2. Open Project & Restore Navigation Memory (Section 4 & 5)
   const handleOpenProject = async (projectId: string, targetModuleOverride?: string, writeHistory = true) => {
+    const isCurrentActive = currentProject?.id === projectId;
+
+    // Previous workspace cleanup must happen BEFORE the new navigation token is captured
+    if (!isCurrentActive && currentProject) {
+      clearWorkspace();
+    }
+
     const navId = ++navigationRef.current;
     activeProjectIdRef.current = projectId;
     setModuleLoading(true);
@@ -490,14 +497,6 @@ export const App: React.FC = () => {
       projectId,
       module: normalizeModuleType(targetModuleOverride || 'execution_roadmap')
     });
-
-    const isCurrentActive = currentProject?.id === projectId;
-
-    if (!isCurrentActive && currentProject) {
-      clearWorkspace();
-      activeProjectIdRef.current = projectId;
-      setModuleLoading(true);
-    }
 
     // Optimistically use cached project metadata if available for the same project
     const cachedProj = queryCache.getCached<Project>(`project:${projectId}`, currentUser?.id) ||

@@ -7,7 +7,6 @@ import { queryCache } from '../services/queryCache';
 import {
   saveNavDestination,
   getNavDestination,
-  clearNavDestination,
   clearAllNavDestinations
 } from '../services/navigationStorage';
 import { LandingPage } from '../pages/LandingPage';
@@ -260,6 +259,262 @@ describe('Batch 03.1 — Live Validation Fixes Regression Suite', () => {
       // Assert that both requests were actually called
       expect(getSpy).toHaveBeenCalledWith('proj-A');
       expect(getSpy).toHaveBeenCalledWith('proj-B');
+    });
+
+    it('switches between fully loaded projects: Project A content loads, navigates to B, B module executes and renders distinctive content while A content is cleared', async () => {
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const projA = createMockProject('proj-A', 'Venture Alpha', 'MVP', ['bmc']);
+      const projB = createMockProject('proj-B', 'Venture Beta', 'Growth', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([projA, projB] as any);
+      vi.spyOn(api.projects, 'get').mockImplementation(async (id) => {
+        if (id === 'proj-A') return projA as any;
+        if (id === 'proj-B') return projB as any;
+        throw new Error('Not found');
+      });
+
+      const moduleSpy = vi.spyOn(api.modules, 'get').mockImplementation(async (pId, mod) => {
+        if (pId === 'proj-A' && mod === 'bmc') {
+          return {
+            id: 'mod-bmc-A',
+            project_id: 'proj-A',
+            module_type: 'bmc',
+            data: { value_propositions: ['Alpha Core Value'] }
+          } as any;
+        }
+        if (pId === 'proj-B' && mod === 'bmc') {
+          return {
+            id: 'mod-bmc-B',
+            project_id: 'proj-B',
+            module_type: 'bmc',
+            data: { value_propositions: ['Beta Core Value'] }
+          } as any;
+        }
+        return { id: 'mod', project_id: pId, module_type: mod, data: {} } as any;
+      });
+
+      // 1. Initial load: Project A
+      window.history.replaceState({}, '', '/?project=proj-A&module=bmc');
+      render(<App />);
+
+      // A content loads completely
+      await waitFor(() => {
+        expect(screen.getAllByText('Venture Alpha').length).toBeGreaterThan(0);
+        expect(screen.getByText('Alpha Core Value')).toBeDefined();
+      });
+      expect(moduleSpy).toHaveBeenCalledWith('proj-A', 'bmc');
+
+      // 2. Navigation to B starts via URL and popstate
+      await act(async () => {
+        window.history.pushState({}, '', '/?project=proj-B&module=bmc');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // 3. B metadata resolves, 4. B module request actually executes, 5. Distinctive B content renders
+      await waitFor(() => {
+        expect(screen.getAllByText('Venture Beta').length).toBeGreaterThan(0);
+        expect(screen.getByText('Beta Core Value')).toBeDefined();
+      });
+
+      // Verify B module request actually ran
+      expect(moduleSpy).toHaveBeenCalledWith('proj-B', 'bmc');
+
+      // 6. A content is absent
+      expect(screen.queryByText('Alpha Core Value')).toBeNull();
+
+      // 7. Navigation storage identifies B
+      const savedDest = getNavDestination('user-1');
+      expect(savedDest?.projectId).toBe('proj-B');
+      expect(savedDest?.module).toBe('bmc');
+    });
+
+    it('switching from Project A to Project B when B metadata fails: shows inline error and working Retry restores B', async () => {
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const projA = createMockProject('proj-A', 'Venture Alpha', 'MVP', ['bmc']);
+      const projB = createMockProject('proj-B', 'Venture Beta', 'Growth', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([projA, projB] as any);
+
+      let bFailOnce = true;
+      vi.spyOn(api.projects, 'get').mockImplementation(async (id) => {
+        if (id === 'proj-A') return projA as any;
+        if (id === 'proj-B') {
+          if (bFailOnce) {
+            bFailOnce = false;
+            throw new Error('503 Service Unavailable for Beta');
+          }
+          return projB as any;
+        }
+        throw new Error('Not found');
+      });
+
+      vi.spyOn(api.modules, 'get').mockImplementation(async (pId, mod) => {
+        if (pId === 'proj-A') {
+          return { id: 'mod-A', project_id: 'proj-A', module_type: mod, data: { value_propositions: ['ALPHA_VALUE'] } } as any;
+        }
+        if (pId === 'proj-B') {
+          return { id: 'mod-B', project_id: 'proj-B', module_type: mod, data: { value_propositions: ['BETA_RECOVERED_VALUE'] } } as any;
+        }
+        return { id: 'm', project_id: pId, module_type: mod, data: {} } as any;
+      });
+
+      // 1. Fully load Project A
+      window.history.replaceState({}, '', '/?project=proj-A&module=bmc');
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('ALPHA_VALUE')).toBeDefined();
+      });
+
+      // 2. Navigate to Project B
+      await act(async () => {
+        window.history.pushState({}, '', '/?project=proj-B&module=bmc');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // 3. Inline error appears, old A content is cleared
+      await waitFor(() => {
+        expect(screen.getByText('Unable to load workspace')).toBeDefined();
+        expect(screen.getByText('503 Service Unavailable for Beta')).toBeDefined();
+      });
+      expect(screen.queryByText('ALPHA_VALUE')).toBeNull();
+
+      // 4. Click Retry
+      const retryBtn = screen.getByRole('button', { name: /^retry$/i });
+      await act(async () => {
+        fireEvent.click(retryBtn);
+      });
+
+      // 5. Successful retry populates Project B and its module content
+      await waitFor(() => {
+        expect(screen.getAllByText('Venture Beta').length).toBeGreaterThan(0);
+        expect(screen.getByText('BETA_RECOVERED_VALUE')).toBeDefined();
+      });
+    });
+
+    it('navigating A -> B -> C with out-of-order responses preserves latest destination C', async () => {
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const projA = createMockProject('proj-A', 'Project A', 'Idea', ['bmc']);
+      const projB = createMockProject('proj-B', 'Project B', 'MVP', ['bmc']);
+      const projC = createMockProject('proj-C', 'Project C', 'Growth', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([projA, projB, projC] as any);
+
+      let resolveProjB: (val: any) => void;
+      const bPromise = new Promise((resolve) => { resolveProjB = resolve; });
+
+      vi.spyOn(api.projects, 'get').mockImplementation(async (id) => {
+        if (id === 'proj-A') return projA as any;
+        if (id === 'proj-B') return bPromise as any;
+        if (id === 'proj-C') return projC as any;
+        throw new Error('Not found');
+      });
+
+      vi.spyOn(api.modules, 'get').mockImplementation(async (pId, mod) => {
+        if (pId === 'proj-A') return { id: 'mA', project_id: 'proj-A', module_type: mod, data: { value_propositions: ['CONTENT_A'] } } as any;
+        if (pId === 'proj-B') return { id: 'mB', project_id: 'proj-B', module_type: mod, data: { value_propositions: ['CONTENT_B'] } } as any;
+        if (pId === 'proj-C') return { id: 'mC', project_id: 'proj-C', module_type: mod, data: { value_propositions: ['CONTENT_C'] } } as any;
+        return { id: 'm', project_id: pId, module_type: mod, data: {} } as any;
+      });
+
+      // 1. Fully load Project A
+      window.history.replaceState({}, '', '/?project=proj-A&module=bmc');
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('CONTENT_A')).toBeDefined();
+      });
+
+      // 2. Navigate to B (starts request B, which stays pending)
+      await act(async () => {
+        window.history.pushState({}, '', '/?project=proj-B&module=bmc');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // 3. Before B finishes, user navigates to C
+      await act(async () => {
+        window.history.pushState({}, '', '/?project=proj-C&module=bmc');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // C resolves and renders
+      await waitFor(() => {
+        expect(screen.getAllByText('Project C').length).toBeGreaterThan(0);
+        expect(screen.getByText('CONTENT_C')).toBeDefined();
+      });
+
+      // 4. B finishes late
+      await act(async () => {
+        resolveProjB(projB);
+      });
+
+      // 5. C remains visible, B does NOT overwrite C
+      expect(screen.getByText('CONTENT_C')).toBeDefined();
+      expect(screen.queryByText('CONTENT_B')).toBeNull();
+      expect(screen.queryByText('CONTENT_A')).toBeNull();
+      expect(getNavDestination('user-1')?.projectId).toBe('proj-C');
+    });
+
+    it('leaving for portfolio while B is pending prevents late completion from reopening B', async () => {
+      const mockUser: User = { id: 'user-1', username: 'founder', email: 'founder@test.com', created_at: '' };
+      const projA = createMockProject('proj-A', 'Project A', 'Idea', ['bmc']);
+      const projB = createMockProject('proj-B', 'Project B', 'MVP', ['bmc']);
+
+      vi.spyOn(api.auth, 'getMe').mockResolvedValue({ user: mockUser } as any);
+      vi.spyOn(api.projects, 'list').mockResolvedValue([projA, projB] as any);
+
+      let resolveProjB: (val: any) => void;
+      const bPromise = new Promise((resolve) => { resolveProjB = resolve; });
+
+      vi.spyOn(api.projects, 'get').mockImplementation(async (id) => {
+        if (id === 'proj-A') return projA as any;
+        if (id === 'proj-B') return bPromise as any;
+        throw new Error('Not found');
+      });
+
+      vi.spyOn(api.modules, 'get').mockImplementation(async (pId, mod) => {
+        if (pId === 'proj-A') return { id: 'mA', project_id: 'proj-A', module_type: mod, data: { value_propositions: ['CONTENT_A'] } } as any;
+        if (pId === 'proj-B') return { id: 'mB', project_id: 'proj-B', module_type: mod, data: { value_propositions: ['CONTENT_B'] } } as any;
+        return { id: 'm', project_id: pId, module_type: mod, data: {} } as any;
+      });
+
+      // 1. Fully load Project A
+      window.history.replaceState({}, '', '/?project=proj-A&module=bmc');
+      const { container } = render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('CONTENT_A')).toBeDefined();
+      });
+
+      // 2. Navigate to B (B is pending)
+      await act(async () => {
+        window.history.pushState({}, '', '/?project=proj-B&module=bmc');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+
+      // 3. User leaves for portfolio by clicking Back to Dashboard
+      const backBtn = (container.querySelector('.back-to-dashboard-btn') as HTMLElement) || screen.getByRole('button', { name: /back to/i });
+      await act(async () => {
+        fireEvent.click(backBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/your venture portfolio/i)).toBeDefined();
+      });
+
+      // 4. B metadata finishes late
+      await act(async () => {
+        resolveProjB(projB);
+      });
+
+      // 5. Portfolio remains visible, Project B workspace is NOT reopened
+      expect(screen.getByText(/your venture portfolio/i)).toBeDefined();
+      expect(container.querySelector('.workspace-scroll-area')).toBeNull();
+      expect(screen.queryByText('CONTENT_B')).toBeNull();
+      expect(window.location.search).toBe('?workspace=true');
     });
 
     it('auth succeeds, list includes p1, detail rejects: shows inline recoverable error and retry works', async () => {
