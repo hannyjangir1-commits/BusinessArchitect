@@ -1,35 +1,50 @@
 # BATCH 04 — ADMIN AUTHORIZATION AND SUPER-ADMIN INTEGRITY REPORT
 
 ## 1. Executive Summary
-Batch 04 repairs audit finding **S01** and closes privilege-escalation and hierarchy bypass vulnerabilities across administrative user mutation endpoints. It introduces a centralized actor-versus-target policy, seals the generic update bypass, strictly enforces the last-active-super-admin invariant across individual and combined payloads, and implements transaction-level PostgreSQL advisory locking to serialize concurrent operations that threaten the active super admin population.
+Batch 04 repairs audit finding **S01** and closes privilege-escalation, hierarchy-bypass, and stale-identity-map race conditions across administrative user mutation endpoints. It introduces a centralized actor-versus-target policy, seals generic update and stale-cache bypasses, authoritatively synchronizes actor and target states prior to permission or invariant evaluation, strictly enforces the last-active-super-admin invariant across individual and combined payloads, and implements transaction-level PostgreSQL advisory locking to serialize concurrent operations that threaten the active super admin population.
 
 ---
 
-## 2. Original Bypass Reproduction
+## 2. Stale-State Synchronization and Invariant Check Repair
 ### Root Cause
-In `server/app/api/admin/users.py`, the generic user update route `PUT /api/admin/users/{id}` originally placed administrator target checks exclusively inside the `if req.role is not None:` block:
+Previously, `assert_super_admin_invariant()` in `server/app/services/admin_authorization_service.py` calculated `current_is_active_super` on the target ORM instance *before* acquiring the transaction-scoped advisory lock or refreshing the session:
 ```python
-if req.role is not None:
+# Vulnerable sequence in commit 6331d61d
+current_is_active_super = (target.role == "super_admin" and not target.is_suspended)
+if current_is_active_super and not proposed_is_active_super:
+    acquire_super_admin_invariant_lock(db)
+    db.expire_all()
     ...
-    if (target_role in ADMIN_ROLES or user.role in ADMIN_ROLES) and current_admin.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Only a Super Admin can alter administrator roles.")
 ```
-When a lower administrator (e.g. `support_admin`) sent a payload containing only `{"is_suspended": True}`:
-1. `req.role` was `None`, so the role check block was completely bypassed.
-2. The subsequent block `if req.is_suspended is not None:` checked only whether the target was the last active super admin and whether the caller was suspending themselves.
-3. If two active super admins existed, the call succeeded with HTTP 200, allowing a lower-tier `support_admin` to suspend a `super_admin`.
+If an in-memory ORM object in Session 1 retained `is_suspended=True` from a previous read, and Session 2 reactivated that super admin while demoting the sole other active super admin and committed:
+1. Target B was now the sole active super admin in the database.
+2. Session 1 evaluated `target.is_suspended` on stale cached memory (`True`).
+3. `current_is_active_super` evaluated to `False`.
+4. The conditional skipped lock acquisition, cache expiration, and population counting entirely.
+5. The operation succeeded, erroneously allowing the sole active super admin to be suspended and violating the invariant.
 
-### Local Reproduction Evidence
-A focused reproduction test was executed against the unpatched source:
-- Dedicated route `POST /api/admin/users/{super_admin.id}/suspend` rejected `support_admin` with HTTP 403 (`Only a Super Admin can suspend another Super Admin`).
-- Generic route `PUT /api/admin/users/{super_admin.id}` with `{"is_suspended": True}` bypassed the check, returning HTTP 200 and setting `is_suspended = True` on the super admin.
+### Authoritative Architecture & Synchronization Protocol
+The transaction architecture was refactored so that target and actor states are authoritatively fresh *before* evaluating permissions, determining population reduction, counting active accounts, or applying mutations:
+
+1. **Protocol Implementation**:
+   [`synchronize_and_authoritative_load(db, actor, target_id, required_permission)`](file:///d:/TE%20-%20SEM%285%29/businessplanner/antigravitybusiness/BusinessArchitect/server/app/services/admin_authorization_service.py) enforces:
+   - **Step 1: Lock Acquisition**: Transaction-level advisory lock (`pg_advisory_xact_lock(6004834884214473805)`) on PostgreSQL or reentrant depth-tracked lock on SQLite is acquired *first*.
+   - **Step 2: Session Cache Expire**: `db.expire_all()` clears the identity map.
+   - **Step 3: Authoritative Actor Freshness**: Reloads the invoking actor from the database with `populate_existing()`. If the actor was suspended or demoted to an unauthorized role while waiting for the lock, the operation is immediately rejected with HTTP 403.
+   - **Step 4: Authoritative Target Freshness**: If a target ID is provided, reloads the target with `populate_existing()`. Stale role or suspension state cannot bypass hierarchy checks.
+   - **Step 5: Hierarchy Check**: [`validate_admin_mutation_target()`](file:///d:/TE%20-%20SEM%285%29/businessplanner/antigravitybusiness/BusinessArchitect/server/app/services/admin_authorization_service.py) runs against the authoritative target. An ordinary target promoted concurrently to an administrator role is recognized, and lower-administrator mutations are rejected with HTTP 403.
+   - **Step 6: Authoritative Invariant Enforcement**: `assert_super_admin_invariant()` refreshes the target and queries active count under serialization. If `active_count <= 1`, the mutation is rejected with HTTP 400.
+   - **Step 7: Atomic Mutation and Commit**: Changes applied to the verified target; transaction commits.
+
+2. **Lock Order & Deadlock Prevention**:
+   All administrative mutation routes (`create_user`, `update_user`, `suspend_user`, `reactivate_user`, `revoke_user_sessions`, `delete_user`, `revoke_session`, `revoke_all_sessions`) acquire the identical single 64-bit advisory lock key (`6004834884214473805`) in uniform order. This single-lock protocol guarantees complete freedom from cross-lock deadlocks. Ordinary user operations (browsing, profile updates, project management) remain entirely unblocked.
 
 ---
 
 ## 3. Shared Policy Implementation
-All actor-versus-target policy rules are centralized into [`server/app/services/admin_authorization_service.py`](file:///d:/TE%20-%20SEM%285%29/businessplanner/antigravitybusiness/BusinessArchitect/server/app/services/admin_authorization_service.py) via `validate_admin_mutation_target()` and `validate_session_revocation_target()`:
+All actor-versus-target policy rules are centralized into [`server/app/services/admin_authorization_service.py`](file:///d:/TE%20-%20SEM%285%29/businessplanner/antigravitybusiness/BusinessArchitect/server/app/services/admin_authorization_service.py):
 
-1. **Pre-mutation Evaluation**: Payloads are fully validated against the target's original role AND proposed final state before any field mutation is applied to the ORM model.
+1. **Pre-mutation Evaluation**: Payloads are fully validated against the target's original role AND proposed final state before any field mutation is applied.
 2. **Administrator Privilege Gate**: Only `super_admin` can create, promote, demote, suspend, reactivate, delete, change the email of, or revoke sessions belonging to an administrator account (`role in ADMIN_ROLES`).
 3. **No-Bypass Invariants**:
    - Omitting `role` (`role is None`) does not bypass the target hierarchy.
@@ -45,20 +60,26 @@ All actor-versus-target policy rules are centralized into [`server/app/services/
 
 ## 4. Final Actor / Action / Target Authorization Matrix
 
+> [!NOTE]
+> In accordance with `server/app/api/deps.py::_get_permissions_for_role()`, `operations_admin` possesses all system permissions except `manage_users` and `manage_configuration`. This specifically includes `revoke_sessions`, granting `operations_admin` emergency global session revocation capability (`POST /api/admin/security/sessions/revoke-all`) and ordinary user session revocation, while barring it from user account mutations.
+
 | Actor | Action / Route | Target: Ordinary User (`role='user'`) | Target: Administrator (`role in ADMIN_ROLES`, target != actor) | Target: Self (Actor == Target) |
 |---|---|---|---|---|
 | **Ordinary User** (`user`) | Any admin mutation route | 401 / 403 Forbidden | 401 / 403 Forbidden | 401 / 403 Forbidden |
 | **Auditor** (`auditor`) | Any admin mutation route | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) |
-| **Operations Admin** (`operations_admin`) | Any admin mutation route | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) |
+| **Operations Admin** (`operations_admin`) | User mutations (`/api/admin/users/*`) | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) |
+| **Operations Admin** (`operations_admin`) | Session revocation (`/api/admin/security/sessions/{id}/revoke`) | **200 Allowed** (has `revoke_sessions`) | **403 Forbidden** (cannot revoke other admin's session) | **200 Allowed** (self-session revocation) |
+| **Operations Admin** (`operations_admin`) | Global session revocation (`/api/admin/security/sessions/revoke-all`) | **200 Allowed** (emergency kill-switch; has `revoke_sessions`) | **200 Allowed** (emergency kill-switch) | Own current session preserved |
 | **Security Admin** (`security_admin`) | User mutations (`/api/admin/users/*`) | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) | 403 (No `manage_users` permission) |
 | **Security Admin** (`security_admin`) | Session revocation (`/api/admin/security/sessions/{id}/revoke`) | **200 Allowed** (has `revoke_sessions`) | **403 Forbidden** (cannot revoke other admin's session) | **200 Allowed** (self-session revocation) |
-| **Security Admin** (`security_admin`) | Global session revocation (`/api/admin/security/sessions/revoke-all`) | **200 Allowed** (system-wide emergency kill-switch) | **200 Allowed** (system-wide emergency kill-switch) | Own current session preserved |
+| **Security Admin** (`security_admin`) | Global session revocation (`/api/admin/security/sessions/revoke-all`) | **200 Allowed** (emergency kill-switch; has `revoke_sessions`) | **200 Allowed** (emergency kill-switch) | Own current session preserved |
 | **Support Admin** (`support_admin`) | `POST /api/admin/users` (create user) | **201 Allowed** (`role='user'`) | **403 Forbidden** (cannot create admin accounts) | N/A |
 | **Support Admin** (`support_admin`) | `PUT /api/admin/users/{id}` (generic update) | **200 Allowed** (if new role is `'user'`; **403** if promoting to admin) | **403 Forbidden** (cannot modify any field of an admin) | **400** on self-suspend |
 | **Support Admin** (`support_admin`) | `POST /api/admin/users/{id}/suspend` | **200 Allowed** | **403 Forbidden** (cannot suspend an administrator) | **400 Bad Request** (cannot suspend own account) |
 | **Support Admin** (`support_admin`) | `POST /api/admin/users/{id}/reactivate` | **200 Allowed** | **403 Forbidden** (cannot reactivate an administrator) | N/A |
 | **Support Admin** (`support_admin`) | `POST /api/admin/users/{id}/revoke-sessions` | **200 Allowed** | **403 Forbidden** (cannot revoke an administrator's sessions) | N/A (can use self-service `/api/admin/auth/sessions`) |
 | **Support Admin** (`support_admin`) | `DELETE /api/admin/users/{id}` | **200 Allowed** | **403 Forbidden** (cannot delete an administrator) | **400 Bad Request** (cannot delete own account) |
+| **Support Admin** (`support_admin`) | Global session revocation (`/api/admin/security/sessions/revoke-all`) | **403 Forbidden** (lacks `revoke_sessions`) | **403 Forbidden** (lacks `revoke_sessions`) | **403 Forbidden** |
 | **Super Admin** (`super_admin`) | `POST /api/admin/users` (create user) | **201 Allowed** | **201 Allowed** | N/A |
 | **Super Admin** (`super_admin`) | `PUT /api/admin/users/{id}` (generic update) | **200 Allowed** | **200 Allowed** (subject to last-active-super-admin invariant) | **200 Allowed** (subject to invariant, **400** on self-suspend) |
 | **Super Admin** (`super_admin`) | `POST /api/admin/users/{id}/suspend` | **200 Allowed** | **200 Allowed** (subject to last-active-super-admin invariant) | **400 Bad Request** (cannot suspend own account) |
@@ -70,53 +91,48 @@ All actor-versus-target policy rules are centralized into [`server/app/services/
 
 ---
 
-## 5. Last-Active-Super-Admin Invariant Algorithm
-An account is an "active super admin" if:
-$$\text{active\_super} = (\text{role} == \text{"super\_admin"} \land \lnot \text{is\_suspended})$$
-
-For any mutation:
-1. Target current status: $\text{current\_active\_super} = (\text{target.role} == \text{"super\_admin"} \land \lnot \text{target.is\_suspended})$.
-2. Target proposed status:
-   - For deletion: $\text{proposed\_active\_super} = \text{False}$.
-   - For suspension: $\text{proposed\_active\_super} = \text{False}$.
-   - For update: $\text{final\_role} = \text{req.role} \mathbin{??} \text{target.role}$, $\text{final\_suspended} = \text{req.is\_suspended} \mathbin{??} \text{target.is\_suspended}$. $\text{proposed\_active\_super} = (\text{final\_role} == \text{"super\_admin"} \land \lnot \text{final\_suspended})$.
-3. Population check trigger:
-   If $\text{current\_active\_super} \land \lnot \text{proposed\_active\_super}$ is $\text{True}$, the mutation reduces the active super admin population.
-4. Serialized count check:
-   - In PostgreSQL, acquires transaction-level advisory lock `pg_advisory_xact_lock(6004834884214473805)`.
-   - Expires session cache (`db.expire_all()`) to guarantee fresh state.
-   - Queries `active_count = count(User.role == 'super_admin' and User.is_suspended == False)`.
-   - If $\text{active\_count} \le 1$, rejects the request with HTTP 400.
-5. Deletion fix: Previous deletion logic counted all super admins including suspended accounts. It now correctly evaluates only active accounts. Deleting an already suspended super admin does not reduce the active count and succeeds if at least one active super admin remains.
+## 5. Sanitized Deletion Error Handling
+In `delete_user()`, raw database exception exposure (`detail=f"Failed to delete user: {str(e)}"`) was eliminated.
+- Internal diagnostics log the exception with correlation ID and user ID via server logging.
+- Client responses return a stable generic message:
+  ```json
+  {
+    "detail": "Failed to delete user account. Please try again or contact support."
+  }
+  ```
+- No SQL statements, database URLs, table schemas, or database parameters are exposed to the client.
+- Injected database failures roll back cleanly, leaving target user accounts and sessions intact.
 
 ---
 
-## 6. Concurrency Mechanism and Transaction Boundaries
-1. **Advisory Lock Key**: Constant `SUPER_ADMIN_INVARIANT_LOCK_KEY = 6004834884214473805` (ASCII representation of `'SUPERADM'`).
-2. **Lock Order**:
-   - `pg_advisory_xact_lock` is acquired before the authoritative count query.
-   - Stale ORM objects are refreshed via `db.expire_all()`.
-   - The lock is held through account mutation commit (`db.commit()`), which automatically releases the transaction-scoped advisory lock in PostgreSQL.
-3. **Deadlock Prevention**: All invariant-critical routes acquire the identical advisory lock key in uniform order, completely preventing mutual cross-lock deadlocks between administrators concurrently targeting each other.
-4. **Ordinary Operations Unaffected**: Operations on ordinary users or non-reducing administrative mutations do not acquire the lock, keeping normal operations unblocked.
-5. **Telemetry Boundary**: Telemetry helpers (`record_audit_log`, `record_security_event`) are invoked only after the mutation transaction commits, ensuring telemetry helpers never prematurely release the invariant lock or commit unverified partial states.
+## 6. Verification and Test Results
 
----
+### Automated Suite Results
+- **Focused Batch 04 Tests**: 27 passed, 1 skipped (`test_postgresql_concurrent_super_admin_removal`).
+  - Added regression test: Suspended B becomes sole active super admin after another session commits; stale suspension rejected with HTTP 400.
+  - Added regression test: Ordinary user concurrently promoted to admin rejects lower administrator mutation with HTTP 403.
+  - Added regression test: Actor demoted or suspended concurrently is rejected before mutation proceeds.
+  - Added regression test: Sequential stale-identity-map concurrent demotion cannot leave zero active super admins.
+  - Added regression test: Injected deletion failure rolls back and sanitizes client error.
+  - Added regression test: Full permission matrix for emergency global session revocation verifying `super_admin`, `operations_admin`, and `security_admin` are permitted with caller session exclusion, while `support_admin`, `auditor`, and `user` are rejected.
+- **Complete Backend Suite**: 268 passed, 5 skipped (0 failures) in 44.13s.
+- **Frontend Test Suite**: 100 passed (10 files) in 5.09s.
+- **Frontend Lint**: 0 errors (25 warnings in legacy components).
+- **Frontend Production Build**: `tsc -b && vite build` succeeded with exit code 0 in 481ms.
+- **`git diff --check`**: Passed with 0 whitespace errors.
 
-## 7. SQLite vs. PostgreSQL Coverage
-- **SQLite (Automated Test Suite)**:
-  - SQLite executes queries within a single database file with connection-level serialization.
-  - Advisory lock calls gracefully detect dialect `sqlite` and avoid invoking PostgreSQL-specific functions.
-  - 21 focused unit and integration tests verify the authorization matrix, bypass resistance, and invariant rules under SQLite.
-- **PostgreSQL (Production Concurrency Guard)**:
-  - Production Supabase runs PostgreSQL 15+, which fully supports `pg_advisory_xact_lock`.
-  - A dedicated concurrency test `test_postgresql_concurrent_super_admin_removal` tests two concurrent threads/connections attempting simultaneous removal of two active super admins.
-  - When `TEST_POSTGRES_URL` is configured, it executes the multi-threaded race test and asserts that at most one removal succeeds. In local environments lacking a disposable PostgreSQL instance, the test cleanly skips with an explicit notice.
+### PostgreSQL Concurrency Test
+The test `test_postgresql_concurrent_super_admin_removal` was strengthened:
+- Uses `threading.Barrier(2)` to enforce exact concurrent overlap.
+- Uses separate sessions with statement and lock timeouts (`statement_timeout = 10000`, `lock_timeout = 5000`).
+- Strict assertion: exactly 1 removal succeeds (HTTP 200) and exactly 1 invariant rejection occurs (HTTP 400: "last active super admin").
+- Zero unexpected exceptions tolerated; bounded thread joins (`timeout=10`).
+- Disposes test connections and cleans up only test resources.
+- Safely skips when `TEST_POSTGRES_URL` is omitted in local SQLite environments without claiming concurrency was proved.
 
----
-
-## 8. API Compatibility
-- No existing public or admin endpoints were removed or changed in URL structure.
-- HTTP status codes and error shapes remain standard (`400 Bad Request`, `403 Forbidden`, `404 Not Found`).
-- Legitimate support actions for ordinary users remain fully operational.
-- CSRF verification, session cookies, and security telemetry remain intact.
+Execution against disposable PostgreSQL:
+```bash
+docker run -d --name pg-test -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:15
+$env:TEST_POSTGRES_URL="postgresql://postgres:test@localhost:5433/postgres"
+pytest server/tests/test_batch_04_admin_authorization.py -k test_postgresql_concurrent_super_admin_removal
+```

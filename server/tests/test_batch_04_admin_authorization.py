@@ -5,15 +5,21 @@ Addresses audit finding S01 and related admin-user mutation inconsistencies.
 
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from app.main import app
 from app.models.all_models import User, Session as DBSession, gen_id
 from app.core.security import hash_password, generate_session_token
 from app.db.session import SessionLocal
+
+@pytest.fixture(autouse=True)
+def cleanup_sqlite_lock():
+    yield
+    from app.services.admin_authorization_service import release_sqlite_lock_if_held
+    release_sqlite_lock_if_held()
 
 @pytest.fixture
 def db():
@@ -615,60 +621,394 @@ def test_combined_state_changes_preserve_the_invariant(client, db):
     assert resp.status_code == 400
 
 # ==============================================================================
-# 4. PostgreSQL Concurrency Serialization Verification
+# 4. Deterministic Stale-State Authorization and Invariant Regression Tests
+# ==============================================================================
+
+def test_stale_target_suspended_super_admin_reactivated_and_becomes_sole_active_super_admin():
+    """
+    Independent reproduction:
+    1. Seed A as active super admin and B as suspended super admin.
+    2. Session 1 loads B, retaining is_suspended=True in memory.
+    3. Session 2 reactivates B and demotes A, then commits.
+    4. B is now the sole active super admin.
+    5. Session 1 calls assert_super_admin_invariant(s1, B, proposed_suspended=True).
+    6. Authoritative reload and invariant locking must detect B is the sole active super admin and reject with HTTP 400.
+    """
+    from app.services.admin_authorization_service import assert_super_admin_invariant
+    from fastapi import HTTPException
+
+    s_setup = SessionLocal()
+    try:
+        s_setup.query(User).filter(User.role == "super_admin").delete()
+        s_setup.commit()
+
+        user_a = create_user_fixture(s_setup, "sa_stale_a", role="super_admin", is_suspended=False)
+        user_b = create_user_fixture(s_setup, "sa_stale_b", role="super_admin", is_suspended=True)
+        user_a_id, user_b_id = user_a.id, user_b.id
+    finally:
+        s_setup.close()
+
+    s1 = SessionLocal()
+    s2 = SessionLocal()
+    try:
+        # Step 2: Session 1 loads B, caching is_suspended=True
+        b_in_s1 = s1.query(User).filter(User.id == user_b_id).first()
+        assert b_in_s1.is_suspended is True
+
+        # Step 3: Session 2 reactivates B and demotes A, then commits
+        b_in_s2 = s2.query(User).filter(User.id == user_b_id).first()
+        a_in_s2 = s2.query(User).filter(User.id == user_a_id).first()
+        b_in_s2.is_suspended = False
+        a_in_s2.role = "user"
+        s2.commit()
+
+        # Step 4: B is now the sole active super admin in database
+        # Step 5: Session 1 attempts to suspend B using stale in-memory object
+        with pytest.raises(HTTPException) as exc_info:
+            assert_super_admin_invariant(s1, b_in_s1, proposed_suspended=True)
+
+        assert exc_info.value.status_code == 400
+        assert "last active super admin" in exc_info.value.detail.lower()
+    finally:
+        s1.close()
+        s2.close()
+
+def test_stale_target_ordinary_user_promoted_concurrently_rejects_lower_admin(client, db):
+    """
+    Ordinary target is promoted while another request is waiting;
+    a lower admin must not mutate it using the old role.
+    """
+    target = create_user_fixture(db, "target_to_promote", role="user")
+    support_admin = create_user_fixture(db, "supp_waiting_actor", role="support_admin")
+    supp_cookies, supp_headers = login_user(client, support_admin.username)
+
+    # Concurrently promote target to operations_admin in a separate session
+    s_concurrent = SessionLocal()
+    try:
+        t_concurrent = s_concurrent.query(User).filter(User.id == target.id).first()
+        t_concurrent.role = "operations_admin"
+        s_concurrent.commit()
+    finally:
+        s_concurrent.close()
+
+    # Lower admin attempts to update target's email
+    resp = client.put(
+        f"/api/admin/users/{target.id}",
+        json={"email": "attempted_hijack@test.com"},
+        cookies=supp_cookies,
+        headers=supp_headers
+    )
+    assert resp.status_code == 403
+    assert "Only a Super Admin can modify" in resp.json()["detail"]
+
+    # Target email intact
+    db.expire_all()
+    db.refresh(target)
+    assert target.role == "operations_admin"
+    assert target.email != "attempted_hijack@test.com"
+
+def test_stale_actor_suspended_or_demoted_before_mutation_proceeds_rejected(client, db):
+    """
+    Actor is demoted or suspended before protected mutation proceeds;
+    stale actor privileges must not authorize it.
+    """
+    # 1. Suspended Actor Scenario
+    super_admin = create_user_fixture(db, "sa_to_suspend", role="super_admin")
+    target_user = create_user_fixture(db, "target_ord_user1", role="user")
+    sa_cookies, sa_headers = login_user(client, super_admin.username)
+
+    # Concurrently suspend the super admin
+    s_susp = SessionLocal()
+    try:
+        sa_row = s_susp.query(User).filter(User.id == super_admin.id).first()
+        sa_row.is_suspended = True
+        s_susp.commit()
+    finally:
+        s_susp.close()
+
+    resp_susp = client.put(
+        f"/api/admin/users/{target_user.id}",
+        json={"role": "operations_admin"},
+        cookies=sa_cookies,
+        headers=sa_headers
+    )
+    assert resp_susp.status_code == 403
+    assert "Account has been suspended" in resp_susp.json()["detail"]
+
+    # 2. Demoted Actor Scenario
+    super_admin2 = create_user_fixture(db, "sa_to_demote", role="super_admin")
+    target_admin = create_user_fixture(db, "target_admin_user", role="operations_admin")
+    sa2_cookies, sa2_headers = login_user(client, super_admin2.username)
+
+    # Concurrently demote super_admin2 to support_admin
+    s_demote = SessionLocal()
+    try:
+        sa2_row = s_demote.query(User).filter(User.id == super_admin2.id).first()
+        sa2_row.role = "support_admin"
+        s_demote.commit()
+    finally:
+        s_demote.close()
+
+    resp_demote = client.delete(
+        f"/api/admin/users/{target_admin.id}?confirm_username={target_admin.username}",
+        cookies=sa2_cookies,
+        headers=sa2_headers
+    )
+    assert resp_demote.status_code == 403
+    assert "Only a Super Admin can modify" in resp_demote.json()["detail"]
+    assert db.query(User).filter(User.id == target_admin.id).first() is not None
+
+def test_concurrent_demotion_cannot_leave_zero_active_super_admins():
+    """
+    Sequential stale-identity-map test:
+    Two active super admins exist. Both sessions plan to demote one super admin.
+    After Session 1 commits demotion of SA1, Session 2's attempt to demote SA2
+    must be rejected because active super admin count becomes 1.
+    """
+    from app.services.admin_authorization_service import assert_super_admin_invariant
+    from fastapi import HTTPException
+
+    s_setup = SessionLocal()
+    try:
+        s_setup.query(User).filter(User.role == "super_admin").delete()
+        s_setup.commit()
+
+        sa_a = create_user_fixture(s_setup, "sa_conc_a", role="super_admin", is_suspended=False)
+        sa_b = create_user_fixture(s_setup, "sa_conc_b", role="super_admin", is_suspended=False)
+        sa_a_id, sa_b_id = sa_a.id, sa_b.id
+    finally:
+        s_setup.close()
+
+    s1 = SessionLocal()
+    s2 = SessionLocal()
+    try:
+        # Both sessions load the super admins while 2 exist
+        sa_a_s1 = s1.query(User).filter(User.id == sa_a_id).first()
+        sa_b_s2 = s2.query(User).filter(User.id == sa_b_id).first()
+
+        # Session 1 successfully demotes SA A and commits
+        assert_super_admin_invariant(s1, sa_a_s1, proposed_role="user")
+        sa_a_s1.role = "user"
+        s1.commit()
+
+        # Session 2 attempts to demote SA B (the sole remaining super admin)
+        with pytest.raises(HTTPException) as exc_info:
+            assert_super_admin_invariant(s2, sa_b_s2, proposed_role="user")
+
+        assert exc_info.value.status_code == 400
+        assert "last active super admin" in exc_info.value.detail.lower()
+    finally:
+        s1.close()
+        s2.close()
+
+    # Verify exactly 1 active super admin remains
+    s_check = SessionLocal()
+    try:
+        active_count = s_check.query(User).filter(
+            User.role == "super_admin",
+            User.is_suspended == False,
+            User.id.in_([sa_a_id, sa_b_id])
+        ).count()
+        assert active_count == 1
+    finally:
+        s_check.close()
+
+# ==============================================================================
+# 5. Sanitized User Deletion Error Enforcement
+# ==============================================================================
+
+def test_delete_user_injected_failure_rolls_back_and_sanitizes_error(client, db, monkeypatch):
+    """
+    Test an injected deletion failure:
+    - Database error containing sensitive connection strings, SQL statements, and passwords.
+    - Transaction rolls back.
+    - Account and sessions remain intact.
+    - Client response status is 500 with a stable generic message.
+    - Client response contains NO raw database exception text or credentials.
+    """
+    super_admin = create_user_fixture(db, "sa_del_err_actor", role="super_admin")
+    target_user = create_user_fixture(db, "target_del_err_user", role="user")
+    sa_cookies, sa_headers = login_user(client, super_admin.username)
+
+    sess = DBSession(
+        id=gen_id("ses_"),
+        session_token=generate_session_token(),
+        user_id=target_user.id,
+        expires_at=datetime.now(timezone.utc)
+    )
+    db.add(sess)
+    db.commit()
+
+    # Inject failure into db.delete
+    def faulty_delete(obj):
+        raise RuntimeError(
+            "FATAL: password=SuperSecretPassword123! dbname=production "
+            "connection to postgresql://admin:secret@pg.prod:5432/main failed executing DELETE FROM users"
+        )
+
+    monkeypatch.setattr(Session, "delete", faulty_delete)
+
+    resp = client.delete(
+        f"/api/admin/users/{target_user.id}?confirm_username={target_user.username}",
+        cookies=sa_cookies,
+        headers=sa_headers
+    )
+
+    assert resp.status_code == 500
+    resp_text = resp.text
+    # Generic stable detail
+    assert resp.json()["detail"] == "Failed to delete user account. Please try again or contact support."
+    # Leak assertions: raw sensitive information must never appear
+    assert "SuperSecretPassword123!" not in resp_text
+    assert "postgresql://" not in resp_text
+    assert "pg.prod" not in resp_text
+    assert "DELETE FROM" not in resp_text
+
+    # Verify rollback: user and session remain in database
+    db.expire_all()
+    assert db.query(User).filter(User.id == target_user.id).first() is not None
+    assert db.query(DBSession).filter(DBSession.id == sess.id).first() is not None
+
+# ==============================================================================
+# 6. Correct Permission Matrix and Emergency Global Revocation
+# ==============================================================================
+
+def test_global_session_revocation_authorization_matrix_and_current_session_exclusion(client, db):
+    """
+    Authorization test for POST /api/admin/security/sessions/revoke-all:
+    - super_admin: allowed (200), own session preserved, other sessions revoked.
+    - operations_admin: allowed (200), own session preserved, other sessions revoked.
+    - security_admin: allowed (200), own session preserved, other sessions revoked.
+    - support_admin: rejected (403), lacks 'revoke_sessions'.
+    - auditor: rejected (403), lacks 'revoke_sessions'.
+    - ordinary user: rejected (403), requires administrative role.
+    """
+    # 1. Test unauthorized roles: support_admin, auditor, user
+    support_admin = create_user_fixture(db, "supp_revall_actor", role="support_admin")
+    supp_c, supp_h = login_user(client, support_admin.username)
+    resp_supp = client.post("/api/admin/security/sessions/revoke-all", cookies=supp_c, headers=supp_h)
+    assert resp_supp.status_code == 403
+    assert "revoke_sessions" in resp_supp.json()["detail"]
+
+    auditor = create_user_fixture(db, "aud_revall_actor", role="auditor")
+    aud_c, aud_h = login_user(client, auditor.username)
+    resp_aud = client.post("/api/admin/security/sessions/revoke-all", cookies=aud_c, headers=aud_h)
+    assert resp_aud.status_code == 403
+    assert "revoke_sessions" in resp_aud.json()["detail"]
+
+    ordinary_user = create_user_fixture(db, "ord_revall_actor", role="user")
+    ord_sess = DBSession(
+        id=gen_id("ses_"),
+        session_token=generate_session_token(),
+        user_id=ordinary_user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1)
+    )
+    db.add(ord_sess)
+    db.commit()
+    from app.core.config import settings
+    resp_user = client.post(
+        "/api/admin/security/sessions/revoke-all",
+        cookies={settings.COOKIE_NAME: ord_sess.session_token},
+        headers={"X-CSRF-Token": "irrelevant"}
+    )
+    assert resp_user.status_code == 403
+    assert "administrative privileges required" in resp_user.json()["detail"]
+
+    # 2. Test authorized roles: security_admin, operations_admin, super_admin
+    for role_name in ["security_admin", "operations_admin", "super_admin"]:
+        actor = create_user_fixture(db, f"revall_act_{role_name}", role=role_name)
+        cookies, headers = login_user(client, actor.username)
+        current_token = cookies[settings.COOKIE_NAME]
+
+        victim_id = gen_id("ses_")
+        victim_sess = DBSession(
+            id=victim_id,
+            session_token=generate_session_token(),
+            user_id=actor.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=1)
+        )
+        db.add(victim_sess)
+        db.commit()
+
+        resp = client.post("/api/admin/security/sessions/revoke-all", cookies=cookies, headers=headers)
+        assert resp.status_code == 200, f"Role {role_name} should be permitted to execute emergency global session revocation"
+
+        # Current session remains active
+        assert db.query(DBSession).filter(DBSession.session_token == current_token).first() is not None
+        # Victim session was revoked
+        assert db.query(DBSession).filter(DBSession.id == victim_id).first() is None
+
+# ==============================================================================
+# 7. Strengthened PostgreSQL Concurrency Serialization Verification
 # ==============================================================================
 
 def test_postgresql_concurrent_super_admin_removal():
     """
     PostgreSQL Concurrency Test Execution:
-    - Connects to an isolated PostgreSQL instance defined by TEST_POSTGRES_URL.
-    - Creates two active super admins in the database.
-    - Spawns two concurrent threads/connections attempting to remove both super admins simultaneously.
-    - Asserts that pg_advisory_xact_lock serializes execution: at most one removal succeeds.
-    - Asserts that at least one active super admin remains.
-    - Asserts that no deadlocks or uncontrolled 500 errors occur.
+    - Connects to an isolated disposable PostgreSQL instance defined by TEST_POSTGRES_URL.
+    - Strictly rejects any production or non-disposable hostnames to prevent accidental connection.
+    - Synchronizes requests using threading.Barrier(2) to guarantee genuine concurrent overlap.
+    - Sets statement_timeout and lock_timeout.
+    - Spawns two concurrent threads using real service/transaction wiring attempting to demote both super admins.
+    - Asserts that pg_advisory_xact_lock serializes execution: exactly one succeeds (HTTP 200) and exactly one fails with the expected invariant rejection (HTTP 400).
+    - Asserts zero unexpected exceptions.
+    - Bounded thread joins with timeouts.
+    - Asserts final persisted database state: exactly 1 active super admin remains.
+    - Disposes all connections and cleans up only test resources.
 
     Execution Instructions:
-    To execute this test against a disposable PostgreSQL instance:
-      $env:TEST_POSTGRES_URL="postgresql://user:pass@localhost:5432/disposable_test_db"
+    To execute this test against a disposable PostgreSQL container:
+      docker run -d --name pg-test -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:15
+      $env:TEST_POSTGRES_URL="postgresql://postgres:test@localhost:5433/postgres"
       pytest server/tests/test_batch_04_admin_authorization.py -k test_postgresql_concurrent_super_admin_removal
     """
     pg_url = os.environ.get("TEST_POSTGRES_URL")
     if not pg_url:
         pytest.skip(
-            "Disposable PostgreSQL instance not configured via TEST_POSTGRES_URL. "
-            "Skipping PostgreSQL concurrency execution in local SQLite test environment."
+            "TEST_POSTGRES_URL not configured. Disposable PostgreSQL concurrency test skipped in local environment."
         )
 
-    engine = create_engine(pg_url)
-    # Ensure tables exist
+    # Safety guard: Never connect to production
+    lower_url = pg_url.lower()
+    for forbidden in ["supabase.co", "render.com", "aws.com", "pooler.supabase.com"]:
+        if forbidden in lower_url:
+            pytest.fail(f"TEST_POSTGRES_URL points to a production or remote host ({forbidden}). Aborting test.")
+
+    engine = create_engine(pg_url, pool_pre_ping=True)
     from app.db.base import Base
     Base.metadata.create_all(bind=engine)
 
-    Session = SessionLocal
-    # Setup test users
-    with Session(bind=engine) as s:
-        s.query(User).filter(User.username.in_(["pg_conc_sa_1", "pg_conc_sa_2"])).delete()
+    from sqlalchemy.orm import sessionmaker
+    PGSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    # Setup isolated test super admins
+    with PGSessionLocal() as s:
+        # Set lock and statement timeouts
+        s.execute(text("SET statement_timeout = 10000"))
+        s.execute(text("SET lock_timeout = 5000"))
+        s.query(User).filter(User.username.in_(["pg_test_sa_1", "pg_test_sa_2"])).delete()
         s.commit()
 
         sa1 = User(
             id=gen_id("usr_"),
-            username="pg_conc_sa_1",
-            email="pg_conc_sa_1@test.com",
+            username="pg_test_sa_1",
+            email="pg_test_sa_1@test.com",
             hashed_password=hash_password("Password123!"),
             role="super_admin",
             is_suspended=False,
+            terms_accepted=True,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             last_active_at=datetime.now(timezone.utc)
         )
         sa2 = User(
             id=gen_id("usr_"),
-            username="pg_conc_sa_2",
-            email="pg_conc_sa_2@test.com",
+            username="pg_test_sa_2",
+            email="pg_test_sa_2@test.com",
             hashed_password=hash_password("Password123!"),
             role="super_admin",
             is_suspended=False,
+            terms_accepted=True,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             last_active_at=datetime.now(timezone.utc)
@@ -677,37 +1017,74 @@ def test_postgresql_concurrent_super_admin_removal():
         s.commit()
         sa1_id, sa2_id = sa1.id, sa2.id
 
-    from app.services.admin_authorization_service import assert_super_admin_invariant
+    from app.services.admin_authorization_service import (
+        synchronize_and_authoritative_load,
+        validate_admin_mutation_target,
+        assert_super_admin_invariant
+    )
+    from fastapi import HTTPException
 
+    barrier = threading.Barrier(2)
     results = []
+    errors = []
 
-    def attempt_removal(target_id: str, thread_name: str):
-        with Session(bind=engine) as s:
+    def attempt_route_demotion(actor_id: str, target_id: str, thread_name: str):
+        with PGSessionLocal() as s:
             try:
-                target = s.query(User).filter(User.id == target_id).first()
-                assert_super_admin_invariant(s, target, proposed_role="user")
-                target.role = "user"
+                s.execute(text("SET statement_timeout = 10000"))
+                s.execute(text("SET lock_timeout = 5000"))
+                actor = s.query(User).filter(User.id == actor_id).first()
+
+                # Synchronize before starting the mutation sequence to guarantee overlap
+                barrier.wait(timeout=5)
+
+                # Real route transaction wiring:
+                auth_actor, auth_target = synchronize_and_authoritative_load(
+                    s, actor, target_id=target_id, required_permission="manage_users"
+                )
+                validate_admin_mutation_target(auth_actor, auth_target, proposed_role="user")
+                assert_super_admin_invariant(s, auth_target, proposed_role="user")
+
+                auth_target.role = "user"
                 s.commit()
-                results.append((thread_name, "success"))
+                results.append((thread_name, "success", 200, None))
+            except HTTPException as http_exc:
+                s.rollback()
+                results.append((thread_name, "rejected", http_exc.status_code, http_exc.detail))
             except Exception as e:
                 s.rollback()
-                results.append((thread_name, f"failed: {str(e)}"))
+                errors.append((thread_name, str(e)))
 
-    t1 = threading.Thread(target=attempt_removal, args=(sa1_id, "T1"))
-    t2 = threading.Thread(target=attempt_removal, args=(sa2_id, "T2"))
+    t1 = threading.Thread(target=attempt_route_demotion, args=(sa1_id, sa1_id, "T1"))
+    t2 = threading.Thread(target=attempt_route_demotion, args=(sa2_id, sa2_id, "T2"))
 
     t1.start()
     t2.start()
-    t1.join()
-    t2.join()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    assert not t1.is_alive(), "Thread 1 timed out during concurrent PostgreSQL demotion"
+    assert not t2.is_alive(), "Thread 2 timed out during concurrent PostgreSQL demotion"
+    assert len(errors) == 0, f"Unexpected exceptions encountered: {errors}"
 
     successes = [r for r in results if r[1] == "success"]
-    assert len(successes) <= 1, f"Expected at most 1 removal to succeed, but got {len(successes)}: {results}"
+    rejections = [r for r in results if r[1] == "rejected"]
 
-    with Session(bind=engine) as s:
+    assert len(successes) == 1, f"Expected exactly 1 successful demotion, got {len(successes)}: {results}"
+    assert len(rejections) == 1, f"Expected exactly 1 invariant rejection, got {len(rejections)}: {results}"
+    assert rejections[0][2] == 400
+    assert "last active super admin" in rejections[0][3].lower()
+
+    with PGSessionLocal() as s:
         remaining_active = s.query(User).filter(
             User.role == "super_admin",
             User.is_suspended == False,
             User.id.in_([sa1_id, sa2_id])
         ).count()
-        assert remaining_active >= 1, "Invariant broken: 0 active super admins remain!"
+        assert remaining_active == 1, f"Invariant violated: expected exactly 1 active super admin, found {remaining_active}"
+
+        # Clean up test resources
+        s.query(User).filter(User.username.in_(["pg_test_sa_1", "pg_test_sa_2"])).delete()
+        s.commit()
+
+    engine.dispose()

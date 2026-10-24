@@ -15,7 +15,9 @@ from app.core.telemetry import record_security_event, record_audit_log
 from app.core.business_stage import normalize_business_stage
 from app.services.admin_authorization_service import (
     validate_admin_mutation_target,
-    assert_super_admin_invariant
+    assert_super_admin_invariant,
+    synchronize_and_authoritative_load,
+    release_sqlite_lock_if_held
 )
 
 router = APIRouter(prefix="/users", tags=["Admin User Management"])
@@ -132,57 +134,63 @@ def create_user(
     db: Session = Depends(get_db)
 ):
     """Create a new user or administrator account. Creating an administrator requires Super Admin privileges."""
-    target_role = req.role.strip()
-    valid_roles = {"user", "super_admin", "operations_admin", "security_admin", "support_admin", "auditor"}
-    if target_role not in valid_roles:
-        raise HTTPException(status_code=400, detail=f"Invalid role '{target_role}'. Must be one of: {', '.join(sorted(valid_roles))}")
+    try:
+        authoritative_admin, _ = synchronize_and_authoritative_load(
+            db, current_admin, target_id=None, required_permission="manage_users"
+        )
+        target_role = req.role.strip()
+        valid_roles = {"user", "super_admin", "operations_admin", "security_admin", "support_admin", "auditor"}
+        if target_role not in valid_roles:
+            raise HTTPException(status_code=400, detail=f"Invalid role '{target_role}'. Must be one of: {', '.join(sorted(valid_roles))}")
 
-    if target_role in ADMIN_ROLES and current_admin.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Only a Super Admin can create administrator accounts.")
+        if target_role in ADMIN_ROLES and authoritative_admin.role != "super_admin":
+            raise HTTPException(status_code=403, detail="Only a Super Admin can create administrator accounts.")
 
-    # Check username / email collisions
-    if db.query(User).filter(User.username == req.username).first():
-        raise HTTPException(status_code=400, detail="Username is already taken")
-    if db.query(User).filter(User.email == str(req.email).strip().lower()).first():
-        raise HTTPException(status_code=400, detail="Email is already registered")
+        # Check username / email collisions
+        if db.query(User).filter(User.username == req.username).first():
+            raise HTTPException(status_code=400, detail="Username is already taken")
+        if db.query(User).filter(User.email == str(req.email).strip().lower()).first():
+            raise HTTPException(status_code=400, detail="Email is already registered")
 
-    new_user = User(
-        id=gen_id("usr_"),
-        username=req.username,
-        email=str(req.email).strip().lower(),
-        hashed_password=hash_password(req.password),
-        role=target_role,
-        is_suspended=False,
-        terms_accepted=True,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+        new_user = User(
+            id=gen_id("usr_"),
+            username=req.username,
+            email=str(req.email).strip().lower(),
+            hashed_password=hash_password(req.password),
+            role=target_role,
+            is_suspended=False,
+            terms_accepted=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="user_create",
-        target_type="user",
-        target_id=new_user.id,
-        outcome="success",
-        reason=f"Admin {current_admin.username} created account '{new_user.username}' with role '{new_user.role}'",
-        details={"username": new_user.username, "email": new_user.email, "role": new_user.role}
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="user_create",
+            target_type="user",
+            target_id=new_user.id,
+            outcome="success",
+            reason=f"Admin {authoritative_admin.username} created account '{new_user.username}' with role '{new_user.role}'",
+            details={"username": new_user.username, "email": new_user.email, "role": new_user.role}
+        )
 
-    return {
-        "message": f"Account '{new_user.username}' created successfully.",
-        "user": {
-            "id": new_user.id,
-            "username": new_user.username,
-            "email": new_user.email,
-            "role": new_user.role,
-            "is_suspended": new_user.is_suspended,
-            "created_at": new_user.created_at.isoformat()
+        return {
+            "message": f"Account '{new_user.username}' created successfully.",
+            "user": {
+                "id": new_user.id,
+                "username": new_user.username,
+                "email": new_user.email,
+                "role": new_user.role,
+                "is_suspended": new_user.is_suspended,
+                "created_at": new_user.created_at.isoformat()
+            }
         }
-    }
+    finally:
+        release_sqlite_lock_if_held()
 
 @router.get("/{user_id}")
 def get_user_detail(
@@ -265,84 +273,87 @@ def update_user(
     db: Session = Depends(get_db)
 ):
     """Update user or administrator details, including role changes with last super-admin protection."""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        authoritative_admin, user = synchronize_and_authoritative_load(
+            db, current_admin, target_id=user_id, required_permission="manage_users"
+        )
 
-    # 1. Pre-validate role format if role is specified
-    target_role = user.role
-    if req.role is not None:
-        target_role = req.role.strip()
-        valid_roles = {"user", "super_admin", "operations_admin", "security_admin", "support_admin", "auditor"}
-        if target_role not in valid_roles:
-            raise HTTPException(status_code=400, detail=f"Invalid role '{target_role}'. Must be one of: {', '.join(sorted(valid_roles))}")
+        # 1. Pre-validate role format if role is specified
+        target_role = user.role
+        if req.role is not None:
+            target_role = req.role.strip()
+            valid_roles = {"user", "super_admin", "operations_admin", "security_admin", "support_admin", "auditor"}
+            if target_role not in valid_roles:
+                raise HTTPException(status_code=400, detail=f"Invalid role '{target_role}'. Must be one of: {', '.join(sorted(valid_roles))}")
 
-    # 2. Central Actor-versus-Target Policy Validation
-    validate_admin_mutation_target(current_admin, user, proposed_role=req.role)
+        # 2. Central Actor-versus-Target Policy Validation
+        validate_admin_mutation_target(authoritative_admin, user, proposed_role=req.role)
 
-    # 3. Self-action restriction: cannot suspend own account
-    if req.is_suspended is True and user.id == current_admin.id:
-        raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
+        # 3. Self-action restriction: cannot suspend own account
+        if req.is_suspended is True and user.id == authoritative_admin.id:
+            raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
 
-    # 4. Email collision check if email change requested
-    email_clean = None
-    if req.email is not None:
-        email_clean = str(req.email).strip().lower()
-        collision = db.query(User).filter(User.email == email_clean, User.id != user_id).first()
-        if collision:
-            raise HTTPException(status_code=400, detail="Email is already in use by another account")
+        # 4. Email collision check if email change requested
+        email_clean = None
+        if req.email is not None:
+            email_clean = str(req.email).strip().lower()
+            collision = db.query(User).filter(User.email == email_clean, User.id != user_id).first()
+            if collision:
+                raise HTTPException(status_code=400, detail="Email is already in use by another account")
 
-    # 5. Enforce Last-Active-Super-Admin invariant across combined proposed state
-    assert_super_admin_invariant(
-        db,
-        user,
-        proposed_role=req.role,
-        proposed_suspended=req.is_suspended,
-        is_deletion=False
-    )
+        # 5. Enforce Last-Active-Super-Admin invariant across combined proposed state
+        assert_super_admin_invariant(
+            db,
+            user,
+            proposed_role=req.role,
+            proposed_suspended=req.is_suspended,
+            is_deletion=False
+        )
 
-    # 6. Apply validated changes atomically
-    if req.role is not None:
-        user.role = target_role
+        # 6. Apply validated changes atomically
+        if req.role is not None:
+            user.role = target_role
 
-    if email_clean is not None:
-        user.email = email_clean
+        if email_clean is not None:
+            user.email = email_clean
 
-    if req.is_suspended is not None:
-        if req.is_suspended:
-            user.is_suspended = True
-            user.suspended_at = datetime.now(timezone.utc)
-            user.suspension_reason = req.suspension_reason or "Administrative suspension"
-            db.query(DBSession).filter(DBSession.user_id == user_id).delete()
-        else:
-            user.is_suspended = False
-            user.suspended_at = None
-            user.suspension_reason = None
+        if req.is_suspended is not None:
+            if req.is_suspended:
+                user.is_suspended = True
+                user.suspended_at = datetime.now(timezone.utc)
+                user.suspension_reason = req.suspension_reason or "Administrative suspension"
+                db.query(DBSession).filter(DBSession.user_id == user_id).delete()
+            else:
+                user.is_suspended = False
+                user.suspended_at = None
+                user.suspension_reason = None
 
-    user.updated_at = datetime.now(timezone.utc)
-    db.commit()
+        user.updated_at = datetime.now(timezone.utc)
+        db.commit()
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="user_update",
-        target_type="user",
-        target_id=user.id,
-        outcome="success",
-        details={"username": user.username, "updated_role": user.role, "is_suspended": user.is_suspended}
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="user_update",
+            target_type="user",
+            target_id=user.id,
+            outcome="success",
+            details={"username": user.username, "updated_role": user.role, "is_suspended": user.is_suspended}
+        )
 
-    return {
-        "message": f"Account '{user.username}' updated successfully.",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "is_suspended": user.is_suspended,
-            "updated_at": user.updated_at.isoformat()
+        return {
+            "message": f"Account '{user.username}' updated successfully.",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "is_suspended": user.is_suspended,
+                "updated_at": user.updated_at.isoformat()
+            }
         }
-    }
+    finally:
+        release_sqlite_lock_if_held()
 
 @router.post("/{user_id}/suspend")
 def suspend_user(
@@ -352,52 +363,55 @@ def suspend_user(
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        authoritative_admin, user = synchronize_and_authoritative_load(
+            db, current_admin, target_id=user_id, required_permission="manage_users"
+        )
 
-    if user.id == current_admin.id:
-        raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
+        if user.id == authoritative_admin.id:
+            raise HTTPException(status_code=400, detail="Administrators cannot suspend their own account")
 
-    validate_admin_mutation_target(current_admin, user, proposed_role=None)
-    assert_super_admin_invariant(db, user, proposed_suspended=True)
+        validate_admin_mutation_target(authoritative_admin, user, proposed_role=None)
+        assert_super_admin_invariant(db, user, proposed_suspended=True)
 
-    reason = req.reason.strip() or "Administrative suspension"
-    now = datetime.now(timezone.utc)
+        reason = req.reason.strip() or "Administrative suspension"
+        now = datetime.now(timezone.utc)
 
-    user.is_suspended = True
-    user.suspended_at = now
-    user.suspension_reason = reason
+        user.is_suspended = True
+        user.suspended_at = now
+        user.suspension_reason = reason
 
-    # Terminate all active sessions immediately
-    deleted_sessions = db.query(DBSession).filter(DBSession.user_id == user_id).delete()
-    db.commit()
+        # Terminate all active sessions immediately
+        deleted_sessions = db.query(DBSession).filter(DBSession.user_id == user_id).delete()
+        db.commit()
 
-    record_security_event(
-        db,
-        event_type="account_suspension",
-        severity="high",
-        actor_id=current_admin.id,
-        target_user_id=user.id,
-        details={"reason": reason, "revoked_sessions": deleted_sessions}
-    )
+        record_security_event(
+            db,
+            event_type="account_suspension",
+            severity="high",
+            actor_id=authoritative_admin.id,
+            target_user_id=user.id,
+            details={"reason": reason, "revoked_sessions": deleted_sessions}
+        )
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="user_suspend",
-        target_type="user",
-        target_id=user.id,
-        outcome="success",
-        reason=reason,
-        details={"username": user.username, "revoked_sessions": deleted_sessions}
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="user_suspend",
+            target_type="user",
+            target_id=user.id,
+            outcome="success",
+            reason=reason,
+            details={"username": user.username, "revoked_sessions": deleted_sessions}
+        )
 
-    return {
-        "message": f"User '{user.username}' has been suspended and {deleted_sessions} session(s) revoked.",
-        "user_id": user.id,
-        "is_suspended": True
-    }
+        return {
+            "message": f"User '{user.username}' has been suspended and {deleted_sessions} session(s) revoked.",
+            "user_id": user.id,
+            "is_suspended": True
+        }
+    finally:
+        release_sqlite_lock_if_held()
 
 @router.post("/{user_id}/reactivate")
 def reactivate_user(
@@ -406,41 +420,44 @@ def reactivate_user(
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        authoritative_admin, user = synchronize_and_authoritative_load(
+            db, current_admin, target_id=user_id, required_permission="manage_users"
+        )
 
-    validate_admin_mutation_target(current_admin, user, proposed_role=None)
+        validate_admin_mutation_target(authoritative_admin, user, proposed_role=None)
 
-    user.is_suspended = False
-    user.suspended_at = None
-    user.suspension_reason = None
-    db.commit()
+        user.is_suspended = False
+        user.suspended_at = None
+        user.suspension_reason = None
+        db.commit()
 
-    record_security_event(
-        db,
-        event_type="account_reactivation",
-        severity="info",
-        actor_id=current_admin.id,
-        target_user_id=user.id
-    )
+        record_security_event(
+            db,
+            event_type="account_reactivation",
+            severity="info",
+            actor_id=authoritative_admin.id,
+            target_user_id=user.id
+        )
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="user_reactivate",
-        target_type="user",
-        target_id=user.id,
-        outcome="success",
-        reason="Administrative reactivation",
-        details={"username": user.username}
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="user_reactivate",
+            target_type="user",
+            target_id=user.id,
+            outcome="success",
+            reason="Administrative reactivation",
+            details={"username": user.username}
+        )
 
-    return {
-        "message": f"User '{user.username}' has been reactivated.",
-        "user_id": user.id,
-        "is_suspended": False
-    }
+        return {
+            "message": f"User '{user.username}' has been reactivated.",
+            "user_id": user.id,
+            "is_suspended": False
+        }
+    finally:
+        release_sqlite_lock_if_held()
 
 @router.post("/{user_id}/revoke-sessions")
 def revoke_user_sessions(
@@ -449,36 +466,39 @@ def revoke_user_sessions(
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        authoritative_admin, user = synchronize_and_authoritative_load(
+            db, current_admin, target_id=user_id, required_permission="manage_users"
+        )
 
-    validate_admin_mutation_target(current_admin, user, proposed_role=None)
+        validate_admin_mutation_target(authoritative_admin, user, proposed_role=None)
 
-    deleted_sessions = db.query(DBSession).filter(DBSession.user_id == user_id).delete()
-    db.commit()
+        deleted_sessions = db.query(DBSession).filter(DBSession.user_id == user_id).delete()
+        db.commit()
 
-    record_security_event(
-        db,
-        event_type="sessions_revoked_by_admin",
-        severity="medium",
-        actor_id=current_admin.id,
-        target_user_id=user.id,
-        details={"count": deleted_sessions}
-    )
+        record_security_event(
+            db,
+            event_type="sessions_revoked_by_admin",
+            severity="medium",
+            actor_id=authoritative_admin.id,
+            target_user_id=user.id,
+            details={"count": deleted_sessions}
+        )
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="session_revoked",
-        target_type="user",
-        target_id=user.id,
-        outcome="success",
-        reason=f"Administrator revoked all {deleted_sessions} active sessions",
-        details={"count": deleted_sessions}
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="session_revoked",
+            target_type="user",
+            target_id=user.id,
+            outcome="success",
+            reason=f"Administrator revoked all {deleted_sessions} active sessions",
+            details={"count": deleted_sessions}
+        )
 
-    return {"message": f"Revoked {deleted_sessions} session(s) for user '{user.username}'."}
+        return {"message": f"Revoked {deleted_sessions} session(s) for user '{user.username}'."}
+    finally:
+        release_sqlite_lock_if_held()
 
 @router.delete("/{user_id}")
 def delete_user(
@@ -488,41 +508,50 @@ def delete_user(
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.id == current_admin.id:
-        raise HTTPException(status_code=400, detail="Administrators cannot delete their own account")
-
-    validate_admin_mutation_target(current_admin, user, proposed_role=None)
-    assert_super_admin_invariant(db, user, is_deletion=True)
-
-    if confirm_username.strip() != user.username:
-        raise HTTPException(status_code=400, detail="Confirmation username does not match target user")
-
-    username = user.username
-    email = user.email
-
     try:
-        # Delete user cascades to projects and sessions cleanly per SQLAlchemy model relationships
-        db.delete(user)
-        db.commit()
-
-        record_audit_log(
-            db,
-            actor_id=current_admin.id,
-            action="user_delete",
-            target_type="user",
-            target_id=user_id,
-            outcome="success",
-            reason=f"Permanently deleted account '{username}' ({email}) by administrator",
-            details={"deleted_username": username, "deleted_email": email}
+        authoritative_admin, user = synchronize_and_authoritative_load(
+            db, current_admin, target_id=user_id, required_permission="manage_users"
         )
 
-        return {"message": f"Account '{username}' and associated resources have been permanently deleted."}
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
+        if user.id == authoritative_admin.id:
+            raise HTTPException(status_code=400, detail="Administrators cannot delete their own account")
+
+        validate_admin_mutation_target(authoritative_admin, user, proposed_role=None)
+        assert_super_admin_invariant(db, user, is_deletion=True)
+
+        if confirm_username.strip() != user.username:
+            raise HTTPException(status_code=400, detail="Confirmation username does not match target user")
+
+        username = user.username
+        email = user.email
+
+        try:
+            # Delete user cascades to projects and sessions cleanly per SQLAlchemy model relationships
+            db.delete(user)
+            db.commit()
+
+            record_audit_log(
+                db,
+                actor_id=authoritative_admin.id,
+                action="user_delete",
+                target_type="user",
+                target_id=user_id,
+                outcome="success",
+                reason=f"Permanently deleted account '{username}' ({email}) by administrator",
+                details={"deleted_username": username, "deleted_email": email}
+            )
+
+            return {"message": f"Account '{username}' and associated resources have been permanently deleted."}
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("Failed to delete user account %s: %s", user_id, str(e), exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to delete user account. Please try again or contact support."
+            )
+    finally:
+        release_sqlite_lock_if_held()

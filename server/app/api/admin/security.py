@@ -10,7 +10,11 @@ from app.models.all_models import (
 from app.api.deps import require_admin, require_permission, verify_csrf
 from app.core.config import settings
 from app.core.telemetry import record_security_event, record_audit_log
-from app.services.admin_authorization_service import validate_session_revocation_target
+from app.services.admin_authorization_service import (
+    validate_session_revocation_target,
+    synchronize_and_authoritative_load,
+    release_sqlite_lock_if_held
+)
 
 router = APIRouter(prefix="/security", tags=["Admin Security Center"])
 
@@ -100,38 +104,44 @@ def revoke_session(
     _csrf: None = Depends(verify_csrf),
     db: Session = Depends(get_db)
 ):
-    sess = db.query(DBSession).filter(DBSession.id == session_id).first()
-    if not sess:
-        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        authoritative_admin, _ = synchronize_and_authoritative_load(
+            db, current_admin, target_id=None, required_permission="revoke_sessions"
+        )
+        sess = db.query(DBSession).filter(DBSession.id == session_id).populate_existing().first()
+        if not sess:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-    target_user = sess.user or db.query(User).filter(User.id == sess.user_id).first()
-    if target_user:
-        validate_session_revocation_target(current_admin, target_user)
+        target_user = sess.user or db.query(User).filter(User.id == sess.user_id).populate_existing().first()
+        if target_user:
+            validate_session_revocation_target(authoritative_admin, target_user)
 
-    target_user_id = sess.user_id
-    db.delete(sess)
-    db.commit()
+        target_user_id = sess.user_id
+        db.delete(sess)
+        db.commit()
 
-    record_security_event(
-        db,
-        event_type="session_revoked_by_admin",
-        severity="medium",
-        actor_id=current_admin.id,
-        target_user_id=target_user_id,
-        details={"revoked_session_id": session_id}
-    )
+        record_security_event(
+            db,
+            event_type="session_revoked_by_admin",
+            severity="medium",
+            actor_id=authoritative_admin.id,
+            target_user_id=target_user_id,
+            details={"revoked_session_id": session_id}
+        )
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="session_revocation",
-        target_type="session",
-        target_id=session_id,
-        outcome="success",
-        reason=f"Administrator revoked session ID {session_id}"
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="session_revocation",
+            target_type="session",
+            target_id=session_id,
+            outcome="success",
+            reason=f"Administrator revoked session ID {session_id}"
+        )
 
-    return {"message": f"Session {session_id} has been revoked."}
+        return {"message": f"Session {session_id} has been revoked."}
+    finally:
+        release_sqlite_lock_if_held()
 
 @router.post("/sessions/revoke-all")
 def revoke_all_sessions(
@@ -143,34 +153,40 @@ def revoke_all_sessions(
     """
     Emergency global session kill-switch.
     Explicitly authorized only for administrators with 'revoke_sessions' permission
-    (super_admin and security_admin). Revokes all active sessions system-wide, preserving
-    only the invoking administrator's current active session. This global action cannot
+    (super_admin, operations_admin, and security_admin). Revokes all active sessions system-wide,
+    preserving only the invoking administrator's current active session. This global action cannot
     be used as a selective or targeted bypass against an individual administrator.
     """
-    current_token = request.cookies.get(settings.COOKIE_NAME)
-    query = db.query(DBSession)
-    if current_token:
-        query = query.filter(DBSession.session_token != current_token)
+    try:
+        authoritative_admin, _ = synchronize_and_authoritative_load(
+            db, current_admin, target_id=None, required_permission="revoke_sessions"
+        )
+        current_token = request.cookies.get(settings.COOKIE_NAME)
+        query = db.query(DBSession)
+        if current_token:
+            query = query.filter(DBSession.session_token != current_token)
 
-    count = query.delete(synchronize_session=False)
-    db.commit()
+        count = query.delete(synchronize_session=False)
+        db.commit()
 
-    record_security_event(
-        db,
-        event_type="all_sessions_revoked_by_admin",
-        severity="high",
-        actor_id=current_admin.id,
-        details={"revoked_count": count}
-    )
+        record_security_event(
+            db,
+            event_type="all_sessions_revoked_by_admin",
+            severity="high",
+            actor_id=authoritative_admin.id,
+            details={"revoked_count": count}
+        )
 
-    record_audit_log(
-        db,
-        actor_id=current_admin.id,
-        action="revoke_all_sessions",
-        target_type="session",
-        target_id="all",
-        outcome="success",
-        reason=f"Administrator revoked all {count} active sessions (except own session)"
-    )
+        record_audit_log(
+            db,
+            actor_id=authoritative_admin.id,
+            action="revoke_all_sessions",
+            target_type="session",
+            target_id="all",
+            outcome="success",
+            reason=f"Administrator revoked all {count} active sessions (except own session)"
+        )
 
-    return {"message": f"Successfully revoked {count} active session(s)."}
+        return {"message": f"Successfully revoked {count} active session(s)."}
+    finally:
+        release_sqlite_lock_if_held()
