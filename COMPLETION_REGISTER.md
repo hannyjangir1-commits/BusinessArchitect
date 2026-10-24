@@ -184,7 +184,7 @@ This register persists progress across phases, documenting findings, affected pa
     - `test_admin_management_and_ops.py` (9 passed)
     - `test_ai_failure_modes.py` (9 passed)
   - Total: 68 tests passing cleanly with 0 failures.
-- **Commit SHA:** `PENDING_COMMIT`
+- **Commit SHA:** `19d43decee5505c3b2c2c4b5cd4e2b2815ded6ea`
 - **Remaining Limitations:** None. Connection pool checkouts assert 0 during all external provider operations.
 - **Production Config / Migration Requirements:** None. Zero schema migrations required.
 
