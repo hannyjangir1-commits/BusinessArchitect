@@ -28,7 +28,8 @@ def record_ai_operation(
     structured_validation_passed: bool = True,
     persistence_status: str = "persisted",
     is_retryable: bool = False,
-    retry_of_id: Optional[str] = None
+    retry_of_id: Optional[str] = None,
+    retry_context: Optional[Dict[str, Any]] = None
 ) -> Optional[AIOperation]:
     """Record an AI operation safely into the ai_operations audit table."""
     try:
@@ -55,6 +56,24 @@ def record_ai_operation(
             created_at=datetime.now(timezone.utc)
         )
         db.add(op)
+        if retry_context and isinstance(retry_context, dict):
+            # Record minimal non-secret retry intent in existing audit_logs table
+            sanitized_context = {
+                k: v for k, v in retry_context.items()
+                if k in ("planning_inputs", "instruction", "module_type", "operation_type", "target_version_id", "replace_version_id")
+            }
+            audit = AuditLog(
+                id=gen_id("aud_"),
+                actor_id=user_id,
+                action="ai_operation_intent",
+                target_type="ai_operation",
+                target_id=op.id,
+                outcome="recorded",
+                reason=f"Operation intent metadata for {operation_type}:{module_type}",
+                details=sanitized_context,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit)
         db.commit()
         db.refresh(op)
         return op

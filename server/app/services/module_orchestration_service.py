@@ -83,6 +83,12 @@ class ModuleOrchestrationService:
                 planning_inputs=planning_dict,
             )
 
+        retry_intent = {
+            "module_type": module_type,
+            "operation_type": "generate",
+            "planning_inputs": planning_dict,
+        }
+
         # Stage 2: Module synthesis dispatch (Zero checked-out connections or write locks held)
         from app.core.diagnostics import record_stage
         try:
@@ -108,6 +114,22 @@ class ModuleOrchestrationService:
                         data_dict["feasibility_evaluation"] = roadmap_raw["feasibility_evaluation"]
                 else:
                     raise HTTPException(status_code=400, detail=f"Unsupported module type: {module_type}")
+
+            # Attach provenance context metadata
+            data_dict["context_metadata"] = {
+                "stage": proj_info.get("stage"),
+                "industry": proj_info.get("industry"),
+                "budget": proj_info.get("budget"),
+                "technical_depth": brief.technical_depth,
+                "brief_summary": brief.venture_summary,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "cross_modules_used": list(cross_ctx),
+                "project_fingerprint": project_fp,
+                "source_versions": context_sources,
+            }
+
+            # Pre-persistence structural validation
+            cls.validate_module_payload(module_type, data_dict)
         except HTTPException:
             raise
         except Exception as e:
@@ -137,6 +159,7 @@ class ModuleOrchestrationService:
                         structured_validation_passed=False,
                         persistence_status="failed",
                         is_retryable=terminal_provider_error is None,
+                        retry_context=retry_intent,
                     )
                     telemetry_db.commit()
             except Exception:
@@ -145,22 +168,6 @@ class ModuleOrchestrationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Generation failed: {err_msg}",
             ) from e
-
-        # Attach provenance context metadata
-        data_dict["context_metadata"] = {
-            "stage": proj_info.get("stage"),
-            "industry": proj_info.get("industry"),
-            "budget": proj_info.get("budget"),
-            "technical_depth": brief.technical_depth,
-            "brief_summary": brief.venture_summary,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "cross_modules_used": list(cross_ctx),
-            "project_fingerprint": project_fp,
-            "source_versions": context_sources,
-        }
-
-        # Pre-persistence structural validation
-        cls.validate_module_payload(module_type, data_dict)
 
         # Stage 3: Atomic save under short persistence transaction and project-first lock
         with SessionLocal(expire_on_commit=False) as persist_db:
@@ -236,6 +243,7 @@ class ModuleOrchestrationService:
                 status="success",
                 structured_validation_passed=True,
                 persistence_status="persisted",
+                retry_context=retry_intent,
             )
             record_analytics_event(
                 persist_db,

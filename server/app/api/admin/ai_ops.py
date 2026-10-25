@@ -270,6 +270,55 @@ def retry_failed_operation(
             raise HTTPException(status_code=400, detail="Active version data not available to modify")
         active_ver_data = copy.deepcopy(active_ver.data)
 
+    intent_log = db.query(AuditLog).filter(
+        AuditLog.target_type == "ai_operation",
+        AuditLog.target_id == op_id,
+        AuditLog.action == "ai_operation_intent"
+    ).order_by(desc(AuditLog.created_at)).first()
+
+    intent_details = (intent_log.details or {}) if intent_log else {}
+
+    planning_dict = None
+    recovered_planning = None
+    instruction = None
+
+    if op_operation_type == "modify":
+        instruction = intent_details.get("instruction")
+        if not instruction:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot retry operation: original modification instruction was not retained for this legacy operation and cannot be recovered."
+            )
+    else:
+        if op_module_type in ("execution_roadmap", "detailed_roadmap"):
+            raw_planning = intent_details.get("planning_inputs")
+            if raw_planning is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot retry operation: original planning intent was not retained for this legacy operation and cannot be recovered."
+                )
+            try:
+                from app.schemas.modules import RoadmapPlanningRequest
+                recovered_planning = RoadmapPlanningRequest.model_validate(raw_planning)
+                planning_dict = recovered_planning.model_dump(mode="json")
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot retry operation: retained planning intent failed validation: {e}"
+                )
+        elif op_module_type == "tech_stack":
+            raw_planning = intent_details.get("planning_inputs")
+            if raw_planning:
+                try:
+                    from app.schemas.modules import TechStackPlanningRequest
+                    recovered_planning = TechStackPlanningRequest.model_validate(raw_planning)
+                    planning_dict = recovered_planning.model_dump(mode="json")
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Cannot retry operation: retained tech stack planning intent failed validation: {e}"
+                    )
+
     # Decouple: release database connection before calling the external provider
     db.close()
 
@@ -279,29 +328,30 @@ def retry_failed_operation(
     try:
         data_dict = None
         if op_operation_type == "modify":
-            instruction = f"Administrative recovery retry for failed operation {op_id}"
             modified_data, _ = ai_service.modify_section(op_module_type, active_ver_data, instruction)
             data_dict = modified_data
         else:
             if op_module_type == "bmc":
                 data_dict = ai_service.generate_bmc(proj_info).model_dump()
             elif op_module_type == "tech_stack":
-                data_dict = ai_service.generate_tech_stack(proj_info).model_dump()
+                data_dict = ai_service.generate_tech_stack(proj_info, planning_inputs=planning_dict).model_dump()
+                data_dict["planning_inputs"] = planning_dict or {}
             elif op_module_type == "idea_validator":
                 data_dict = ai_service.generate_idea_validator(proj_info).model_dump()
             elif op_module_type == "market_research":
                 data_dict = ai_service.generate_market_research(proj_info).model_dump()
             elif op_module_type in ("execution_roadmap", "detailed_roadmap"):
                 from app.api.modules import _normalize_roadmap_schedule
-                from app.schemas.modules import RoadmapPlanningRequest
 
-                planning = RoadmapPlanningRequest()
-                planning_dict = planning.model_dump(mode="json")
                 roadmap_raw = ai_service.generate_roadmap(proj_info, planning_dict)
-                data_dict = _normalize_roadmap_schedule(roadmap_raw, planning)
+                data_dict = _normalize_roadmap_schedule(roadmap_raw, recovered_planning)
                 data_dict["planning_inputs"] = planning_dict
             else:
                 raise ValueError(f"Unsupported module type for retry: {op_module_type}")
+
+        # Structured output validation before saving
+        from app.services.module_orchestration_service import ModuleOrchestrationService
+        ModuleOrchestrationService.validate_module_payload(op_module_type, data_dict)
     except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
         terminal_provider_error = ai_service._terminal_provider_error_message(e)
@@ -432,6 +482,18 @@ def retry_failed_operation(
                 reason=f"Admin {admin_username} successfully recovered failed operation {op_id} ({op_module_type})",
                 details={"original_op_id": op_id, "new_op_id": new_op_id, "duration_ms": dur_ms}
             )
+
+            if intent_details:
+                record_audit_log(
+                    persist_db,
+                    actor_id=admin_id,
+                    action="ai_operation_intent",
+                    target_type="ai_operation",
+                    target_id=new_op_id,
+                    outcome="recorded",
+                    reason=f"Retried operation intent metadata for {op_operation_type}:{op_module_type}",
+                    details=intent_details,
+                )
 
             persist_db.commit()
 

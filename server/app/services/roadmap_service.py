@@ -105,11 +105,9 @@ class RoadmapDomainService:
                 task["status"] = "Pending"
             start = cls.parse_roadmap_date(task.get("start_date")) or cursor
             end = cls.parse_roadmap_date(task.get("end_date")) or (start + timedelta(days=6))
-            if end < start:
-                end = start + timedelta(days=6)
             task["start_date"] = start.isoformat()
             task["end_date"] = end.isoformat()
-            cursor = max(cursor, end + timedelta(days=1))
+            cursor = max(cursor, max(start, end) + timedelta(days=1))
 
         unfinished_starts = [
             cls.parse_roadmap_date(task["start_date"])
@@ -145,7 +143,7 @@ class RoadmapDomainService:
                 "description": first.get("description") or f"Work grouped under {name}.",
             })
 
-        cls.detect_and_break_dependency_cycles(tasks)
+        # Do not silently delete dependency edges; candidate graph validation will detect and report cycles cleanly
         result["tasks"] = tasks
         result["phases"] = phases
         return result
@@ -253,9 +251,10 @@ class RoadmapDomainService:
                 s_date_obj = parse_iso_date(raw_s_date)
                 e_date_obj = parse_iso_date(raw_e_date)
                 if e_date_obj < s_date_obj:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"End date ({e_date_obj.isoformat()}) cannot be earlier than start date ({s_date_obj.isoformat()}) for task '{code}'."
+                    raise IncompatibleTaskGraphError(
+                        error_code="INVALID_DATE_RANGE",
+                        message=f"End date ({e_date_obj.isoformat()}) cannot be earlier than start date ({s_date_obj.isoformat()}) for task '{code}'.",
+                        affected_task_codes=[code]
                     )
 
                 # Build pure copy with canonicalized attributes

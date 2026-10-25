@@ -309,12 +309,29 @@ def generate_module(
     module_type = normalize_module_type(module_type)
     if module_type not in DELETABLE_MODULE_TYPES:
         raise HTTPException(status_code=404, detail="Unknown generated module")
+    # Unwrap embedded planning_inputs if client sent {"planning_inputs": {...}}
+    effective_inputs = planning_inputs
+    if isinstance(planning_inputs, dict) and "planning_inputs" in planning_inputs and len(planning_inputs) == 1:
+        effective_inputs = planning_inputs["planning_inputs"]
+
     typed_inputs = None
     if module_type in ("execution_roadmap", "detailed_roadmap"):
-        typed_inputs = RoadmapPlanningRequest.model_validate(planning_inputs or {})
+        try:
+            typed_inputs = RoadmapPlanningRequest.model_validate(effective_inputs or {})
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid roadmap planning inputs: {e}"
+            )
     elif module_type == "tech_stack":
-        typed_inputs = TechStackPlanningRequest.model_validate(planning_inputs or {})
-    elif planning_inputs:
+        try:
+            typed_inputs = TechStackPlanningRequest.model_validate(effective_inputs or {})
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid tech stack planning inputs: {e}"
+            )
+    elif effective_inputs:
         raise HTTPException(status_code=400, detail="This module does not accept planning inputs")
     # Enforce input readiness validation before invoking AI service
     is_ready, missing_fields, error_msgs = ReadinessValidationService.validate_project_readiness(project, module_type)
@@ -452,6 +469,7 @@ def modify_module_with_ai(
                     structured_validation_passed=False,
                     persistence_status="failed",
                     is_retryable=terminal_provider_error is None,
+                    retry_context={"module_type": module_type, "operation_type": "modify", "instruction": instruction, "planning_inputs": saved_inputs},
                 )
                 telemetry_db.commit()
         except Exception:
@@ -541,6 +559,7 @@ def modify_module_with_ai(
             status="success",
             structured_validation_passed=True,
             persistence_status="persisted",
+            retry_context={"module_type": module_type, "operation_type": "modify", "instruction": instruction, "planning_inputs": saved_inputs},
         )
         record_analytics_event(
             persist_db,
@@ -633,6 +652,7 @@ def resolve_version_conflict(
                         structured_validation_passed=False,
                         persistence_status="failed",
                         is_retryable=terminal_provider_error is None,
+                        retry_context={"module_type": module_type, "operation_type": "modify", "instruction": req.instruction, "replace_version_id": req.replace_version_id},
                     )
                     telemetry_db.commit()
             except Exception:
@@ -719,6 +739,7 @@ def resolve_version_conflict(
                 status="success",
                 structured_validation_passed=True,
                 persistence_status="persisted",
+                retry_context={"module_type": module_type, "operation_type": "modify", "instruction": req.instruction, "replace_version_id": req.replace_version_id},
             )
             persist_db.commit()
 
