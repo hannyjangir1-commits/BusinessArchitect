@@ -281,7 +281,49 @@ This register persists progress across phases, documenting findings, affected pa
 ---
 
 ## Phase 7 — Error Sanitization, Exports and Chat History
-- **Status:** Pending
+
+- **Status:** COMPLETED
+- **Findings & Affected Paths:**
+  1. `server/app/core/exports.py` (`sanitize_filename`, `format_content_disposition`):
+     - Implemented RFC 6266 and RFC 5987 standard Content-Disposition formatting: `attachment; filename="{safe_ascii}.pdf"; filename*=UTF-8''{encoded_utf8_filename}`.
+     - Strips CR (`\r`), LF (`\n`), null bytes (`\x00`), and ASCII control characters to defend strictly against HTTP header injection / response splitting.
+     - Guarantees `filename="..."` attribute is purely safe ASCII alphanumeric/hyphen/underscore, preventing Latin-1 encoding crashes on Starlette/Uvicorn when exporting projects with Unicode titles (e.g. Hindi, Japanese, French accents).
+     - Encodes full UTF-8 filename in `filename*` parameter for modern browser download fidelity.
+  2. `server/app/services/pdf_service.py` & `server/app/api/exports.py` & `server/app/api/modules.py`:
+     - Handled optional `reportlab` export dependency gracefully with `REPORTLAB_AVAILABLE` try/except block.
+     - Added `PDFService.is_available()` availability check.
+     - Missing export dependency returns a controlled HTTP 503 Service Unavailable ("PDF export service is temporarily unavailable: missing export engine.") rather than crashing or returning an unhandled 500 error.
+     - Applied `format_content_disposition` to both full project blueprint exports and single module exports.
+  3. `server/app/api/copilot.py`:
+     - Added query pagination parameters to `get_chat_history`: `limit: int = Query(50, ge=1, le=200)`, `offset: int = Query(0, ge=0)`, and `order: str = Query("asc", pattern="^(asc|desc)$")`.
+     - Replaced unbounded history DB reads in `send_chat_message` with bounded recent context query (`.limit(20)`), reversing to preserve chronological order for provider context.
+     - Excluded the pending `user_msg.id` from prompt context to prevent duplicated user messages.
+     - Preserved all historical messages in PostgreSQL with zero loss of saved history.
+  4. `client/src/components/BlueprintCopilotModule.tsx`:
+     - Added message deduplication by `m.id` preserving chronological order (`displayMessages`), eliminating duplicate key warnings and rendering collisions during rapid message updates.
+  5. `server/app/main.py`:
+     - Registered global unhandled `Exception` handler on both `app` and `api_v1`, capturing unhandled errors and returning a sanitized HTTP 500 JSON payload: `{"detail": "An internal server error occurred.", "request_id": req_id}` with `X-Request-ID` header.
+     - Attached correlation ID to `HTTPException` responses with status >= 500.
+     - Updated `diagnostics_middleware` to return sanitized JSON response on unexpected exceptions escaping route handlers.
+  6. Error Detail and Log Sanitization across touched APIs:
+     - Sanitized raw `str(e)` exposure in `server/app/api/projects.py:402`, `server/app/api/admin/projects.py:251`, `server/app/api/exports.py:71, 102`, `server/app/api/modules.py:638, 861`, `server/app/api/copilot.py:100`, and `server/app/api/admin/ai_ops.py:358`.
+     - Sanitized exception logging in `server/app/core/telemetry.py` and `server/app/services/system_setting_service.py` using `type(e).__name__` instead of raw `str(e)` to guarantee database connection strings, credentials, and passwords never leak into logs or telemetry.
+- **Test Evidence:**
+  - `server/tests/test_correction_phase_07_error_sanitization_exports_chat.py` (9/9 passed in 10.60s):
+    - `test_sanitize_filename_and_rfc5987_formatting`
+    - `test_unicode_export_filename_content_disposition`
+    - `test_newline_and_header_injection_defense`
+    - `test_missing_export_dependency_handling`
+    - `test_chat_history_pagination_and_ordering`
+    - `test_chat_provider_context_limits`
+    - `test_cross_user_tenant_isolation_copilot_and_exports`
+    - `test_synthetic_sensitive_markers_never_leak_in_client_or_telemetry`
+    - `test_unhandled_route_exception_returns_clean_500_with_request_id`
+  - Full backend regression suite (73 passed in 20.26s across Phase 3, 4, 5, 6, 7, Admin ops, AI failure modes, concurrency & sync).
+  - Frontend test suite (10 test files, 100/100 passed in 48.07s).
+- **Commit SHA:** `6615237cad39473184dc8b66670ebe9ab52f0dd2`
+- **Remaining Limitations:** None.
+- **Production Config / Migration Requirements:** None. Zero schema migrations required.
 
 ---
 
