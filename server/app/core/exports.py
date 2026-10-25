@@ -28,11 +28,14 @@ def sanitize_filename(
     """
     ext = extension.lstrip(".").lower()
     
-    # Strictly strip all CR, LF, null bytes, and control characters to prevent header injection
+    # Strictly strip all CR, LF, null bytes, and control characters (including DEL 0x7F)
     cleaned = re.sub(r"[\r\n\x00-\x1f\x7f]", "", str(name or "")).strip()
 
-    # Remove redundant trailing extension if already included by caller
-    if cleaned.lower().endswith(f".{ext}"):
+    # Bound raw length to 100 chars to avoid filesystem/OS path limits
+    cleaned = cleaned[:100]
+
+    # Remove redundant trailing extension(s) if already included by caller
+    while cleaned.lower().endswith(f".{ext}"):
         cleaned = cleaned[:-len(ext)-1].strip()
 
     # Produce safe ASCII fallback: replace anything not [a-zA-Z0-9_-] with '_'
@@ -45,7 +48,11 @@ def sanitize_filename(
     safe_ascii_filename = f"{safe_ascii}.{ext}"
 
     # UTF-8 filename preserves user's Unicode characters (e.g. Hindi, Japanese, French accents)
-    utf8_base = cleaned or fallback
+    # Strip filesystem-prohibited characters: / \ < > : " | ? * ;
+    utf8_clean = re.sub(r'[/\\<>:"|?*;%]', "_", cleaned)
+    utf8_clean = re.sub(r"_+", "_", utf8_clean).strip("_")
+    # If title was punctuation-only or empty, fall back to safe fallback
+    utf8_base = utf8_clean or fallback
     utf8_filename = f"{utf8_base}.{ext}"
 
     return safe_ascii_filename, utf8_filename

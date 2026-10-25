@@ -1176,7 +1176,21 @@ class GeminiAIService:
                 guidance = "Connect the request to one customer problem, project constraint, or next milestone. Break the decision into a small test, a measurable result, and a follow-up action."
             return f"Offline planning guidance for {name}: {guidance} No current market sources were checked, so validate assumptions before acting."
         payload = self._context_payload(project_info, cross_module_context)
-        history = [{"role": message["role"], "content": self._clean_data(message.get("content", ""))} for message in chat_history[-10:] if message.get("role") in {"user", "assistant"}]
+        # Budget up to 20 messages, enforcing total character budget of 16,000 chars
+        MAX_HISTORY_CHARS = 16000
+        reversed_history = list(reversed(chat_history))
+        budgeted_history = []
+        cur_chars = 0
+        for msg in reversed_history:
+            if msg.get("role") in {"user", "assistant"}:
+                c = self._clean_data(msg.get("content", ""))
+                if cur_chars + len(c) > MAX_HISTORY_CHARS and budgeted_history:
+                    break
+                budgeted_history.append({"role": msg["role"], "content": c})
+                cur_chars += len(c)
+                if len(budgeted_history) >= 20:
+                    break
+        history = list(reversed(budgeted_history))
         # Some callers already persisted the pending message before loading history.
         if history and history[-1]["role"] == "user" and history[-1]["content"] == user_message:
             history.pop()

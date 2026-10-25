@@ -137,7 +137,8 @@ def _get_or_create_canonical_module(db: Session, project_id: str, module_type: s
         ).first()
         if legacy_module:
             legacy_module.module_type = canonical_type
-            db.flush()
+            db.commit()
+            db.refresh(legacy_module)
             return legacy_module
 
     return VersionService.get_or_create_module(db, project_id, canonical_type)

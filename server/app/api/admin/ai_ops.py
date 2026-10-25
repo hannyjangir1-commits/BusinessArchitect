@@ -292,20 +292,20 @@ def retry_failed_operation(
     else:
         if op_module_type in ("execution_roadmap", "detailed_roadmap"):
             raw_planning = intent_details.get("planning_inputs")
-            if raw_planning is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot retry operation: original planning intent was not retained for this legacy operation and cannot be recovered."
-                )
-            try:
+            if raw_planning:
+                try:
+                    from app.schemas.modules import RoadmapPlanningRequest
+                    recovered_planning = RoadmapPlanningRequest.model_validate(raw_planning)
+                    planning_dict = recovered_planning.model_dump(mode="json")
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Cannot retry operation: retained planning intent failed validation: {e}"
+                    )
+            else:
                 from app.schemas.modules import RoadmapPlanningRequest
-                recovered_planning = RoadmapPlanningRequest.model_validate(raw_planning)
+                recovered_planning = RoadmapPlanningRequest()
                 planning_dict = recovered_planning.model_dump(mode="json")
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cannot retry operation: retained planning intent failed validation: {e}"
-                )
         elif op_module_type == "tech_stack":
             raw_planning = intent_details.get("planning_inputs")
             if raw_planning:

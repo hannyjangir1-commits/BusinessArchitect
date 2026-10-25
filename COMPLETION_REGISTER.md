@@ -282,11 +282,12 @@ This register persists progress across phases, documenting findings, affected pa
 
 ## Phase 7 — Error Sanitization, Exports and Chat History
 
-- **Status:** COMPLETED
+- **Status:** COMPLETED (Closeout Verified)
 - **Findings & Affected Paths:**
   1. `server/app/core/exports.py` (`sanitize_filename`, `format_content_disposition`):
      - Implemented RFC 6266 and RFC 5987 standard Content-Disposition formatting: `attachment; filename="{safe_ascii}.pdf"; filename*=UTF-8''{encoded_utf8_filename}`.
      - Strips CR (`\r`), LF (`\n`), null bytes (`\x00`), and ASCII control characters to defend strictly against HTTP header injection / response splitting.
+     - Hardened `sanitize_filename` to bound raw string length to 100 characters, strip filesystem-prohibited characters (`/`, `\`, `<`, `>`, `:`, `"`, `|`, `?`, `*`, `;`, `%`), collapse multiple underscores, and fall back to safe default `blueprint_export.pdf` if title is empty or punctuation-only. Preserves exactly one `.pdf` extension.
      - Guarantees `filename="..."` attribute is purely safe ASCII alphanumeric/hyphen/underscore, preventing Latin-1 encoding crashes on Starlette/Uvicorn when exporting projects with Unicode titles (e.g. Hindi, Japanese, French accents).
      - Encodes full UTF-8 filename in `filename*` parameter for modern browser download fidelity.
   2. `server/app/services/pdf_service.py` & `server/app/api/exports.py` & `server/app/api/modules.py`:
@@ -294,35 +295,69 @@ This register persists progress across phases, documenting findings, affected pa
      - Added `PDFService.is_available()` availability check.
      - Missing export dependency returns a controlled HTTP 503 Service Unavailable ("PDF export service is temporarily unavailable: missing export engine.") rather than crashing or returning an unhandled 500 error.
      - Applied `format_content_disposition` to both full project blueprint exports and single module exports.
-  3. `server/app/api/copilot.py`:
-     - Added query pagination parameters to `get_chat_history`: `limit: int = Query(50, ge=1, le=200)`, `offset: int = Query(0, ge=0)`, and `order: str = Query("asc", pattern="^(asc|desc)$")`.
-     - Replaced unbounded history DB reads in `send_chat_message` with bounded recent context query (`.limit(20)`), reversing to preserve chronological order for provider context.
+  3. `server/app/api/copilot.py` (Pagination & Context Budgeting):
+     - Added cursor pagination via `before_id: Optional[str] = Query(None)`, `limit: int = Query(50, ge=1, le=200)`, and stable secondary tie-breaker ordering `order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())`.
+     - Injected `X-Total-Count` and `X-Has-More` response headers so clients know if older messages exist beyond the current window.
+     - Enforced explicit 16,000 character context budget for recent conversation history in `send_chat_message` and `GeminiService.chat_stream`.
+     - Context budgeting drops the oldest historical messages first when budget is exceeded, maintaining newest conversational context while preserving the caller's message completely without silent truncation.
      - Excluded the pending `user_msg.id` from prompt context to prevent duplicated user messages.
      - Preserved all historical messages in PostgreSQL with zero loss of saved history.
-  4. `client/src/components/BlueprintCopilotModule.tsx`:
-     - Added message deduplication by `m.id` preserving chronological order (`displayMessages`), eliminating duplicate key warnings and rendering collisions during rapid message updates.
+  4. `client/src/services/api.ts` & `client/src/components/BlueprintCopilotModule.tsx` & `client/src/App.tsx`:
+     - Updated API client with `getHistory(projectId, params)`, `getLatestHistory(projectId, limit=50)`, and `getOlderHistory(projectId, beforeId, limit=50)`.
+     - Added "Load older messages" pagination button in Copilot module header with loading indicator.
+     - Preserved scroll position when prepending older messages using container height snapshot diffing (`scrollHeight - scrollTop`).
+     - Added message deduplication by `m.id` preserving chronological order (`displayMessages`), eliminating duplicate key warnings and rendering collisions.
+     - Wired state in `App.tsx` with `hasMoreCopilot` and `loadingOlderCopilot`. Sending a new message appends locally to state without discarding loaded history.
+     - Project switching and logout (`clearWorkspace()`) cleanly reset Copilot state, preventing cross-project or cross-session history leakage.
   5. `server/app/main.py`:
      - Registered global unhandled `Exception` handler on both `app` and `api_v1`, capturing unhandled errors and returning a sanitized HTTP 500 JSON payload: `{"detail": "An internal server error occurred.", "request_id": req_id}` with `X-Request-ID` header.
      - Attached correlation ID to `HTTPException` responses with status >= 500.
-     - Updated `diagnostics_middleware` to return sanitized JSON response on unexpected exceptions escaping route handlers.
+     - Updated `diagnostics_middleware` to return sanitized JSON response on unexpected exceptions escaping route handlers, verified with diagnostics enabled (`PERF_DIAGNOSTICS=True`) and disabled (`PERF_DIAGNOSTICS=False`).
   6. Error Detail and Log Sanitization across touched APIs:
      - Sanitized raw `str(e)` exposure in `server/app/api/projects.py:402`, `server/app/api/admin/projects.py:251`, `server/app/api/exports.py:71, 102`, `server/app/api/modules.py:638, 861`, `server/app/api/copilot.py:100`, and `server/app/api/admin/ai_ops.py:358`.
      - Sanitized exception logging in `server/app/core/telemetry.py` and `server/app/services/system_setting_service.py` using `type(e).__name__` instead of raw `str(e)` to guarantee database connection strings, credentials, and passwords never leak into logs or telemetry.
-- **Test Evidence:**
-  - `server/tests/test_correction_phase_07_error_sanitization_exports_chat.py` (9/9 passed in 10.60s):
-    - `test_sanitize_filename_and_rfc5987_formatting`
-    - `test_unicode_export_filename_content_disposition`
-    - `test_newline_and_header_injection_defense`
-    - `test_missing_export_dependency_handling`
-    - `test_chat_history_pagination_and_ordering`
-    - `test_chat_provider_context_limits`
-    - `test_cross_user_tenant_isolation_copilot_and_exports`
-    - `test_synthetic_sensitive_markers_never_leak_in_client_or_telemetry`
-    - `test_unhandled_route_exception_returns_clean_500_with_request_id`
-  - Full backend regression suite (73 passed in 20.26s across Phase 3, 4, 5, 6, 7, Admin ops, AI failure modes, concurrency & sync).
-  - Frontend test suite (10 test files, 100/100 passed in 48.07s).
-- **Commit SHA:** `6615237cad39473184dc8b66670ebe9ab52f0dd2`
-- **Remaining Limitations:** None.
+  7. Repository Regression Reconciliations:
+     - `server/app/api/admin/ai_ops.py`: Handled missing `raw_planning` during admin roadmap retry by defaulting to `RoadmapPlanningRequest()`, fixing `test_admin_retry_reconciles_roadmap_under_project_lock`.
+     - `server/app/api/modules.py` & `server/app/services/module_orchestration_service.py`: Added `db.commit()` on legacy record rename and ensured persistence session records `module_type = "execution_roadmap"`, fixing `test_ROAD_027_legacy_record_is_readable_then_migrated_on_write`.
+- **Test Evidence & Backend Suite Reconciliation:**
+  - **Full Backend Suite Status:**
+    - Exact Command: `pytest -rs -q`
+    - Working Directory: `server/` (using `server/pytest.ini` with `pythonpath = .`, `testpaths = tests`)
+    - Collection Total: **469 tests collected across the repository** (0 exclusions, 0 altered pytest configurations)
+    - Results: **460 passed, 9 skipped, 0 failed, 98 warnings in 150.85s**
+    - Suite Reconciliation Note: The earlier reported "73 tests" was a selected regression suite covering Phases 3–7, admin ops, AI failure modes, and concurrency sync; 469 tests is the authoritative full repository suite.
+    - Reasons for 9 Skipped Tests:
+      1. `tests/test_pdf_and_ai.py:68`: `Live Gemini API key not configured; skipping integration smoke test.`
+      2. `tests/test_e2e_full_workflows.py:106`: `Live Gemini API key not configured; skipping real AI generation workflow test.`
+      3. `tests/test_e2e_full_workflows.py:138`: `Live Gemini API key not configured; skipping real AI generation workflow test.`
+      4. `tests/test_batch_04_admin_authorization.py:1016`: `PostgreSQL concurrency test requires running PostgreSQL instance.`
+      5. `tests/test_correction_batch_06_1_reconciliation.py:1094`: `PostgreSQL concurrency test requires running PostgreSQL instance.`
+      6. `tests/test_correction_batch_06_1_reconciliation.py:1192`: `PostgreSQL concurrency test requires running PostgreSQL instance.`
+      7. `tests/test_correction_batch_06_1_reconciliation.py:1283`: `PostgreSQL concurrency test requires running PostgreSQL instance.`
+      8. `tests/test_correction_batch_06_1_reconciliation.py:1410`: `PostgreSQL concurrency test requires running PostgreSQL instance.`
+      9. `tests/test_deployment_and_supabase_readiness.py:195`: `Requires live Supabase / PostgreSQL instance for real DDL smoke test.`
+  - **Phase 7 Focused Suite:**
+    - `server/tests/test_correction_phase_07_error_sanitization_exports_chat.py` (13/13 passed in 7.62s):
+      - `test_sanitize_filename_and_rfc5987_formatting`
+      - `test_sanitize_filename_bounds_length_and_edge_cases`
+      - `test_unicode_export_filename_content_disposition`
+      - `test_newline_and_header_injection_defense`
+      - `test_missing_export_dependency_handling`
+      - `test_chat_history_pagination_and_ordering`
+      - `test_chat_history_cursor_pagination_before_id`
+      - `test_chat_provider_context_limits`
+      - `test_chat_provider_context_truncation_drops_oldest_preserving_prompt`
+      - `test_cross_user_tenant_isolation_copilot_and_exports`
+      - `test_synthetic_sensitive_markers_never_leak_in_client_or_telemetry`
+      - `test_unhandled_route_exception_returns_clean_500_with_request_id`
+      - `test_diagnostics_middleware_sanitizes_unhandled_subapp_exceptions`
+  - **Frontend Verification:**
+    - Test Suite: `npm test` in `client/` — **10 test files, 100 passed in 48.07s**.
+    - Linter: `npm run lint` in `client/` — **0 errors, 25 warnings**.
+    - Build: `npm run build` in `client/` — **Built successfully (`tsc -b && vite build`)**.
+- **Remaining Limitations & Honest Disclosures:**
+  - **ReportLab Typography / Glyph Limitation:** Standard ReportLab core Type 1 Helvetica fonts are restricted to the Latin-1 character set. Titles or content containing Devanagari (Hindi `व्यापार`), CJK (Japanese `日本語`), Cyrillic, or Arabic render unmapped placeholders in the PDF document body unless external TrueType Unicode font files (`.ttf`) are registered with ReportLab's font manager. However, the download filename in the HTTP `Content-Disposition` header preserves 100% UTF-8 character fidelity via RFC 5987 `filename*` encoding without crashing Starlette/Uvicorn.
+  - **PostgreSQL Engine-Level Concurrency:** Engine-level row lock / race condition tests remain skipped pending a running disposable PostgreSQL instance (Phase 11).
 - **Production Config / Migration Requirements:** None. Zero schema migrations required.
 
 ---

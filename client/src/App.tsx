@@ -125,6 +125,8 @@ export const App: React.FC = () => {
   const [tasks, setTasks] = useState<RoadmapTask[]>([]);
   const [summary, setSummary] = useState<RoadmapSummary>(EMPTY_SUMMARY);
   const [copilotMessages, setCopilotMessages] = useState<CopilotMessage[]>([]);
+  const [hasMoreCopilot, setHasMoreCopilot] = useState<boolean>(false);
+  const [loadingOlderCopilot, setLoadingOlderCopilot] = useState<boolean>(false);
   const [moduleLoading, setModuleLoading] = useState<boolean>(false);
   const [moduleError, setModuleError] = useState<string | null>(null);
 
@@ -210,6 +212,8 @@ export const App: React.FC = () => {
     setTasks([]);
     setSummary(EMPTY_SUMMARY);
     setCopilotMessages([]);
+    setHasMoreCopilot(false);
+    setLoadingOlderCopilot(false);
     setReadinessError(null);
     setModuleError(null);
     setConflictModalOpen(false);
@@ -746,11 +750,12 @@ export const App: React.FC = () => {
       if (moduleType === 'blueprint_copilot') {
         const history = await queryCache.fetchWithCache(
           `copilot:history:${projectId}`,
-          () => api.copilot.getHistory(projectId),
+          () => api.copilot.getLatestHistory(projectId, 50),
           { staleTimeMs: 30000, userScope, forceFresh }
         );
         if (!viewing()) return;
         setCopilotMessages(history);
+        setHasMoreCopilot(history.length >= 50);
       }
     } catch (error: any) {
       if (viewing()) {
@@ -979,6 +984,31 @@ export const App: React.FC = () => {
     const projectId = currentProject.id;
     await api.tasks.delete(projectId, taskId);
     await refreshTasks(projectId);
+  };
+
+  const handleLoadOlderCopilot = async () => {
+    if (!currentProject || loadingOlderCopilot || copilotMessages.length === 0) return;
+    const oldestId = copilotMessages[0]?.id;
+    if (!oldestId) return;
+    const projectId = currentProject.id;
+    setLoadingOlderCopilot(true);
+    try {
+      const older = await api.copilot.getOlderHistory(projectId, oldestId, 50);
+      if (isViewing(projectId, 'blueprint_copilot')) {
+        setCopilotMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const freshOlder = older.filter(m => !existingIds.has(m.id));
+          return [...freshOlder, ...prev];
+        });
+        setHasMoreCopilot(older.length >= 50);
+      }
+    } catch (e) {
+      console.warn('Failed to load older copilot messages:', e);
+    } finally {
+      if (isViewing(projectId, 'blueprint_copilot')) {
+        setLoadingOlderCopilot(false);
+      }
+    }
   };
 
   // Project Update / Fork
@@ -1418,14 +1448,24 @@ export const App: React.FC = () => {
                     project={currentProject}
                     messages={copilotMessages}
                     userScope={currentUser?.id}
+                    hasMoreOlder={hasMoreCopilot}
+                    isLoadingOlder={loadingOlderCopilot}
+                    onLoadOlderMessages={handleLoadOlderCopilot}
                     onSendMessage={async (msg) => {
                       const projectId = currentProject.id;
                       await runModuleMutation(async () => {
-                        await api.copilot.sendMessage(projectId, msg);
+                        const assistantMsg = await api.copilot.sendMessage(projectId, msg);
                         queryCache.invalidate(`copilot:history:${projectId}`);
                         if (isViewing(projectId, 'blueprint_copilot')) {
-                          const history = await api.copilot.getHistory(projectId);
-                          if (isViewing(projectId, 'blueprint_copilot')) setCopilotMessages(history);
+                          setCopilotMessages(prev => {
+                            const userMsg: CopilotMessage = {
+                              id: 'local-user-' + Date.now(),
+                              role: 'user',
+                              content: msg,
+                              created_at: new Date().toISOString()
+                            };
+                            return [...prev, userMsg, assistantMsg];
+                          });
                         }
                       });
                     }}

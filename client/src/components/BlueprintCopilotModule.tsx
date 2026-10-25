@@ -7,6 +7,9 @@ interface Props {
   project: Project;
   messages: CopilotMessage[];
   onSendMessage: (message: string) => Promise<void>;
+  onLoadOlderMessages?: () => Promise<void>;
+  hasMoreOlder?: boolean;
+  isLoadingOlder?: boolean;
   isLoading: boolean;
   userScope?: string;
 }
@@ -314,11 +317,17 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   project,
   messages,
   onSendMessage,
+  onLoadOlderMessages,
+  hasMoreOlder = false,
+  isLoadingOlder = false,
   isLoading,
   userScope
 }) => {
   const [input, setInput] = useState(() => (userScope ? getDraft<string>(userScope, 'copilot_input', project.id) || '' : ''));
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isPaginatingOlderRef = useRef(false);
+  const scrollSnapshotRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
 
   // Deduplicate messages by id preserving chronological order
   const displayMessages = React.useMemo(() => {
@@ -336,10 +345,28 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   }, [messages]);
 
   useEffect(() => {
-    if (typeof chatBottomRef.current?.scrollIntoView === 'function') {
+    if (isPaginatingOlderRef.current && scrollSnapshotRef.current && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const heightDiff = container.scrollHeight - scrollSnapshotRef.current.scrollHeight;
+      container.scrollTop = scrollSnapshotRef.current.scrollTop + heightDiff;
+      isPaginatingOlderRef.current = false;
+      scrollSnapshotRef.current = null;
+    } else if (!isPaginatingOlderRef.current && typeof chatBottomRef.current?.scrollIntoView === 'function') {
       chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [displayMessages, isLoading]);
+
+  const handleLoadOlder = async () => {
+    if (!onLoadOlderMessages || isLoadingOlder) return;
+    if (scrollContainerRef.current) {
+      scrollSnapshotRef.current = {
+        scrollHeight: scrollContainerRef.current.scrollHeight,
+        scrollTop: scrollContainerRef.current.scrollTop
+      };
+      isPaginatingOlderRef.current = true;
+    }
+    await onLoadOlderMessages();
+  };
 
   // Persist unsent draft input
   useEffect(() => {
@@ -413,7 +440,31 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
       </div>
 
       {/* Messages Stream */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div
+        ref={scrollContainerRef}
+        style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}
+      >
+        {hasMoreOlder && (
+          <div style={{ textAlign: 'center', marginBottom: 6 }}>
+            <button
+              type="button"
+              onClick={handleLoadOlder}
+              disabled={isLoadingOlder}
+              className="btn-secondary"
+              style={{
+                fontSize: 12,
+                padding: '6px 14px',
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              {isLoadingOlder && <Loader2 size={12} className="animate-spin" />}
+              {isLoadingOlder ? 'Loading older messages...' : 'Load older messages'}
+            </button>
+          </div>
+        )}
         {displayMessages.length === 0 ? (
           <div style={{ textAlign: 'center', margin: 'auto 0', maxWidth: 540, alignSelf: 'center' }}>
             <div style={{

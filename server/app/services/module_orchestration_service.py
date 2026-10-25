@@ -201,6 +201,8 @@ class ModuleOrchestrationService:
                 )
 
             with project_first_lock(persist_db, project_id, p_mod.id):
+                if p_mod.module_type == "detailed_roadmap":
+                    p_mod.module_type = "execution_roadmap"
                 VersionService.assert_version_capacity(persist_db, p_mod)
 
                 if module_type in ("execution_roadmap", "detailed_roadmap"):

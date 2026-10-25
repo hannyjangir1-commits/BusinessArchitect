@@ -437,3 +437,201 @@ def test_unhandled_route_exception_returns_clean_500_with_request_id(auth_fixtur
         assert "internal" in data["detail"].lower()
         # Raw internal python KeyError details must not leak
         assert "unexpected_missing_internal_key" not in data["detail"]
+
+
+# ==============================================================================
+# Comprehensive Regression Tests for Verification Closeout
+# ==============================================================================
+
+def test_chat_pagination_over_50_messages_equal_timestamps_and_cursor(auth_fixture):
+    """Test pagination with 65 messages, equal timestamps, cursor paging, and stable secondary key ordering."""
+    client = auth_fixture["client1"]
+    p_id = auth_fixture["p1_id"]
+    fixed_time = datetime(2026, 10, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+    # Insert 65 messages with predictable IDs
+    with SessionLocal() as db:
+        # Clear existing messages for clean test
+        db.query(CopilotMessage).filter(CopilotMessage.project_id == p_id).delete()
+        db.commit()
+
+        for i in range(65):
+            # Messages 20 to 30 share identical created_at timestamp
+            t = fixed_time if (20 <= i <= 30) else (fixed_time + timedelta(seconds=i))
+            msg = CopilotMessage(
+                id=f"msg_{i:04d}",
+                project_id=p_id,
+                role="user" if i % 2 == 0 else "assistant",
+                content=f"Message {i:04d}",
+                created_at=t
+            )
+            db.add(msg)
+        db.commit()
+
+    # 1. Fetch latest page with limit=25, order=desc
+    r1 = client.get(f"/api/projects/{p_id}/copilot?limit=25&order=desc")
+    assert r1.status_code == 200
+    p1_data = r1.json()
+    assert len(p1_data) == 25
+    assert r1.headers.get("X-Total-Count") == "65"
+    assert r1.headers.get("X-Has-More") == "true"
+    assert p1_data[0]["id"] == "msg_0064"
+
+    # 2. Fetch second page using cursor before_id
+    cursor = p1_data[-1]["id"]  # msg_0040
+    r2 = client.get(f"/api/projects/{p_id}/copilot?limit=25&order=desc&before_id={cursor}")
+    assert r2.status_code == 200
+    p2_data = r2.json()
+    assert len(p2_data) == 25
+    assert p2_data[0]["id"] == "msg_0039"
+
+    # Verify no overlap between p1 and p2
+    p1_ids = {m["id"] for m in p1_data}
+    p2_ids = {m["id"] for m in p2_data}
+    assert p1_ids.isdisjoint(p2_ids)
+
+    # 3. Fetch third page (remaining 15 messages) which crosses the equal-timestamp boundary
+    cursor2 = p2_data[-1]["id"]  # msg_0015
+    r3 = client.get(f"/api/projects/{p_id}/copilot?limit=25&order=desc&before_id={cursor2}")
+    assert r3.status_code == 200
+    p3_data = r3.json()
+    assert len(p3_data) == 15
+    assert p3_data[-1]["id"] == "msg_0000"
+
+    # Combined messages must equal exactly 65 unique IDs
+    all_paged_ids = [m["id"] for m in p1_data + p2_data + p3_data]
+    assert len(all_paged_ids) == 65
+    assert len(set(all_paged_ids)) == 65
+
+
+def test_provider_context_character_budget_and_prompt_preservation(auth_fixture):
+    """Test that recent history passed to provider respects 16,000 char budget while preserving user question in full."""
+    client = auth_fixture["client1"]
+    p_id = auth_fixture["p1_id"]
+
+    # Seed 10 large messages in history: each 3,000 chars = 30,000 total chars
+    with SessionLocal() as db:
+        db.query(CopilotMessage).filter(CopilotMessage.project_id == p_id).delete()
+        for i in range(10):
+            msg = CopilotMessage(
+                id=f"large_msg_{i}",
+                project_id=p_id,
+                role="user" if i % 2 == 0 else "assistant",
+                content=f"History message {i}: " + ("x" * 2980),
+                created_at=datetime.now(timezone.utc) + timedelta(seconds=i)
+            )
+            db.add(msg)
+        db.commit()
+
+    captured_history = None
+    captured_request = None
+
+    def mock_chat_copilot(proj_info, history_dicts, user_message, cross_module_context=None):
+        nonlocal captured_history, captured_request
+        captured_history = history_dicts
+        captured_request = user_message
+        return "Simulated budget test reply"
+
+    long_user_question = "Explain technical scalability: " + ("y" * 2000)
+
+    with patch("app.ai.gemini_service.ai_service.chat_copilot", side_effect=mock_chat_copilot):
+        resp = client.post(
+            f"/api/projects/{p_id}/copilot",
+            json={"message": long_user_question}
+        )
+        assert resp.status_code == 200
+
+    # User question must be preserved completely (not truncated)
+    assert captured_request == long_user_question
+    assert len(captured_request) > 2000
+
+    # Total characters in history passed to provider must not exceed 16,000 chars
+    total_history_chars = sum(len(m["content"]) for m in captured_history)
+    assert total_history_chars <= 16000
+    # Must preserve the most recent history messages
+    assert captured_history[-1]["content"].startswith("History message 9")
+
+
+def test_export_filename_comprehensive_edge_cases():
+    """Verify filename handling across Unicode-only, control characters, slashes, punctuation-only, and long titles."""
+    from app.core.exports import sanitize_filename, format_content_disposition
+
+    # 1. Unicode-only title (Hindi)
+    ascii_f, utf8_f = sanitize_filename("व्यापार", fallback="project")
+    assert ascii_f == "project.pdf"
+    assert utf8_f == "व्यापार.pdf"
+    disp = format_content_disposition("व्यापार", fallback="project")
+    assert 'filename="project.pdf"' in disp
+    assert "filename*=UTF-8''" in disp
+
+    # 2. Mixed-language title with quotes, slashes, percent, and semicolons
+    ascii_f, utf8_f = sanitize_filename('Project "Alpha" / Beta \\ Gamma; 100%', fallback="project")
+    assert "/" not in ascii_f and "\\" not in ascii_f and ";" not in ascii_f and '"' not in ascii_f
+    assert "/" not in utf8_f and "\\" not in utf8_f and ";" not in utf8_f and '"' not in utf8_f
+    assert ascii_f.endswith(".pdf")
+    assert utf8_f.endswith(".pdf")
+
+    # 3. CR/LF, null bytes, and DEL control character
+    ascii_f, utf8_f = sanitize_filename("Injected\r\nHeader\x00Name\x7fTest", fallback="safe")
+    assert "\r" not in ascii_f and "\n" not in ascii_f and "\x00" not in ascii_f and "\x7f" not in ascii_f
+    assert "\r" not in utf8_f and "\n" not in utf8_f and "\x00" not in utf8_f and "\x7f" not in utf8_f
+
+    # 4. Empty or punctuation-only title
+    ascii_f, utf8_f = sanitize_filename("???///:::;;;***", fallback="fallback_doc")
+    assert ascii_f == "fallback_doc.pdf"
+    assert utf8_f == "fallback_doc.pdf"
+
+    # 5. Very long title (500 chars)
+    long_title = "A" * 500
+    ascii_f, utf8_f = sanitize_filename(long_title, fallback="doc")
+    # Base must be bounded to <= 100 chars, so total <= 104 chars
+    assert len(ascii_f) <= 104
+    assert len(utf8_f) <= 104
+    assert ascii_f.count(".pdf") == 1
+
+
+def test_exception_sanitization_across_main_and_mounted_routes(auth_fixture):
+    """Test unexpected failures in main app, mounted API, with diagnostics enabled and disabled."""
+    raw_token = auth_fixture["raw_token1"]
+    csrf = auth_fixture["csrf1"]
+    client = TestClient(
+        app,
+        cookies={settings.COOKIE_NAME: raw_token},
+        headers={"X-CSRF-Token": csrf},
+        raise_server_exceptions=False
+    )
+    p_id = auth_fixture["p1_id"]
+
+    # 1. Diagnostics enabled: unhandled exception returns generic 500 with correlation ID
+    def broken_dep_div():
+        raise ZeroDivisionError("secret_database_division_error")
+
+    def broken_dep_val():
+        raise ValueError("connection_string=postgres://usr:secret_pwd@db/app")
+
+    from app.main import api_v1
+    from app.api.deps import get_user_project
+
+    try:
+        api_v1.dependency_overrides[get_user_project] = broken_dep_div
+        with patch("app.core.config.settings.PERF_DIAGNOSTICS", True):
+            resp = client.get(f"/api/projects/{p_id}")
+            assert resp.status_code == 500
+            data = resp.json()
+            assert "internal server error" in data["detail"].lower()
+            assert "secret_database_division_error" not in resp.text
+            assert "request_id" in data
+            assert resp.headers.get("X-Request-ID") == data["request_id"]
+
+        # 2. Diagnostics disabled: unhandled exception returns generic 500 with correlation ID
+        api_v1.dependency_overrides[get_user_project] = broken_dep_val
+        with patch("app.core.config.settings.PERF_DIAGNOSTICS", False):
+            resp = client.get(f"/api/projects/{p_id}")
+            assert resp.status_code == 500
+            data = resp.json()
+            assert "secret_pwd" not in resp.text
+            assert "connection_string" not in resp.text
+            assert "request_id" in data
+            assert resp.headers.get("X-Request-ID") == data["request_id"]
+    finally:
+        api_v1.dependency_overrides.clear()

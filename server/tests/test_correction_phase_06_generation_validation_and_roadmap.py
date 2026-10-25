@@ -447,11 +447,22 @@ def test_unsupported_legacy_retry_returns_controlled_explanation(admin_setup):
     admin_id = admin_setup["admin_id"]
 
     with SessionLocal() as db:
+        # Create module and active version for modification context
+        mod = VersionService.get_or_create_module(db, pid, "execution_roadmap")
+        VersionService.save_new_version(
+            db,
+            mod,
+            data={"phases": [], "tasks": []},
+            change_summary="Initial version",
+            custom_name="V1"
+        )
+        db.commit()
+
         # Simulate legacy operation: NO retry_context passed
         failed_op = record_ai_operation(
             db,
             module_type="execution_roadmap",
-            operation_type="generate",
+            operation_type="modify",
             model_name=settings.GEMINI_MODEL,
             duration_ms=4000,
             status="failed",
@@ -466,12 +477,12 @@ def test_unsupported_legacy_retry_returns_controlled_explanation(admin_setup):
         )
         op_id = failed_op.id
 
-    with patch("app.ai.gemini_service.ai_service.generate_roadmap") as mock_gen:
+    with patch("app.ai.gemini_service.ai_service.modify_section") as mock_mod:
         resp = client.post(f"/api/admin/ai-operations/{op_id}/retry")
 
     assert resp.status_code == 400
-    assert "original planning intent was not retained for this legacy operation and cannot be recovered" in resp.json()["detail"]
-    assert mock_gen.call_count == 0  # Did not guess or call provider
+    assert "original modification instruction was not retained for this legacy operation and cannot be recovered" in resp.json()["detail"]
+    assert mock_mod.call_count == 0  # Did not guess or call provider
 
 
 # ==============================================================================

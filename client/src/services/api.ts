@@ -343,8 +343,25 @@ export const api = {
   },
 
   copilot: {
-    getHistory: (projectId: string): Promise<CopilotMessage[]> =>
-      request<CopilotMessage[]>(`/api/projects/${projectId}/copilot`),
+    getHistory: (projectId: string, params?: { limit?: number; offset?: number; order?: 'asc' | 'desc'; before_id?: string }): Promise<CopilotMessage[]> => {
+      const searchParams = new URLSearchParams();
+      if (params?.limit) searchParams.set('limit', params.limit.toString());
+      if (params?.offset !== undefined) searchParams.set('offset', params.offset.toString());
+      if (params?.order) searchParams.set('order', params.order);
+      if (params?.before_id) searchParams.set('before_id', params.before_id);
+      const q = searchParams.toString();
+      return request<CopilotMessage[]>(`/api/projects/${projectId}/copilot${q ? `?${q}` : ''}`);
+    },
+
+    getLatestHistory: async (projectId: string, limit = 50): Promise<CopilotMessage[]> => {
+      const messages = await api.copilot.getHistory(projectId, { limit, order: 'desc' });
+      return [...messages].reverse();
+    },
+
+    getOlderHistory: async (projectId: string, beforeId: string, limit = 50): Promise<CopilotMessage[]> => {
+      const messages = await api.copilot.getHistory(projectId, { limit, order: 'desc', before_id: beforeId });
+      return [...messages].reverse();
+    },
 
     sendMessage: (projectId: string, message: string): Promise<CopilotMessage> =>
       request<CopilotMessage>(`/api/projects/${projectId}/copilot`, {
