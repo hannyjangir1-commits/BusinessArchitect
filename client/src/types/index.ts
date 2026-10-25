@@ -279,4 +279,6 @@ export interface CopilotMessage {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+  status?: 'sending' | 'saved' | 'failed';
+  error?: string;
 }

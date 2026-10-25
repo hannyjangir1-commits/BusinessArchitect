@@ -67,11 +67,11 @@ export const RoadmapMindMap: React.FC<Props> = ({ projectName, stage, phases, ta
       {/* Mind Map Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sparkles size={18} color="var(--primary-text)" /> Interactive Delivery Roadmap
           </h3>
-          <p style={{ fontSize: 12.5, color: 'var(--primary-text)', margin: '4px 0 0 0' }}>
-            Stage-adapted delivery tree inspired by roadmap.sh. Click any phase or milestone node to inspect execution details and dependencies.
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+            Select a task to see steps, assignment, and dependencies.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 11.5, color: 'var(--primary-text)' }}>

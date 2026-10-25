@@ -1,12 +1,13 @@
 /**
  * Lightweight, zero-dependency in-memory query cache & deduplication service.
  * Supports:
- * - In-flight promise reuse (request deduplication)
- * - Stale-while-revalidate freshness semantics
- * - AbortController integration
+ * - Request identity on in-flight entries (prevents older requests from deleting newer entries)
+ * - Multi-subscriber cancellation safety (cancellation by one subscriber does not abort shared request)
+ * - Union regex invalidation over both cache and in-flight request keys
+ * - Stale-while-revalidate subscriber notifications
  * - User-scoped cache isolation and invalidation
  * - Generation epoch tracking to prevent late responses from repopulating post-logout cache
- * - Safe TTL expiration
+ * - Bounded LRU cache size (max 150 entries)
  */
 
 export interface CacheEntry<T> {
@@ -17,11 +18,13 @@ export interface CacheEntry<T> {
 }
 
 interface InFlightRequest<T> {
+  id: string;
   promise: Promise<T>;
   controller: AbortController;
   timestamp: number;
   requestEpoch: number;
   userScope?: string;
+  subscribers: number;
 }
 
 export interface FetchWithCacheOptions {
@@ -34,11 +37,13 @@ export interface FetchWithCacheOptions {
 class QueryCache {
   private cache = new Map<string, CacheEntry<any>>();
   private inFlight = new Map<string, InFlightRequest<any>>();
+  private subscribers = new Map<string, Set<(data: any) => void>>();
   private epoch = 0;
+  private readonly MAX_CACHE_ENTRIES = 150;
 
   /**
    * Fetch with request deduplication and stale-while-revalidate caching.
-   * If a request for the same key is already in flight, reuses the existing promise.
+   * If a request for the same key is already in flight, reuses the existing promise and tracks subscribers.
    * If fresh data is in cache for this userScope, returns it immediately.
    * If stale data is in cache, returns cached data immediately and revalidates in the background.
    */
@@ -73,20 +78,50 @@ class QueryCache {
     // 2. Reuse in-flight request if present and userScope matches
     const existing = this.inFlight.get(key);
     if (existing && existing.userScope === userScope) {
+      existing.subscribers++;
+      if (signal) {
+        signal.addEventListener(
+          'abort',
+          () => {
+            existing.subscribers--;
+            // Only abort the underlying controller if all subscribers have aborted
+            if (existing.subscribers <= 0) {
+              existing.controller.abort(signal.reason);
+            }
+          },
+          { once: true }
+        );
+      }
       return existing.promise as Promise<T>;
     }
 
-    // 3. Launch new fetch with epoch tracking
+    // 3. Launch new fetch with epoch tracking and unique entry identity
     const requestEpoch = this.epoch;
     const requestUserScope = userScope;
     const controller = new AbortController();
+    const entryId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const entry: InFlightRequest<T> = {
+      id: entryId,
+      promise: null as any,
+      controller,
+      timestamp: now,
+      requestEpoch,
+      userScope: requestUserScope,
+      subscribers: 1
+    };
 
     if (signal) {
-      if (signal.aborted) {
-        controller.abort(signal.reason);
-      } else {
-        signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
-      }
+      signal.addEventListener(
+        'abort',
+        () => {
+          entry.subscribers--;
+          if (entry.subscribers <= 0) {
+            controller.abort(signal.reason);
+          }
+        },
+        { once: true }
+      );
     }
 
     const promise = (async () => {
@@ -96,25 +131,19 @@ class QueryCache {
         if (this.epoch !== requestEpoch || controller.signal.aborted) {
           return data;
         }
-        this.cache.set(key, {
-          data,
-          timestamp: Date.now(),
-          staleAt: Date.now() + staleTimeMs,
-          userScope: requestUserScope
-        });
+        this.setCached(key, data, staleTimeMs, requestUserScope);
+        this.notifySubscribers(key, data);
         return data;
       } finally {
-        this.inFlight.delete(key);
+        // Precise identity cleanup: only remove from inFlight if THIS entry is still the active one
+        if (this.inFlight.get(key) === entry) {
+          this.inFlight.delete(key);
+        }
       }
     })();
 
-    this.inFlight.set(key, {
-      promise,
-      controller,
-      timestamp: now,
-      requestEpoch,
-      userScope
-    });
+    entry.promise = promise;
+    this.inFlight.set(key, entry);
 
     return promise;
   }
@@ -129,6 +158,18 @@ class QueryCache {
 
     const requestEpoch = this.epoch;
     const controller = new AbortController();
+    const entryId = `reval_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const entry: InFlightRequest<any> = {
+      id: entryId,
+      promise: null as any,
+      controller,
+      timestamp: Date.now(),
+      requestEpoch,
+      userScope,
+      subscribers: 1
+    };
+
     const promise = (async () => {
       try {
         const data = await fetcher(controller.signal);
@@ -136,26 +177,47 @@ class QueryCache {
         if (this.epoch !== requestEpoch || controller.signal.aborted) {
           return;
         }
-        this.cache.set(key, {
-          data,
-          timestamp: Date.now(),
-          staleAt: Date.now() + staleTimeMs,
-          userScope
-        });
+        this.setCached(key, data, staleTimeMs, userScope);
+        this.notifySubscribers(key, data);
       } catch {
         // Background revalidation failure silently keeps existing stale data
       } finally {
-        this.inFlight.delete(key);
+        if (this.inFlight.get(key) === entry) {
+          this.inFlight.delete(key);
+        }
       }
     })();
 
-    this.inFlight.set(key, {
-      promise,
-      controller,
-      timestamp: Date.now(),
-      requestEpoch,
-      userScope
-    });
+    entry.promise = promise as any;
+    this.inFlight.set(key, entry);
+  }
+
+  /**
+   * Subscribe to cache updates (e.g. from background revalidation).
+   */
+  subscribe(key: string, callback: (data: any) => void): () => void {
+    if (!this.subscribers.has(key)) {
+      this.subscribers.set(key, new Set());
+    }
+    const set = this.subscribers.get(key)!;
+    set.add(callback);
+    return () => {
+      set.delete(callback);
+      if (set.size === 0) this.subscribers.delete(key);
+    };
+  }
+
+  private notifySubscribers(key: string, data: any): void {
+    const set = this.subscribers.get(key);
+    if (set) {
+      for (const cb of Array.from(set)) {
+        try {
+          cb(data);
+        } catch (e) {
+          console.warn('QueryCache subscriber error:', e);
+        }
+      }
+    }
   }
 
   /**
@@ -171,7 +233,6 @@ class QueryCache {
     return entry.data as T;
   }
 
-
   isFresh(key: string, userScope?: string): boolean {
     const entry = this.cache.get(key);
     if (!entry) return false;
@@ -180,6 +241,11 @@ class QueryCache {
   }
 
   setCached<T>(key: string, data: T, staleTimeMs = 60000, userScope?: string): void {
+    // Evict oldest entry when capacity is reached
+    if (this.cache.size >= this.MAX_CACHE_ENTRIES && !this.cache.has(key)) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -195,7 +261,9 @@ class QueryCache {
     } else {
       // Strip 'g' flag to prevent stateful lastIndex skipping across sequential .test() calls
       const rx = new RegExp(patternOrKey.source, patternOrKey.flags.replace('g', ''));
-      for (const key of Array.from(this.cache.keys())) {
+      // Invalidate matching keys from the union of cache and in-flight maps
+      const allKeys = new Set([...this.cache.keys(), ...this.inFlight.keys()]);
+      for (const key of allKeys) {
         if (rx.test(key)) {
           this.cache.delete(key);
           this.abortKey(key);

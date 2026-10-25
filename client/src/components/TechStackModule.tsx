@@ -5,7 +5,7 @@ import { TechStackPlanningForm } from './TechStackPlanningForm';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
 import { ArchitectureInfographic } from './ArchitectureInfographic';
-import { Cpu, Layers, ShieldCheck, Server, Database, Cloud, Terminal } from 'lucide-react';
+import { Cpu, Layers, ShieldCheck, Server, Database, Cloud, Terminal, Sparkles } from 'lucide-react';
 
 interface Props {
   project: Project;
@@ -42,6 +42,27 @@ export const TechStackModule: React.FC<Props> = ({
   const [showPlanner, setShowPlanner] = useState(!techData);
 
   const diagramRef = useRef<HTMLDivElement>(null);
+
+  // Controlled assistant state with session persistence (Checkpoint 5.1 & 5.2)
+  const [assistantOpen, setAssistantOpen] = useState<boolean>(() => {
+    try {
+      const stored = sessionStorage.getItem(`assistant_open_${project.id}_tech`);
+      return stored !== null ? stored === 'true' : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleAssistant = () => {
+    setAssistantOpen(prev => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem(`assistant_open_${project.id}_tech`, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const handleDownloadSvg = () => {
     const diagram = diagramRef.current?.querySelector<SVGSVGElement>('svg[data-architecture-diagram]');
     if (diagram) downloadSvg(diagram, `${project.name.replace(/[^a-z0-9_-]/gi, '_')}_architecture.svg`);
@@ -103,26 +124,38 @@ export const TechStackModule: React.FC<Props> = ({
           </div>
         </div>
 
-        <VersionToolbar
-          moduleType="tech_stack"
-          moduleTitle="Technology Stack"
-          activeVersionName={moduleDetail.active_version_name}
-          activeVersionNumber={moduleDetail.active_version_number}
-          versions={moduleDetail.versions || []}
-          onRename={onRenameVersion}
-          onDelete={onDeleteVersion}
-          onRestore={onRestoreVersion}
-          onExportPdf={onExportPdf}
-          onExportSvg={handleDownloadSvg}
-          onCreateNew={async () => { setShowPlanner(true); }}
-          onDeleteModule={onDeleteModule}
-          createLabel="Create New Stack"
-          isBusy={isLoading || isGenerating}
-          isCreateDisabled={isGenerateDisabled}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={toggleAssistant}
+            className="btn-secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            aria-expanded={assistantOpen}
+          >
+            <Sparkles size={14} />
+            {assistantOpen ? 'Hide Assistant' : 'Edit with assistant'}
+          </button>
+          <VersionToolbar
+            moduleType="tech_stack"
+            moduleTitle="Technology Stack"
+            activeVersionName={moduleDetail.active_version_name}
+            activeVersionNumber={moduleDetail.active_version_number}
+            versions={moduleDetail.versions || []}
+            onRename={onRenameVersion}
+            onDelete={onDeleteVersion}
+            onRestore={onRestoreVersion}
+            onExportPdf={onExportPdf}
+            onExportSvg={handleDownloadSvg}
+            onCreateNew={async () => { setShowPlanner(true); }}
+            onDeleteModule={onDeleteModule}
+            createLabel="Create New Stack"
+            isBusy={isLoading || isGenerating}
+            isCreateDisabled={isGenerateDisabled}
+          />
+        </div>
       </div>
 
-      <div className="workspace-grid">
+      <div className={assistantOpen ? 'workspace-grid has-assistant' : 'workspace-grid'}>
         <div className="workspace-main-column" ref={diagramRef}>
           {/* Dedicated Vector SVG Architecture Blueprint Infographic */}
           <ArchitectureInfographic
@@ -220,12 +253,20 @@ export const TechStackModule: React.FC<Props> = ({
         </div>
 
         {/* Section-Specific Blueprint Assistant on the right */}
-        <ContextualAssistant
-          moduleTitle="Technology Stack"
-          moduleType="tech_stack"
-          onModify={onModify}
-          isLoading={isLoading || isGenerating}
-        />
+        {assistantOpen && (
+          <ContextualAssistant
+            moduleTitle="Technology Stack"
+            moduleType="tech_stack"
+            onModify={onModify}
+            onClose={() => {
+              setAssistantOpen(false);
+              try {
+                sessionStorage.setItem(`assistant_open_${project.id}_tech`, 'false');
+              } catch {}
+            }}
+            isLoading={isLoading || isGenerating}
+          />
+        )}
       </div>
     </div>
   );

@@ -18,12 +18,16 @@ export function downloadSvg(element: SVGSVGElement, filename: string) {
       }
     }
   });
+  const rawName = (filename || '').replace(/[\r\n\x00-\x1f\x7f/\\]/g, '').trim();
+  const safeBase = rawName.replace(/\.svg$/i, '').replace(/[^a-zA-Z0-9_\-\u00A0-\uFFFF]/g, '_').replace(/_+/g, '_').slice(0, 100);
+  const cleanFilename = `${safeBase || 'diagram'}.svg`;
+
   copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   const blob = new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = filename;
+  link.download = cleanFilename;
   document.body.appendChild(link);
   link.click();
   link.remove();

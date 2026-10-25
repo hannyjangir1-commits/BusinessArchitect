@@ -2,11 +2,12 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.models.all_models import Project, RoadmapTask
+from app.models.all_models import Project, RoadmapTask, ModuleContent, ModuleVersion
 from app.schemas.task import (
     TaskCreateRequest, TaskUpdateRequest, TaskResponse, RoadmapSummaryResponse
 )
 from app.api.deps import get_user_project, verify_csrf
+from app.services.task_milestones import calculate_roadmap_summary
 
 router = APIRouter(prefix="/projects/{project_id}/tasks", tags=["Roadmap Tasks"])
 
@@ -38,39 +39,20 @@ def get_roadmap_summary(
 ):
     tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == project.id).all()
 
-    total = len(tasks)
-    completed = sum(1 for t in tasks if t.status in ("Finished", "Completed"))
-    overall_progress = int((completed / total) * 100) if total > 0 else 0
+    module = db.query(ModuleContent).filter(
+        ModuleContent.project_id == project.id,
+        ModuleContent.module_type == "execution_roadmap"
+    ).first()
+    saved_start_date = None
+    if module and module.active_version_id:
+        active_ver = db.query(ModuleVersion).filter(ModuleVersion.id == module.active_version_id).first()
+        if active_ver and isinstance(active_ver.data, dict):
+            planning_inputs = active_ver.data.get("planning_inputs") or {}
+            if isinstance(planning_inputs, dict):
+                saved_start_date = planning_inputs.get("start_date")
 
-    m30_tasks = [t for t in tasks if "30" in t.timeline]
-    m30_total = len(m30_tasks)
-    m30_comp = sum(1 for t in m30_tasks if t.status in ("Finished", "Completed"))
-    m30_prog = int((m30_comp / m30_total) * 100) if m30_total > 0 else 0
-
-    m60_tasks = [t for t in tasks if "60" in t.timeline]
-    m60_total = len(m60_tasks)
-    m60_comp = sum(1 for t in m60_tasks if t.status in ("Finished", "Completed"))
-    m60_prog = int((m60_comp / m60_total) * 100) if m60_total > 0 else 0
-
-    m90_tasks = [t for t in tasks if "90" in t.timeline]
-    m90_total = len(m90_tasks)
-    m90_comp = sum(1 for t in m90_tasks if t.status in ("Finished", "Completed"))
-    m90_prog = int((m90_comp / m90_total) * 100) if m90_total > 0 else 0
-
-    return RoadmapSummaryResponse(
-        milestone_30_progress=m30_prog,
-        milestone_30_completed=m30_comp,
-        milestone_30_total=m30_total,
-        milestone_60_progress=m60_prog,
-        milestone_60_completed=m60_comp,
-        milestone_60_total=m60_total,
-        milestone_90_progress=m90_prog,
-        milestone_90_completed=m90_comp,
-        milestone_90_total=m90_total,
-        total_tasks=total,
-        completed_tasks=completed,
-        overall_progress=overall_progress
-    )
+    summary_data = calculate_roadmap_summary(tasks, saved_start_date)
+    return RoadmapSummaryResponse(**summary_data)
 
 from app.services.task_graph_validator import (
     get_project_task_lock,

@@ -217,8 +217,8 @@ export const api = {
       await request('/api/auth/logout', { method: 'POST' });
       csrfTokenCache = '';
     },
-    getMe: async (): Promise<SessionData> => {
-      const res = await request<SessionData>('/api/auth/me');
+    getMe: async (options?: { signal?: AbortSignal }): Promise<SessionData> => {
+      const res = await request<SessionData>('/api/auth/me', { signal: options?.signal });
       if (res.csrf_token) setCsrfToken(res.csrf_token);
       return res;
     },
@@ -235,12 +235,12 @@ export const api = {
   },
 
   projects: {
-    list: (): Promise<Project[]> => request<Project[]>('/api/projects'),
+    list: (options?: { signal?: AbortSignal }): Promise<Project[]> => request<Project[]>('/api/projects', { signal: options?.signal }),
     create: (data: any): Promise<Project> => request<Project>('/api/projects', {
       method: 'POST',
       body: JSON.stringify(data)
     }),
-    get: (id: string): Promise<Project> => request<Project>(`/api/projects/${id}`),
+    get: (id: string, options?: { signal?: AbortSignal }): Promise<Project> => request<Project>(`/api/projects/${id}`, { signal: options?.signal }),
     update: (id: string, data: any): Promise<Project> => request<Project>(`/api/projects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
@@ -258,8 +258,8 @@ export const api = {
   },
 
   modules: {
-    get: (projectId: string, moduleType: string): Promise<ModuleDetail> =>
-      request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}`),
+    get: (projectId: string, moduleType: string, options?: { signal?: AbortSignal }): Promise<ModuleDetail> =>
+      request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}`, { signal: options?.signal }),
 
     delete: (projectId: string, moduleType: string): Promise<{ message: string; module_type: string; deleted_records: number; deleted_tasks: number }> =>
       request(`/api/projects/${projectId}/modules/${moduleType}`, { method: 'DELETE' }),
@@ -314,17 +314,17 @@ export const api = {
   },
 
   tasks: {
-    list: (projectId: string, params?: { timeline?: string; status?: string; search?: string }): Promise<RoadmapTask[]> => {
+    list: (projectId: string, params?: { timeline?: string; status?: string; search?: string }, options?: { signal?: AbortSignal }): Promise<RoadmapTask[]> => {
       const searchParams = new URLSearchParams();
       if (params?.timeline) searchParams.set('timeline', params.timeline);
       if (params?.status) searchParams.set('status', params.status);
       if (params?.search) searchParams.set('search', params.search);
       const q = searchParams.toString();
-      return request<RoadmapTask[]>(`/api/projects/${projectId}/tasks${q ? `?${q}` : ''}`);
+      return request<RoadmapTask[]>(`/api/projects/${projectId}/tasks${q ? `?${q}` : ''}`, { signal: options?.signal });
     },
 
-    getSummary: (projectId: string): Promise<RoadmapSummary> =>
-      request<RoadmapSummary>(`/api/projects/${projectId}/tasks/summary`),
+    getSummary: (projectId: string, options?: { signal?: AbortSignal }): Promise<RoadmapSummary> =>
+      request<RoadmapSummary>(`/api/projects/${projectId}/tasks/summary`, { signal: options?.signal }),
 
     create: (projectId: string, data: any): Promise<RoadmapTask> =>
       request<RoadmapTask>(`/api/projects/${projectId}/tasks`, {
@@ -343,30 +343,49 @@ export const api = {
   },
 
   copilot: {
-    getHistory: (projectId: string, params?: { limit?: number; offset?: number; order?: 'asc' | 'desc'; before_id?: string }): Promise<CopilotMessage[]> => {
+    getPage: (projectId: string, beforeCursor?: string, limit = 50, options?: { signal?: AbortSignal }): Promise<{
+      messages: CopilotMessage[];
+      has_more: boolean;
+      before_cursor?: string | null;
+      total_count: number;
+    }> => {
+      const searchParams = new URLSearchParams();
+      if (limit) searchParams.set('limit', limit.toString());
+      if (beforeCursor) searchParams.set('before_cursor', beforeCursor);
+      const q = searchParams.toString();
+      return request<{
+        messages: CopilotMessage[];
+        has_more: boolean;
+        before_cursor?: string | null;
+        total_count: number;
+      }>(`/api/projects/${projectId}/copilot/page${q ? `?${q}` : ''}`, { signal: options?.signal });
+    },
+
+    getHistory: (projectId: string, params?: { limit?: number; offset?: number; order?: 'asc' | 'desc'; before_id?: string; before_cursor?: string }, options?: { signal?: AbortSignal }): Promise<CopilotMessage[]> => {
       const searchParams = new URLSearchParams();
       if (params?.limit) searchParams.set('limit', params.limit.toString());
       if (params?.offset !== undefined) searchParams.set('offset', params.offset.toString());
       if (params?.order) searchParams.set('order', params.order);
       if (params?.before_id) searchParams.set('before_id', params.before_id);
+      if (params?.before_cursor) searchParams.set('before_cursor', params.before_cursor);
       const q = searchParams.toString();
-      return request<CopilotMessage[]>(`/api/projects/${projectId}/copilot${q ? `?${q}` : ''}`);
+      return request<CopilotMessage[]>(`/api/projects/${projectId}/copilot${q ? `?${q}` : ''}`, { signal: options?.signal });
     },
 
     getLatestHistory: async (projectId: string, limit = 50): Promise<CopilotMessage[]> => {
-      const messages = await api.copilot.getHistory(projectId, { limit, order: 'desc' });
-      return [...messages].reverse();
+      const page = await api.copilot.getPage(projectId, undefined, limit);
+      return page.messages;
     },
 
-    getOlderHistory: async (projectId: string, beforeId: string, limit = 50): Promise<CopilotMessage[]> => {
-      const messages = await api.copilot.getHistory(projectId, { limit, order: 'desc', before_id: beforeId });
-      return [...messages].reverse();
+    getOlderHistory: async (projectId: string, beforeCursor: string, limit = 50): Promise<CopilotMessage[]> => {
+      const page = await api.copilot.getPage(projectId, beforeCursor, limit);
+      return page.messages;
     },
 
-    sendMessage: (projectId: string, message: string): Promise<CopilotMessage> =>
+    sendMessage: (projectId: string, message: string, clientMsgId?: string): Promise<CopilotMessage> =>
       request<CopilotMessage>(`/api/projects/${projectId}/copilot`, {
         method: 'POST',
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ message, client_msg_id: clientMsgId })
       })
   },
 

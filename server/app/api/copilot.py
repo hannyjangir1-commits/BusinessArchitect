@@ -1,10 +1,12 @@
+import base64
 import logging
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.models.all_models import Project, CopilotMessage, User
-from app.schemas.copilot import CopilotChatRequest, CopilotMessageResponse
+from app.schemas.copilot import CopilotChatRequest, CopilotMessageResponse, CopilotHistoryPageResponse
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
 from app.core.business_stage import normalize_business_stage
@@ -14,6 +16,82 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/copilot", tags=["Blueprint Copilot"])
 
+
+def encode_cursor(dt: datetime, msg_id: str) -> str:
+    """Encode created_at timestamp and message ID into a tamper-evident URL-safe cursor."""
+    payload = f"{dt.isoformat()}|{msg_id}"
+    return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii")
+
+
+def decode_cursor(cursor_str: str) -> Tuple[datetime, str]:
+    """Decode and validate a pagination cursor string into (datetime, msg_id)."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor_str.encode("ascii")).decode("utf-8")
+        dt_str, msg_id = raw.split("|", 1)
+        dt = datetime.fromisoformat(dt_str)
+        return dt, msg_id
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid pagination cursor format."
+        ) from e
+
+
+@router.get("/page", response_model=CopilotHistoryPageResponse)
+def get_chat_history_page(
+    response: Response,
+    before_cursor: Optional[str] = Query(None, description="Cursor: return messages created before this position"),
+    limit: int = Query(50, ge=1, le=200, description="Page size (1-200)"),
+    project: Project = Depends(get_user_project),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve a bounded page of chat history ordered chronologically ascending for display.
+    When before_cursor is omitted, returns the latest messages.
+    When before_cursor is supplied, returns older messages prior to the cursor.
+    Validates cursor strictly against authorized project_id to prevent cross-tenant queries.
+    """
+    base_query = db.query(CopilotMessage).filter(CopilotMessage.project_id == project.id)
+    total_count = base_query.count()
+
+    query = base_query
+    if before_cursor:
+        cursor_dt, cursor_id = decode_cursor(before_cursor)
+        # Verify that cursor_id belongs strictly to this authorized project
+        cursor_msg = db.query(CopilotMessage).filter(
+            CopilotMessage.id == cursor_id,
+            CopilotMessage.project_id == project.id
+        ).first()
+        if not cursor_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cursor does not belong to the authorized project."
+            )
+        query = query.filter(
+            (CopilotMessage.created_at < cursor_msg.created_at) |
+            ((CopilotMessage.created_at == cursor_msg.created_at) & (CopilotMessage.id < cursor_msg.id))
+        )
+
+    # Order newest-first to slice the latest messages before cursor
+    rows = query.order_by(CopilotMessage.created_at.desc(), CopilotMessage.id.desc()).limit(limit + 1).all()
+    has_more = len(rows) > limit
+    page_desc = rows[:limit]
+
+    # Reverse into chronological order for display
+    messages = list(reversed(page_desc))
+    next_cursor = encode_cursor(page_desc[-1].created_at, page_desc[-1].id) if (page_desc and has_more) else None
+
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+
+    return {
+        "messages": messages,
+        "has_more": has_more,
+        "before_cursor": next_cursor,
+        "total_count": total_count
+    }
+
+
 @router.get("", response_model=List[CopilotMessageResponse])
 def get_chat_history(
     response: Response,
@@ -21,6 +99,7 @@ def get_chat_history(
     offset: int = Query(0, ge=0, description="Number of messages to skip"),
     order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order by creation time ('asc' or 'desc')"),
     before_id: Optional[str] = Query(None, description="Cursor: return messages created before this message ID"),
+    before_cursor: Optional[str] = Query(None, description="Encoded cursor for older messages"),
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
@@ -28,41 +107,52 @@ def get_chat_history(
     total_count = base_query.count()
 
     query = base_query
+    if before_cursor:
+        _, c_id = decode_cursor(before_cursor)
+        before_id = c_id
+
     if before_id:
         target_msg = db.query(CopilotMessage).filter(
             CopilotMessage.id == before_id,
             CopilotMessage.project_id == project.id
         ).first()
-        if target_msg:
-            if order == "desc":
-                query = query.filter(
-                    (CopilotMessage.created_at < target_msg.created_at) |
-                    ((CopilotMessage.created_at == target_msg.created_at) & (CopilotMessage.id < target_msg.id))
-                )
-            else:
-                query = query.filter(
-                    (CopilotMessage.created_at > target_msg.created_at) |
-                    ((CopilotMessage.created_at == target_msg.created_at) & (CopilotMessage.id > target_msg.id))
-                )
+        if not target_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cursor does not belong to the authorized project."
+            )
+        query = query.filter(
+            (CopilotMessage.created_at < target_msg.created_at) |
+            ((CopilotMessage.created_at == target_msg.created_at) & (CopilotMessage.id < target_msg.id))
+        )
 
     if order == "desc":
         query = query.order_by(CopilotMessage.created_at.desc(), CopilotMessage.id.desc())
     else:
-        query = query.order_by(CopilotMessage.created_at.asc(), CopilotMessage.id.asc())
+        if before_id:
+            query = query.order_by(CopilotMessage.created_at.desc(), CopilotMessage.id.desc())
+        else:
+            query = query.order_by(CopilotMessage.created_at.asc(), CopilotMessage.id.asc())
 
     messages = query.offset(offset).limit(limit).all()
+    if before_id and order == "asc":
+        messages = list(reversed(messages))
+
     has_more = (offset + len(messages)) < total_count
 
     response.headers["X-Total-Count"] = str(total_count)
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return messages
 
+
 @router.post("", response_model=CopilotMessageResponse, dependencies=[Depends(verify_csrf)])
 def send_chat_message(
     req: CopilotChatRequest,
+    response: Response,
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
+
     check_ai_rate_limit(project.user_id)
 
     # Save user message
@@ -73,6 +163,7 @@ def send_chat_message(
     )
     db.add(user_msg)
     db.commit()
+    response.headers["X-User-Message-ID"] = str(user_msg.id)
 
     # Retrieve bounded recent history for provider context (independently of stored history)
     # Query up to 20 recent messages with stable tie-breaker

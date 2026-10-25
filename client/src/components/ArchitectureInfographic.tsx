@@ -40,84 +40,158 @@ export const ArchitectureInfographic: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Classify recommendations into standard & non-technical operational architectural tiers
-  const tiers: TierGroup[] = [
-    {
-      id: 'business_ops',
-      name: 'Business Operations, POS & Payments Tier',
-      icon: Layers,
-      color: 'var(--primary-text)',
-      bg: 'var(--bg-subtle)',
-      borderColor: 'var(--border-color)',
-      items: recommendations.filter(r =>
-        /pos|payment|retail|commerce|store|operation|order|billing/i.test(r?.category || '')
-      )
-    },
-    {
-      id: 'client',
-      name: 'Client & Presentation Tier',
-      icon: Layers,
-      color: 'var(--primary-text)',
-      bg: 'var(--bg-subtle)',
-      borderColor: 'var(--border-color)',
-      items: recommendations.filter(r =>
-        /front|client|ui|mobile|web|presentation/i.test(r?.category || '') &&
-        !/pos|payment|retail|commerce/i.test(r?.category || '')
-      )
-    },
-    {
-      id: 'application',
-      name: 'Application & API Services Tier',
-      icon: Server,
-      color: 'var(--primary-text)',
-      bg: 'var(--bg-subtle)',
-      borderColor: 'var(--border-color)',
-      items: recommendations.filter(r =>
-        /back|api|server|service|microservice/i.test(r?.category || '') &&
-        !/pos|payment|retail|commerce/i.test(r?.category || '')
-      )
-    },
-    {
-      id: 'data',
-      name: 'Data & State Management Tier',
-      icon: Database,
-      color: 'var(--primary-text)',
-      bg: 'var(--bg-subtle)',
-      borderColor: 'var(--border-color)',
-      items: recommendations.filter(r =>
-        /data|storage|sql|cache|queue/i.test(r?.category || '')
-      )
-    },
-    {
-      id: 'cloud',
-      name: 'Cloud, Infrastructure & DevOps Tier',
-      icon: Cloud,
-      color: 'var(--primary-text)',
-      bg: 'var(--bg-subtle)',
-      borderColor: 'var(--border-color)',
-      items: recommendations.filter(r =>
-        /cloud|host|devops|infra|deploy|container/i.test(r?.category || '')
-      )
-    },
-    {
-      id: 'security',
-      name: 'Security, Observability & Platform Services',
-      icon: ShieldCheck,
-      color: 'var(--text-main)',
-      bg: 'var(--bg-subtle)',
-      borderColor: 'var(--text-muted)',
-      items: recommendations.filter(r =>
-        /sec|auth|monitor|telemetry|audit|service/i.test(r?.category || '') &&
-        !/front|client|back|api|data|cloud|devops|pos|payment|commerce/i.test(r?.category || '')
-      )
-    }
-  ];
+  // Detect whether this is an operational / COTS / existing tools workflow (Checkpoint 5.5)
+  const isOperationalOrManual = /existing tools|no custom software|manual|cots|operational/i.test(techData?.architecture_pattern || '') ||
+    (recommendations.length > 0 && recommendations.every(r =>
+      /whatsapp|sheets|excel|pos|square|stripe|quickbooks|calendar|notion|airtable|paper|sms|phone|manual/i.test(r?.technology || '') ||
+      !/fastapi|express|django|react|vue|angular|docker|kubernetes|postgres|mysql|redis|aws|azure|gcp|microservice/i.test(r?.technology || '')
+    ));
 
-  // Distribute uncategorized items into the application tier
+  // Classify recommendations into standard & non-technical operational architectural tiers
+  const tiers: TierGroup[] = isOperationalOrManual
+    ? [
+        {
+          id: 'contact',
+          name: '1. Customer Inquiries & Communication Channels',
+          icon: Layers,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /contact|message|chat|whatsapp|email|phone|inquiry|customer|sms/i.test(r?.category || '') ||
+            /whatsapp|email|sms|phone/i.test(r?.technology || '')
+          )
+        },
+        {
+          id: 'records',
+          name: '2. Operational Records & Booking Workflow',
+          icon: Database,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            (/sheet|excel|calendar|notion|airtable|record|task|track|management/i.test(r?.category || '') ||
+             /sheet|excel|calendar|notion|airtable/i.test(r?.technology || '')) &&
+            !/whatsapp|email|phone/i.test(r?.technology || '')
+          )
+        },
+        {
+          id: 'operations',
+          name: '3. Service Delivery & Physical Operations',
+          icon: Server,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            (/pos|repair|service|inventory|dispatch|operation|store/i.test(r?.category || '') ||
+             /pos|square|inventory|hardware/i.test(r?.technology || '')) &&
+            !/payment|invoice|bill|stripe|quickbooks|accounting/i.test(r?.category || '')
+          )
+        },
+        {
+          id: 'financial',
+          name: '4. Invoicing, Payments & Accounting',
+          icon: DollarSign,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /payment|invoice|bill|stripe|square|quickbooks|accounting|bank/i.test(r?.category || '') ||
+            /stripe|square|quickbooks|accounting/i.test(r?.technology || '')
+          )
+        },
+        {
+          id: 'supporting_ops',
+          name: '5. Supporting Operations & Tools',
+          icon: Cloud,
+          color: 'var(--text-main)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            !/contact|message|chat|whatsapp|email|phone|inquiry|customer|sms|sheet|excel|calendar|notion|airtable|record|pos|repair|service|inventory|dispatch|operation|payment|invoice|bill|stripe|square|quickbooks|accounting/i.test(
+              `${r?.category || ''} ${r?.technology || ''}`
+            )
+          )
+        }
+      ]
+    : [
+        {
+          id: 'business_ops',
+          name: 'Business Operations, POS & Payments Tier',
+          icon: Layers,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /pos|payment|retail|commerce|store|operation|order|billing/i.test(r?.category || '')
+          )
+        },
+        {
+          id: 'client',
+          name: 'Client & Presentation Tier',
+          icon: Layers,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /front|client|ui|mobile|web|presentation/i.test(r?.category || '') &&
+            !/pos|payment|retail|commerce/i.test(r?.category || '')
+          )
+        },
+        {
+          id: 'application',
+          name: 'Application & API Services Tier',
+          icon: Server,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /back|api|server|service|microservice/i.test(r?.category || '') &&
+            !/pos|payment|retail|commerce/i.test(r?.category || '')
+          )
+        },
+        {
+          id: 'data',
+          name: 'Data & State Management Tier',
+          icon: Database,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /data|storage|sql|cache|queue/i.test(r?.category || '')
+          )
+        },
+        {
+          id: 'cloud',
+          name: 'Cloud, Infrastructure & DevOps Tier',
+          icon: Cloud,
+          color: 'var(--primary-text)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--border-color)',
+          items: recommendations.filter(r =>
+            /cloud|host|devops|infra|deploy|container/i.test(r?.category || '')
+          )
+        },
+        {
+          id: 'security',
+          name: 'Security, Observability & Platform Services',
+          icon: ShieldCheck,
+          color: 'var(--text-main)',
+          bg: 'var(--bg-subtle)',
+          borderColor: 'var(--text-muted)',
+          items: recommendations.filter(r =>
+            /sec|auth|monitor|telemetry|audit|service/i.test(r?.category || '') &&
+            !/front|client|back|api|data|cloud|devops|pos|payment|commerce/i.test(r?.category || '')
+          )
+        }
+      ];
+
+  // Distribute uncategorized items into the middle tier
   const matchedTechs = new Set(tiers.flatMap(t => t.items.map(i => i?.technology || '')));
   const unassigned = recommendations.filter(r => r && !matchedTechs.has(r.technology || ''));
   if (unassigned.length > 0) {
-    tiers[2].items.push(...unassigned);
+    const fallbackTier = isOperationalOrManual ? tiers[1] : tiers[2];
+    fallbackTier.items.push(...unassigned);
   }
 
   // Filter to active tiers with items
@@ -173,10 +247,12 @@ export const ArchitectureInfographic: React.FC<Props> = ({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
-            System Architecture Blueprint Infographic
+            {isOperationalOrManual ? 'Operational Toolchain & Workflow Diagram' : 'System Architecture Blueprint Infographic'}
           </h3>
           <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
-            Interactive multi-tier service topology. Click any node to explore role, rationale, risks, and implementation guidance.
+            {isOperationalOrManual
+              ? 'Practical operational workflow sequence. Click any tool to inspect purpose, trade-offs, and implementation.'
+              : 'Interactive multi-tier service topology. Click any node to explore role, rationale, risks, and implementation guidance.'}
           </p>
         </div>
 
@@ -209,7 +285,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           style={{ width: '100%', minWidth: 700, height: 'auto', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg"
           role="img"
-          aria-label={`Architecture Topology for ${projectName}`}
+          aria-label={isOperationalOrManual ? `Operational Workflow Diagram for ${projectName}` : `Architecture Topology for ${projectName}`}
         >
           <defs>
             <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%">
@@ -230,7 +306,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
           <g transform="translate(30, 20)">
             <rect width={svgWidth - 60} height="46" rx="8" fill="var(--bg-subtle)" />
             <text x="20" y="28" fill="var(--text-main)" fontSize="15" fontWeight="700" fontFamily="system-ui, -apple-system, sans-serif">
-              {projectName} — {versionName} Architecture Topography ({techData.architecture_pattern || 'Standard Cloud'})
+              {projectName} — {versionName} {isOperationalOrManual ? 'Operational Workflow' : 'Architecture Topography'} ({techData.architecture_pattern || (isOperationalOrManual ? 'Operational Toolchain' : 'Standard Cloud')})
             </text>
           </g>
 
@@ -413,7 +489,7 @@ export const ArchitectureInfographic: React.FC<Props> = ({
             <button
               onClick={() => setSelectedTech(null)}
               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, borderRadius: 4 }}
-              aria-label="Close"
+              aria-label="Close details"
             >
               <X size={18} />
             </button>

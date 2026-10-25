@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { UserCheck, Type, X, Check, AlertCircle, Loader2 } from 'lucide-react';
-
 import { api } from '../services/api';
+import { Dialog } from './common/Dialog';
 
 interface Props {
   isOpen: boolean;
@@ -35,7 +35,7 @@ export const ProfileModal: React.FC<Props> = ({
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // Preferences fields
+  // Preferences fields (honestly scoped to typography appearance)
   const [fontPref, setFontPref] = useState(() => user.preferences?.font || 'system');
   const [prefSuccess, setPrefSuccess] = useState(false);
 
@@ -111,36 +111,14 @@ export const ProfileModal: React.FC<Props> = ({
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgb(69 60 55 / 0.65)',
-        backdropFilter: 'blur(3px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: 16
-      }}
-      role="dialog"
-      aria-modal="true"
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      showCloseButton={false}
+      ariaLabelledBy="profile-modal-title"
+      maxWidth={520}
     >
-      <div
-        style={{
-          background: 'var(--bg-card)',
-          color: 'var(--text-main)',
-          borderRadius: 12,
-          padding: 24,
-          maxWidth: 520,
-          width: '100%',
-          boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--border-color)',
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
+      <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '85vh' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -159,7 +137,7 @@ export const ProfileModal: React.FC<Props> = ({
               <UserCheck size={18} />
             </div>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+              <h3 id="profile-modal-title" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                 User Profile & Preferences
               </h3>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
@@ -168,17 +146,34 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}
+            aria-label="Close profile settings"
+            className="modal-close-btn"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: 4,
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: 20 }}>
+        <div role="tablist" aria-label="Profile Sections" style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: 20 }}>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'profile'}
+            aria-controls="profile-tab-panel"
+            id="tab-profile"
             onClick={() => setActiveTab('profile')}
             style={{
               padding: '8px 16px',
@@ -195,6 +190,10 @@ export const ProfileModal: React.FC<Props> = ({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'security'}
+            aria-controls="security-tab-panel"
+            id="tab-security"
             onClick={() => setActiveTab('security')}
             style={{
               padding: '8px 16px',
@@ -211,6 +210,10 @@ export const ProfileModal: React.FC<Props> = ({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'preferences'}
+            aria-controls="preferences-tab-panel"
+            id="tab-preferences"
             onClick={() => setActiveTab('preferences')}
             style={{
               padding: '8px 16px',
@@ -229,23 +232,30 @@ export const ProfileModal: React.FC<Props> = ({
 
         {/* Tab 1: Profile Information */}
         {activeTab === 'profile' && (
-          <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+          <form
+            id="profile-tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-profile"
+            onSubmit={handleUpdateProfile}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}
+          >
             {profileSuccess && (
-              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div role="status" style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Check size={14} /> {profileSuccess}
               </div>
             )}
             {profileError && (
-              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div role="alert" style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <AlertCircle size={14} /> {profileError}
               </div>
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+              <label htmlFor="profile-username" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
                 Username
               </label>
               <input
+                id="profile-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -265,10 +275,11 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+              <label htmlFor="profile-email" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
                 Email Address
               </label>
               <input
+                id="profile-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -287,14 +298,15 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-                Display / Full Name
+              <label htmlFor="profile-display-name" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                Display Name (Optional)
               </label>
               <input
+                id="profile-display-name"
                 type="text"
+                placeholder="e.g. Alex Morgan"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g. Alex Morgan"
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -321,23 +333,30 @@ export const ProfileModal: React.FC<Props> = ({
 
         {/* Tab 2: Password & Security */}
         {activeTab === 'security' && (
-          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+          <form
+            id="security-tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-security"
+            onSubmit={handleChangePassword}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}
+          >
             {passwordSuccess && (
-              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div role="status" style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--primary-text)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Check size={14} /> {passwordSuccess}
               </div>
             )}
             {passwordError && (
-              <div style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div role="alert" style={{ padding: '8px 12px', background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--bg-subtle)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <AlertCircle size={14} /> {passwordError}
               </div>
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+              <label htmlFor="profile-current-password" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
                 Current Password
               </label>
               <input
+                id="profile-current-password"
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -356,10 +375,11 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+              <label htmlFor="profile-new-password" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
                 New Password
               </label>
               <input
+                id="profile-new-password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -379,10 +399,11 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+              <label htmlFor="profile-confirm-password" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
                 Confirm New Password
               </label>
               <input
+                id="profile-confirm-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -411,12 +432,18 @@ export const ProfileModal: React.FC<Props> = ({
           </form>
         )}
 
-        {/* Tab 3: Workspace Preferences */}
+        {/* Tab 3: Text Appearance Preferences */}
         {activeTab === 'preferences' && (
-          <form onSubmit={handleSavePreferences} style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+          <form
+            id="preferences-tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-preferences"
+            onSubmit={handleSavePreferences}
+            style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}
+          >
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
-                Typography Preference
+                Typography Appearance
               </label>
               <div style={{ display: 'flex', gap: 12 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-main)', cursor: 'pointer' }}>
@@ -462,7 +489,6 @@ export const ProfileModal: React.FC<Props> = ({
           </form>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 };
-

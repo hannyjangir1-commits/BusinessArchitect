@@ -9,6 +9,7 @@ and Latin-1 encoding errors when processing Unicode/international filenames.
 from __future__ import annotations
 
 import re
+import unicodedata
 import urllib.parse
 from typing import Tuple
 
@@ -21,38 +22,58 @@ def sanitize_filename(
     """
     Sanitize an untrusted filename string into safe ASCII fallback and UTF-8 components.
     
-    1. Strips all carriage returns, newlines, null bytes, and ASCII control characters (0x00-0x1F, 0x7F).
-    2. Strips redundant extension suffixes if already present.
-    3. Produces a safe ASCII-only fallback filename containing solely [a-zA-Z0-9_-].
-    4. Produces a cleaned UTF-8 filename preserving international Unicode characters.
+    1. Normalizes Unicode input using NFC.
+    2. Strips all carriage returns, newlines, null bytes, and ASCII control characters (0x00-0x1F, 0x7F).
+    3. Strips path separators (/ and \\) and path traversal elements.
+    4. Normalizes and validates the extension parameter (alphanumeric only).
+    5. Normalizes and validates the fallback string.
+    6. Strips repeated expected extension suffixes (e.g. 'plan.pdf.pdf' -> 'plan').
+    7. Bounds raw base name length to 100 characters to prevent filesystem overflow.
+    8. Produces a safe ASCII-only fallback filename containing solely [a-zA-Z0-9_-].
+    9. Produces a cleaned UTF-8 filename preserving international Unicode characters.
     """
-    ext = extension.lstrip(".").lower()
-    
-    # Strictly strip all CR, LF, null bytes, and control characters (including DEL 0x7F)
-    cleaned = re.sub(r"[\r\n\x00-\x1f\x7f]", "", str(name or "")).strip()
+    # Validate and normalize extension (alphanumeric only, lowercase, default 'pdf')
+    ext_clean = re.sub(r"[^a-zA-Z0-9]", "", str(extension or "pdf")).lower()
+    ext = ext_clean or "pdf"
 
-    # Bound raw length to 100 chars to avoid filesystem/OS path limits
-    cleaned = cleaned[:100]
+    # Validate and sanitize fallback
+    safe_fallback = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(fallback or "export")).strip("_")
+    safe_fallback = safe_fallback[:50] or "export"
 
-    # Remove redundant trailing extension(s) if already included by caller
+    # Normalize Unicode input (NFC)
+    raw_str = unicodedata.normalize("NFC", str(name or ""))
+
+    # Strictly strip all CR, LF, null bytes, control characters (0x00-0x1F, 0x7F), and path separators (/ and \)
+    cleaned = re.sub(r"[\r\n\x00-\x1f\x7f/\\]", "", raw_str).strip()
+
+    # Remove redundant path traversal sequences if any remain
+    cleaned = cleaned.replace("..", "")
+
+    # Remove repeated trailing extension(s) if already included by caller (e.g. '.pdf.pdf')
     while cleaned.lower().endswith(f".{ext}"):
         cleaned = cleaned[:-len(ext)-1].strip()
 
+    # Bound raw base length to 100 characters
+    base = cleaned[:100]
+
     # Produce safe ASCII fallback: replace anything not [a-zA-Z0-9_-] with '_'
-    safe_ascii = re.sub(r"[^a-zA-Z0-9_\-]", "_", cleaned)
+    safe_ascii = re.sub(r"[^a-zA-Z0-9_\-]", "_", base)
     # Collapse multiple consecutive underscores and strip leading/trailing underscores
     safe_ascii = re.sub(r"_+", "_", safe_ascii).strip("_")
     if not safe_ascii:
-        safe_ascii = fallback
+        safe_ascii = safe_fallback
 
     safe_ascii_filename = f"{safe_ascii}.{ext}"
 
     # UTF-8 filename preserves user's Unicode characters (e.g. Hindi, Japanese, French accents)
-    # Strip filesystem-prohibited characters: / \ < > : " | ? * ;
-    utf8_clean = re.sub(r'[/\\<>:"|?*;%]', "_", cleaned)
+    # Strip filesystem-prohibited and header-delimiters: / \ < > : " | ? * ; %
+    utf8_clean = re.sub(r'[/\\<>:"|?*;%]', "_", base)
     utf8_clean = re.sub(r"_+", "_", utf8_clean).strip("_")
-    # If title was punctuation-only or empty, fall back to safe fallback
-    utf8_base = utf8_clean or fallback
+    # If title was punctuation-only, whitespace-only, or has no alphanumeric/Unicode word characters, fall back
+    if not re.search(r"[^\W_]", base):
+        utf8_base = safe_fallback
+    else:
+        utf8_base = utf8_clean or safe_fallback
     utf8_filename = f"{utf8_base}.{ext}"
 
     return safe_ascii_filename, utf8_filename
@@ -67,14 +88,16 @@ def format_content_disposition(
     """
     Format a standards-compliant Content-Disposition header according to RFC 6266 and RFC 5987.
     
-    Example output for non-ASCII title:
-        attachment; filename="business_plan.pdf"; filename*=UTF-8''%E0%A4%B5%E0%A5%8D%E0%A4%AF%E0%A4%BE%E0%A4%AA%E0%A4%BE%E0%A4%B0.pdf
-        
     Guarantees:
     - Zero carriage returns (\\r) or newlines (\\n).
     - Standard ASCII filename attribute in quotes (safe for Latin-1 header encoders like Starlette/Uvicorn).
-    - RFC 5987 filename* attribute with UTF-8 percent-encoding.
+    - RFC 5987 filename* attribute with UTF-8 percent-encoding using safe="" (strict percent-encoding).
+    - Validates disposition_type ('attachment' or 'inline').
     """
+    # Restrict disposition_type to allowed RFC values
+    disp_type = "inline" if str(disposition_type).strip().lower() == "inline" else "attachment"
+
     safe_ascii, utf8_file = sanitize_filename(name, fallback=fallback, extension=extension)
-    encoded_utf8 = urllib.parse.quote(utf8_file, encoding="utf-8")
-    return f'{disposition_type}; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded_utf8}'
+    # Explicitly use safe="" to strictly encode all non-attr-char characters per RFC 5987
+    encoded_utf8 = urllib.parse.quote(utf8_file, safe="", encoding="utf-8")
+    return f'{disp_type}; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded_utf8}'

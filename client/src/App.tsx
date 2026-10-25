@@ -26,6 +26,7 @@ const AdminApp = lazy(() => import('./admin/AdminApp').then(module => ({ default
 const AdminLoginPage = lazy(() => import('./admin/pages/AdminLoginPage').then(module => ({ default: module.AdminLoginPage })));
 
 import { Loader2, AlertCircle, X } from 'lucide-react';
+import { WizardLoadingShell, WizardErrorBoundary } from './components/WizardLoadingShell';
 import './styles/index.css';
 
 const MODULE_TYPES = new Set(['overview', 'bmc', 'tech_stack', 'idea_validator', 'market_research', 'execution_roadmap', 'blueprint_copilot']);
@@ -61,10 +62,18 @@ const INITIAL_MODULE_BADGES: Record<string, ModuleBadgeState> = {
   blueprint_copilot: { version: 'V1', status: 'generated' }
 };
 
+const PENDING_USER_SHELL: User = {
+  id: 'pending',
+  username: '',
+  email: '',
+  role: 'user',
+  created_at: ''
+};
+
 const NEUTRAL_PROJECT_SHELL: Project = {
   id: '',
   name: 'Workspace',
-  stage: 'Idea',
+  stage: '' as any,
   description: '',
   industry: '',
   target_customers: '',
@@ -127,6 +136,7 @@ export const App: React.FC = () => {
   const [copilotMessages, setCopilotMessages] = useState<CopilotMessage[]>([]);
   const [hasMoreCopilot, setHasMoreCopilot] = useState<boolean>(false);
   const [loadingOlderCopilot, setLoadingOlderCopilot] = useState<boolean>(false);
+  const [copilotOlderCursor, setCopilotOlderCursor] = useState<string | null>(null);
   const [moduleLoading, setModuleLoading] = useState<boolean>(false);
   const [moduleError, setModuleError] = useState<string | null>(null);
 
@@ -182,13 +192,12 @@ export const App: React.FC = () => {
     progressPercent: number;
   }>>({});
 
-  const generationTimersRef = useRef<Record<string, any>>({});
+  const activeGenerationsRef = useRef<Set<string>>(new Set());
 
-  // Cleanup all timers on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      Object.values(generationTimersRef.current).forEach(t => clearInterval(t));
-      generationTimersRef.current = {};
+      activeGenerationsRef.current.clear();
       if (navPersistTimerRef.current) clearTimeout(navPersistTimerRef.current);
     };
   }, []);
@@ -214,6 +223,7 @@ export const App: React.FC = () => {
     setCopilotMessages([]);
     setHasMoreCopilot(false);
     setLoadingOlderCopilot(false);
+    setCopilotOlderCursor(null);
     setReadinessError(null);
     setModuleError(null);
     setConflictModalOpen(false);
@@ -234,8 +244,7 @@ export const App: React.FC = () => {
     setProjectsStatus('idle');
     setProjectsError(null);
     setIsWizardOpen(false);
-    Object.values(generationTimersRef.current).forEach(timer => clearInterval(timer));
-    generationTimersRef.current = {};
+    activeGenerationsRef.current.clear();
     if (navPersistTimerRef.current) clearTimeout(navPersistTimerRef.current);
     setGeneratingProgress({});
     mutationKeysRef.current.clear();
@@ -704,6 +713,13 @@ export const App: React.FC = () => {
       updateBadgeForModule(moduleType, cachedDetail);
       setModuleStatus(cachedDetail.data ? 'success-with-data' : 'success-empty');
       setModuleLoading(false);
+    } else if (cachedDetail) {
+      // Revalidating fresh data in background; keep existing cached content visible
+      setModuleDetail(cachedDetail);
+      setModuleLoading(true);
+    } else if (moduleDetail && activeModuleTypeRef.current === moduleType && activeProjectIdRef.current === projectId) {
+      // Revalidating fresh data in background; keep active content visible
+      setModuleLoading(true);
     } else {
       // No cached data for this module: show module skeleton while loading fresh data
       setModuleStatus('loading');
@@ -748,14 +764,15 @@ export const App: React.FC = () => {
       }
 
       if (moduleType === 'blueprint_copilot') {
-        const history = await queryCache.fetchWithCache(
-          `copilot:history:${projectId}`,
-          () => api.copilot.getLatestHistory(projectId, 50),
+        const page = await queryCache.fetchWithCache(
+          `copilot:page:${projectId}`,
+          () => api.copilot.getPage(projectId, undefined, 50),
           { staleTimeMs: 30000, userScope, forceFresh }
         );
         if (!viewing()) return;
-        setCopilotMessages(history);
-        setHasMoreCopilot(history.length >= 50);
+        setCopilotMessages(page.messages);
+        setCopilotOlderCursor(page.before_cursor || null);
+        setHasMoreCopilot(page.has_more);
       }
     } catch (error: any) {
       if (viewing()) {
@@ -779,18 +796,26 @@ export const App: React.FC = () => {
     const genKey = `${targetProjectId}:${targetModuleType}`;
     const epoch = sessionEpochRef.current;
 
-    if (Object.keys(generationTimersRef.current).length > 0 || mutationKeysRef.current.size > 0) {
+    if (activeGenerationsRef.current.size > 0 || mutationKeysRef.current.size > 0) {
       return;
     }
 
     setReadinessError(null);
 
+    const pendingTextMap: Record<string, string> = {
+      bmc: 'Generating your business model…',
+      tech_stack: 'Generating your technical architecture…',
+      idea_validator: 'Assessing business viability and experiments…',
+      market_research: 'Analyzing market landscape and dynamics…',
+      execution_roadmap: 'Generating execution tasks and milestones…'
+    };
+    const stageText = pendingTextMap[targetModuleType] || 'Generating planning output…';
+
     setGeneratingProgress(prev => ({
       ...prev,
-      [genKey]: { stageText: 'Generating and validating your project output...', progressPercent: 0 }
+      [genKey]: { stageText, progressPercent: 0 }
     }));
-    const progressTimer = setInterval(() => {}, 60000);
-    generationTimersRef.current[genKey] = progressTimer;
+    activeGenerationsRef.current.add(genKey);
 
     try {
       const updated = await api.modules.generate(targetProjectId, targetModuleType, planningInputs);
@@ -847,13 +872,20 @@ export const App: React.FC = () => {
         err.data?.error === 'VERSION_LIMIT_EXCEEDED' ||
         (err.message && err.message.includes('VERSION_LIMIT_EXCEEDED'))
       )) {
-        alert('This module already has 5 saved versions. Use Delete to remove the current version, then generate again. Other versions will remain available.');
+        if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
+          setModuleError('This module already has 5 saved versions. Use Delete to remove the current version, then generate again. Other versions will remain available.');
+        } else {
+          alert('This module already has 5 saved versions. Use Delete to remove the current version, then generate again. Other versions will remain available.');
+        }
       } else {
-        alert(err.message || 'Blueprint generation failed. Please try again.');
+        if (activeProjectIdRef.current === targetProjectId && activeModuleTypeRef.current === targetModuleType) {
+          setModuleError(err.message || 'Blueprint generation failed. Please try again.');
+        } else {
+          alert(err.message || 'Blueprint generation failed. Please try again.');
+        }
       }
     } finally {
-      clearInterval(progressTimer);
-      delete generationTimersRef.current[genKey];
+      activeGenerationsRef.current.delete(genKey);
       setGeneratingProgress(prev => {
         const next = { ...prev };
         delete next[genKey];
@@ -867,7 +899,7 @@ export const App: React.FC = () => {
     const projectId = currentProject.id;
     const moduleType = activeModule;
     const key = `${projectId}:${moduleType}`;
-    if (mutationKeysRef.current.has(key) || generationTimersRef.current[key]) throw new Error('This section is already being updated. Please wait.');
+    if (mutationKeysRef.current.has(key) || activeGenerationsRef.current.has(key)) throw new Error('This section is already being updated. Please wait.');
     const navigation = navigationRef.current;
     mutationKeysRef.current.add(key);
     setModuleLoading(true);
@@ -988,19 +1020,20 @@ export const App: React.FC = () => {
 
   const handleLoadOlderCopilot = async () => {
     if (!currentProject || loadingOlderCopilot || copilotMessages.length === 0) return;
-    const oldestId = copilotMessages[0]?.id;
-    if (!oldestId) return;
+    const cursor = copilotOlderCursor || copilotMessages[0]?.id;
+    if (!cursor) return;
     const projectId = currentProject.id;
     setLoadingOlderCopilot(true);
     try {
-      const older = await api.copilot.getOlderHistory(projectId, oldestId, 50);
+      const page = await api.copilot.getPage(projectId, cursor, 50);
       if (isViewing(projectId, 'blueprint_copilot')) {
         setCopilotMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
-          const freshOlder = older.filter(m => !existingIds.has(m.id));
+          const freshOlder = page.messages.filter(m => !existingIds.has(m.id));
           return [...freshOlder, ...prev];
         });
-        setHasMoreCopilot(older.length >= 50);
+        setCopilotOlderCursor(page.before_cursor || null);
+        setHasMoreCopilot(page.has_more);
       }
     } catch (e) {
       console.warn('Failed to load older copilot messages:', e);
@@ -1169,7 +1202,7 @@ export const App: React.FC = () => {
         <div className="main-wrapper">
           <Header
             project={NEUTRAL_PROJECT_SHELL}
-            user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
+            user={currentUser || PENDING_USER_SHELL}
             onLogout={logout}
           />
           <main className="content-area">
@@ -1216,7 +1249,7 @@ export const App: React.FC = () => {
     return (
       <>
         <DashboardPage
-          user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
+          user={currentUser || PENDING_USER_SHELL}
           projects={currentUser ? projects : []}
           projectsStatus={!currentUser ? 'loading' : projectsStatus}
           projectsError={currentUser ? projectsError : null}
@@ -1230,13 +1263,15 @@ export const App: React.FC = () => {
           onUserUpdated={(updated) => setCurrentUser(updated)}
         />
         {isWizardOpen && currentUser && (
-          <React.Suspense fallback={null}>
-            <NewProjectWizard
-              onProjectCreated={handleProjectCreated}
-              onCancel={() => setIsWizardOpen(false)}
-              userScope={currentUser?.id}
-            />
-          </React.Suspense>
+          <WizardErrorBoundary onCancel={() => setIsWizardOpen(false)}>
+            <React.Suspense fallback={<WizardLoadingShell onCancel={() => setIsWizardOpen(false)} />}>
+              <NewProjectWizard
+                onProjectCreated={handleProjectCreated}
+                onCancel={() => setIsWizardOpen(false)}
+                userScope={currentUser?.id}
+              />
+            </React.Suspense>
+          </WizardErrorBoundary>
         )}
       </>
     );
@@ -1262,7 +1297,7 @@ export const App: React.FC = () => {
         {/* Top Header */}
         <Header
           project={currentProject}
-          user={currentUser || ({ id: 'pending', username: 'Loading...', email: '', role: 'user', created_at: '2026-01-01T00:00:00Z' } as User)}
+          user={currentUser || PENDING_USER_SHELL}
           onLogout={logout}
           onEditProject={() => handleSelectModule('overview')}
           onSelectModule={handleSelectModule}
@@ -1451,23 +1486,34 @@ export const App: React.FC = () => {
                     hasMoreOlder={hasMoreCopilot}
                     isLoadingOlder={loadingOlderCopilot}
                     onLoadOlderMessages={handleLoadOlderCopilot}
-                    onSendMessage={async (msg) => {
+                    onSendMessage={async (msg, tempId) => {
                       const projectId = currentProject.id;
-                      await runModuleMutation(async () => {
-                        const assistantMsg = await api.copilot.sendMessage(projectId, msg);
-                        queryCache.invalidate(`copilot:history:${projectId}`);
+                      const optimisticUserMsg: CopilotMessage = {
+                        id: tempId,
+                        role: 'user',
+                        content: msg,
+                        created_at: new Date().toISOString(),
+                        status: 'sending'
+                      };
+                      setCopilotMessages(prev => [...prev, optimisticUserMsg]);
+
+                      try {
+                        const assistantMsg = await api.copilot.sendMessage(projectId, msg, tempId);
+                        queryCache.invalidate(`copilot:page:${projectId}`);
                         if (isViewing(projectId, 'blueprint_copilot')) {
                           setCopilotMessages(prev => {
-                            const userMsg: CopilotMessage = {
-                              id: 'local-user-' + Date.now(),
-                              role: 'user',
-                              content: msg,
-                              created_at: new Date().toISOString()
-                            };
-                            return [...prev, userMsg, assistantMsg];
+                            const updated = prev.map(m => m.id === tempId ? { ...m, status: 'saved' as const } : m);
+                            return [...updated, assistantMsg];
                           });
                         }
-                      });
+                      } catch (err: any) {
+                        if (isViewing(projectId, 'blueprint_copilot')) {
+                          setCopilotMessages(prev =>
+                            prev.map(m => m.id === tempId ? { ...m, status: 'failed' as const, error: err.message || 'Failed to send' } : m)
+                          );
+                        }
+                        throw err;
+                      }
                     }}
                     isLoading={moduleLoading}
                   />
@@ -1480,13 +1526,15 @@ export const App: React.FC = () => {
 
       {/* New Project Wizard Modal - Lazy Loaded */}
       {isWizardOpen && (
-        <React.Suspense fallback={null}>
-          <NewProjectWizard
-            onProjectCreated={handleProjectCreated}
-            onCancel={() => setIsWizardOpen(false)}
-            userScope={currentUser?.id}
-          />
-        </React.Suspense>
+        <WizardErrorBoundary onCancel={() => setIsWizardOpen(false)}>
+          <React.Suspense fallback={<WizardLoadingShell onCancel={() => setIsWizardOpen(false)} />}>
+            <NewProjectWizard
+              onProjectCreated={handleProjectCreated}
+              onCancel={() => setIsWizardOpen(false)}
+              userScope={currentUser?.id}
+            />
+          </React.Suspense>
+        </WizardErrorBoundary>
       )}
 
       {/* 5-Version Conflict Resolution Modal - Lazy Loaded */}

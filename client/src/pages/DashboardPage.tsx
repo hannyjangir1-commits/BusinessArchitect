@@ -8,7 +8,10 @@ import {
 import { LogoutConfirmModal } from '../components/LogoutConfirmModal';
 import { ProfileModal } from '../components/ProfileModal';
 import { ProjectGridSkeleton } from '../components/Skeletons';
+import { Dialog } from '../components/common/Dialog';
 import { api } from '../services/api';
+
+const COUNTABLE_PLANNING_MODULES = ['bmc', 'tech_stack', 'idea_validator', 'market_research', 'execution_roadmap'];
 
 export type RequestStatus = 'idle' | 'loading' | 'success-empty' | 'success-with-data' | 'error';
 
@@ -72,11 +75,13 @@ export const DashboardPage: React.FC<Props> = ({
 
   // Metric computations from real user data
   const totalProjects = projects.length;
+  const mostRecentProject = projects.length > 0 ? projects[0] : null;
   const maxProjects = 10;
   const isLimitReached = totalProjects >= maxProjects;
 
   const totalCompletedModules = projects.reduce((acc, p) => {
-    return acc + (p.generated_modules?.length || 0);
+    const valid = (p.generated_modules || []).filter(m => COUNTABLE_PLANNING_MODULES.includes(m === 'detailed_roadmap' ? 'execution_roadmap' : m));
+    return acc + valid.length;
   }, 0);
 
   const totalTasksCount = projects.reduce((acc, p) => acc + (p.tasks_count || 0), 0);
@@ -288,7 +293,7 @@ export const DashboardPage: React.FC<Props> = ({
               {/* Projects Meter */}
               <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Project Allocation</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Projects</span>
                   <span style={{
                     fontSize: 11,
                     fontWeight: 700,
@@ -317,24 +322,24 @@ export const DashboardPage: React.FC<Props> = ({
                 )}
               </div>
 
-              {/* Synthesized Modules */}
+              {/* Saved planning sections */}
               <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Synthesized Modules</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Saved planning sections</span>
                   <CheckCircle size={16} color="var(--primary-text)" />
                 </div>
                 <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
-                  {isDataLoading ? '—' : totalCompletedModules} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Generated Modules</span>
+                  {isDataLoading ? '—' : totalCompletedModules} <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>Saved Sections</span>
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                  {isDataLoading ? 'Loading module synthesis…' : 'Across BMC, Tech Stack, Validator, Market Research, and Roadmaps.'}
+                  {isDataLoading ? 'Loading saved sections…' : 'Across BMC, Tech Stack, Validator, Market Research, and Roadmaps.'}
                 </p>
               </div>
 
-              {/* Execution Tasks */}
+              {/* Task completion */}
               <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Execution Roadmap Progress</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Task completion</span>
                   <Clock size={16} color="var(--primary)" />
                 </div>
                 <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-main)' }}>
@@ -348,11 +353,11 @@ export const DashboardPage: React.FC<Props> = ({
           );
         })()}
 
-        {/* Section F: Quick Module Shortcuts */}
+        {/* Recent project quick actions naming their destination explicitly */}
         {totalProjects > 0 && (
           <div className="card" style={{ padding: '16px 20px', background: 'var(--bg-subtle)' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
-              Venture Architecture Modules
+              Recent Project Planning Actions
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {[
@@ -365,7 +370,9 @@ export const DashboardPage: React.FC<Props> = ({
                 return (
                   <button
                     key={q.mod}
+                    type="button"
                     onClick={() => onOpenProject(projects[0].id, q.mod)}
+                    title={`Open ${q.name} in ${projects[0].name}`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -403,9 +410,12 @@ export const DashboardPage: React.FC<Props> = ({
             maxWidth: 380
           }}>
             <Search size={15} color="var(--text-muted)" />
+            <label htmlFor="portfolio-search" className="sr-only">Search projects</label>
             <input
+              id="portfolio-search"
               type="text"
               placeholder="Search by name, industry, or keyword..."
+              aria-label="Search projects by name, industry, or keyword"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
@@ -548,7 +558,9 @@ export const DashboardPage: React.FC<Props> = ({
           <div className="project-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
             {filteredProjects.map((p) => {
               const isSelected = selectedIds.includes(p.id);
-              const generatedCount = p.generated_modules?.length || 0;
+              const validGeneratedCount = (p.generated_modules || []).filter(m =>
+                COUNTABLE_PLANNING_MODULES.includes(m === 'detailed_roadmap' ? 'execution_roadmap' : m)
+              ).length;
 
               return (
                 <div
@@ -624,9 +636,9 @@ export const DashboardPage: React.FC<Props> = ({
 
                   {/* Module Completion Indicators on Card */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-muted)' }}>
-                    <span>Modules Synthesized:</span>
-                    <span style={{ fontWeight: 700, color: generatedCount > 0 ? 'var(--primary-text)' : 'var(--text-muted)' }}>
-                      {generatedCount} / 6 modules
+                    <span>Saved planning sections:</span>
+                    <span style={{ fontWeight: 700, color: validGeneratedCount > 0 ? 'var(--primary-text)' : 'var(--text-muted)' }}>
+                      {validGeneratedCount} / 5 saved
                     </span>
                   </div>
 
@@ -693,100 +705,70 @@ export const DashboardPage: React.FC<Props> = ({
       </main>
 
       {/* Bulk Delete Confirmation Dialog */}
-      {bulkDeleteModalOpen && (
-        <div className="modal-overlay" onClick={() => !isBulkDeleting && setBulkDeleteModalOpen(false)}>
-          <div
-            className="modal-card"
-            style={{ maxWidth: 480 }}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: '50%',
-                  background: 'var(--bg-subtle)',
-                  color: 'var(--danger-text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <AlertTriangle size={18} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0 }}>Delete {selectedIds.length} Selected Projects?</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>Permanent bulk deletion</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setBulkDeleteModalOpen(false)}
-                className="modal-close-btn"
-                disabled={isBulkDeleting}
-              >
-                ✕
-              </button>
+      <Dialog
+        isOpen={bulkDeleteModalOpen}
+        onClose={() => !isBulkDeleting && setBulkDeleteModalOpen(false)}
+        title={`Delete ${selectedIds.length} Selected Projects?`}
+        description="Permanent bulk deletion"
+        maxWidth={480}
+        dismissible={!isBulkDeleting}
+        showCloseButton={!isBulkDeleting}
+      >
+        <div className="modal-body" style={{ padding: '8px 0 0' }}>
+          {bulkDeleteError && (
+            <div style={{
+              padding: 10,
+              background: 'var(--bg-subtle)',
+              color: 'var(--danger-text)',
+              borderRadius: 6,
+              fontSize: 12.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 12
+            }}>
+              <AlertTriangle size={15} />
+              <span>{bulkDeleteError}</span>
             </div>
-
-            <div className="modal-body">
-              {bulkDeleteError && (
-                <div style={{
-                  padding: 10,
-                  background: 'var(--bg-subtle)',
-                  color: 'var(--danger-text)',
-                  borderRadius: 6,
-                  fontSize: 12.5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 12
-                }}>
-                  <AlertTriangle size={15} />
-                  <span>{bulkDeleteError}</span>
-                </div>
-              )}
-              <p style={{ fontSize: 13.5, color: 'var(--text-main)', lineHeight: 1.5, margin: 0 }}>
-                Are you sure you want to permanently delete <b>{selectedIds.length} project(s)</b>?
-              </p>
-              <div style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 8,
-                padding: 12,
-                fontSize: 12.5,
-                color: 'var(--text-muted)',
-                lineHeight: 1.5,
-                marginTop: 10
-              }}>
-                All associated module contents, version snapshots, execution roadmap tasks, and Planning Copilot conversations will be permanently deleted in an atomic transaction. This action cannot be undone.
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button
-                type="button"
-                onClick={() => setBulkDeleteModalOpen(false)}
-                className="btn-secondary"
-                disabled={isBulkDeleting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmBulkDelete}
-                className="btn-danger"
-                disabled={isBulkDeleting}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Trash2 size={14} />
-                {isBulkDeleting ? 'Deleting Selected...' : `Permanently Delete ${selectedIds.length} Projects`}
-              </button>
-            </div>
+          )}
+          <p style={{ fontSize: 13.5, color: 'var(--text-main)', lineHeight: 1.5, margin: 0 }}>
+            Are you sure you want to permanently delete <b>{selectedIds.length} project(s)</b>?
+          </p>
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            padding: 12,
+            fontSize: 12.5,
+            color: 'var(--text-muted)',
+            lineHeight: 1.5,
+            marginTop: 10
+          }}>
+            All associated module contents, version snapshots, execution roadmap tasks, and Planning Copilot conversations will be permanently deleted in an atomic transaction. This action cannot be undone.
           </div>
         </div>
-      )}
+
+        <div className="modal-footer" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setBulkDeleteModalOpen(false)}
+            className="btn-secondary"
+            disabled={isBulkDeleting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmBulkDelete}
+            className="btn-danger"
+            disabled={isBulkDeleting}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Trash2 size={14} />
+            {isBulkDeleting ? 'Deleting Selected...' : `Permanently Delete ${selectedIds.length} Projects`}
+          </button>
+        </div>
+      </Dialog>
 
       {/* User Profile & Account Settings Modal */}
       <ProfileModal
@@ -797,100 +779,70 @@ export const DashboardPage: React.FC<Props> = ({
       />
 
       {/* Single Project Delete Modal */}
-      {deleteModalProject && (
-        <div className="modal-overlay" onClick={() => !isDeleting && setDeleteModalProject(null)}>
-          <div
-            className="modal-card"
-            style={{ maxWidth: 460 }}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: '50%',
-                  background: 'var(--bg-subtle)',
-                  color: 'var(--danger-text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <AlertTriangle size={18} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0 }}>Delete Project</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>Permanent deletion action</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDeleteModalProject(null)}
-                className="modal-close-btn"
-                disabled={isDeleting}
-              >
-                ✕
-              </button>
+      <Dialog
+        isOpen={Boolean(deleteModalProject)}
+        onClose={() => !isDeleting && setDeleteModalProject(null)}
+        title="Delete Project"
+        description="Permanent deletion action"
+        maxWidth={460}
+        dismissible={!isDeleting}
+        showCloseButton={!isDeleting}
+      >
+        <div className="modal-body" style={{ padding: '8px 0 0' }}>
+          {deleteError && (
+            <div style={{
+              padding: 10,
+              background: 'var(--bg-subtle)',
+              color: 'var(--danger-text)',
+              borderRadius: 6,
+              fontSize: 12.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 10
+            }}>
+              <AlertTriangle size={15} />
+              <span>{deleteError}</span>
             </div>
-
-            <div className="modal-body">
-              {deleteError && (
-                <div style={{
-                  padding: 10,
-                  background: 'var(--bg-subtle)',
-                  color: 'var(--danger-text)',
-                  borderRadius: 6,
-                  fontSize: 12.5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 10
-                }}>
-                  <AlertTriangle size={15} />
-                  <span>{deleteError}</span>
-                </div>
-              )}
-              <p style={{ fontSize: 13.5, color: 'var(--text-main)', lineHeight: 1.5, margin: 0 }}>
-                Are you sure you want to permanently delete <b>"{deleteModalProject.name}"</b>?
-              </p>
-              <div style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 8,
-                padding: 12,
-                fontSize: 12.5,
-                color: 'var(--text-muted)',
-                lineHeight: 1.5,
-                marginTop: 10
-              }}>
-                This will permanently remove the venture blueprint, all associated module versions, and all roadmap tasks. This action cannot be undone.
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button
-                type="button"
-                onClick={() => setDeleteModalProject(null)}
-                className="btn-secondary"
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="btn-danger"
-                disabled={isDeleting}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Trash2 size={14} />
-                {isDeleting ? 'Deleting...' : 'Permanently Delete Project'}
-              </button>
-            </div>
+          )}
+          <p style={{ fontSize: 13.5, color: 'var(--text-main)', lineHeight: 1.5, margin: 0 }}>
+            Are you sure you want to permanently delete <b>"{deleteModalProject?.name}"</b>?
+          </p>
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            padding: 12,
+            fontSize: 12.5,
+            color: 'var(--text-muted)',
+            lineHeight: 1.5,
+            marginTop: 10
+          }}>
+            This will permanently remove the venture blueprint, all associated module versions, and all roadmap tasks. This action cannot be undone.
           </div>
         </div>
-      )}
+
+        <div className="modal-footer" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setDeleteModalProject(null)}
+            className="btn-secondary"
+            disabled={isDeleting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmDelete}
+            className="btn-danger"
+            disabled={isDeleting}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Trash2 size={14} />
+            {isDeleting ? 'Deleting...' : 'Permanently Delete Project'}
+          </button>
+        </div>
+      </Dialog>
 
       {/* Logout Confirmation Modal */}
       <LogoutConfirmModal

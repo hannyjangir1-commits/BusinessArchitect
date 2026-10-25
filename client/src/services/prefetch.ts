@@ -2,6 +2,8 @@
  * Intent-based speculative prefetching for lazy JavaScript chunks and compact API data.
  * Activates on pointer hover or keyboard focus with debounce and low concurrency.
  * Respects Save-Data network mode.
+ * Bounded speculative network concurrency (max 2 actual requests).
+ * Scoped to session epochs with immediate cancellation on logout or session change.
  */
 
 import { queryCache } from './queryCache';
@@ -26,36 +28,94 @@ export function isSaveDataEnabled(): boolean {
   return Boolean(conn?.saveData);
 }
 
-// Low concurrency limiter (max 2 background prefetch operations)
-let activePrefetches = 0;
+// Low concurrency limiter (max 2 actual concurrent network requests)
 const MAX_CONCURRENT_PREFETCH = 2;
-const prefetchQueue: Array<() => Promise<void>> = [];
+let activePrefetches = 0;
+let currentSessionEpoch = 1;
 
+interface PrefetchJob {
+  key: string;
+  epoch: number;
+  task: (signal: AbortSignal) => Promise<void>;
+  controller: AbortController;
+}
+
+const prefetchQueue: PrefetchJob[] = [];
+const queuedKeys = new Set<string>();
+const activeControllers = new Set<AbortController>();
+const prefetchedChunks = new Set<string>();
+
+/**
+ * Pump queue respecting max concurrency of 2 actual HTTP / chunk requests
+ */
 function pumpQueue() {
   while (activePrefetches < MAX_CONCURRENT_PREFETCH && prefetchQueue.length > 0) {
-    const task = prefetchQueue.shift()!;
+    const job = prefetchQueue.shift()!;
+    if (job.epoch !== currentSessionEpoch) {
+      queuedKeys.delete(job.key);
+      continue;
+    }
+
     activePrefetches++;
-    task().finally(() => {
-      activePrefetches--;
-      pumpQueue();
-    });
+    activeControllers.add(job.controller);
+
+    job.task(job.controller.signal)
+      .catch(() => {
+        // Speculative errors are silently ignored
+      })
+      .finally(() => {
+        activePrefetches--;
+        activeControllers.delete(job.controller);
+        queuedKeys.delete(job.key);
+        pumpQueue();
+      });
   }
 }
 
-function schedulePrefetch(task: () => Promise<void>) {
+/**
+ * Schedule a bounded prefetch job with intention deduplication and session epoch check
+ */
+function schedulePrefetch(key: string, task: (signal: AbortSignal) => Promise<void>) {
   if (isSaveDataEnabled()) return;
-  prefetchQueue.push(task);
+  if (queuedKeys.has(key)) return;
+
+  const controller = new AbortController();
+  queuedKeys.add(key);
+  prefetchQueue.push({
+    key,
+    epoch: currentSessionEpoch,
+    task,
+    controller
+  });
+
   pumpQueue();
 }
 
-// Prefetched cache keys tracker to avoid redundant attempts
-const prefetchedChunks = new Set<string>();
-
+/**
+ * Cancel all queued and in-flight prefetch jobs, increment session epoch.
+ * Must be called on logout or session switch.
+ */
 export function cancelPrefetchQueue(): void {
+  currentSessionEpoch++;
   prefetchQueue.length = 0;
+  queuedKeys.clear();
+  for (const controller of activeControllers) {
+    try {
+      controller.abort();
+    } catch {
+      // ignore
+    }
+  }
+  activeControllers.clear();
   prefetchedChunks.clear();
 }
 
+/**
+ * Reset prefetch session epoch for fresh authenticated session
+ */
+export function resetPrefetchSession(): void {
+  cancelPrefetchQueue();
+}
 
 /**
  * Prefetches the code chunk for a module.
@@ -65,8 +125,11 @@ export function prefetchModuleChunk(moduleType: string): void {
   const loader = MODULE_CHUNK_LOADERS[moduleType];
   if (!loader) return;
 
+  const chunkKey = `chunk:${moduleType}`;
+  if (queuedKeys.has(chunkKey)) return;
+
   prefetchedChunks.add(moduleType);
-  schedulePrefetch(async () => {
+  schedulePrefetch(chunkKey, async () => {
     try {
       await loader();
     } catch {
@@ -77,42 +140,58 @@ export function prefetchModuleChunk(moduleType: string): void {
 
 /**
  * Prefetches compact API data for a module under a specific project.
+ * GET requests only. Never prefetch mutations or generations.
  */
 export function prefetchModuleData(projectId: string, moduleType: string, userScope?: string): void {
   if (isSaveDataEnabled() || !projectId || !moduleType) return;
   if (moduleType === 'overview') return;
 
-  const cacheKey = `module:${projectId}:${moduleType}`;
-  if (queryCache.isFresh(cacheKey)) return;
-
-  schedulePrefetch(async () => {
-    try {
-      if (moduleType === 'execution_roadmap') {
-        await Promise.allSettled([
-          queryCache.fetchWithCache(`tasks:list:${projectId}`, () => api.tasks.list(projectId), {
-            staleTimeMs: 30000,
-            userScope
-          }),
-          queryCache.fetchWithCache(`tasks:summary:${projectId}`, () => api.tasks.getSummary(projectId), {
-            staleTimeMs: 30000,
-            userScope
-          })
-        ]);
-      } else if (moduleType === 'blueprint_copilot') {
-        await queryCache.fetchWithCache(`copilot:history:${projectId}`, () => api.copilot.getHistory(projectId), {
+  if (moduleType === 'execution_roadmap') {
+    // Schedule as two individual bounded requests to prevent hidden concurrency spike
+    const listKey = `tasks:list:${projectId}`;
+    if (!queryCache.isFresh(listKey)) {
+      schedulePrefetch(listKey, async (signal) => {
+        await queryCache.fetchWithCache(listKey, (s) => api.tasks.list(projectId, undefined, { signal: s }), {
           staleTimeMs: 30000,
-          userScope
+          userScope,
+          signal
         });
-      } else {
-        await queryCache.fetchWithCache(cacheKey, () => api.modules.get(projectId, moduleType), {
-          staleTimeMs: 30000,
-          userScope
-        });
-      }
-    } catch {
-      // Ignore background speculative errors
+      });
     }
-  });
+
+    const summaryKey = `tasks:summary:${projectId}`;
+    if (!queryCache.isFresh(summaryKey)) {
+      schedulePrefetch(summaryKey, async (signal) => {
+        await queryCache.fetchWithCache(summaryKey, (s) => api.tasks.getSummary(projectId, { signal: s }), {
+          staleTimeMs: 30000,
+          userScope,
+          signal
+        });
+      });
+    }
+  } else if (moduleType === 'blueprint_copilot') {
+    const copilotKey = `copilot:history:${projectId}`;
+    if (!queryCache.isFresh(copilotKey)) {
+      schedulePrefetch(copilotKey, async (signal) => {
+        await queryCache.fetchWithCache(copilotKey, (s) => api.copilot.getLatestHistory(projectId), {
+          staleTimeMs: 30000,
+          userScope,
+          signal
+        });
+      });
+    }
+  } else {
+    const cacheKey = `module:${projectId}:${moduleType}`;
+    if (!queryCache.isFresh(cacheKey)) {
+      schedulePrefetch(cacheKey, async (signal) => {
+        await queryCache.fetchWithCache(cacheKey, (s) => api.modules.get(projectId, moduleType, { signal: s }), {
+          staleTimeMs: 30000,
+          userScope,
+          signal
+        });
+      });
+    }
+  }
 }
 
 /**
@@ -131,14 +210,12 @@ export function prefetchProjectData(projectId: string, userScope?: string): void
   const cacheKey = `project:${projectId}`;
   if (queryCache.isFresh(cacheKey)) return;
 
-  schedulePrefetch(async () => {
-    try {
-      await queryCache.fetchWithCache(cacheKey, () => api.projects.get(projectId), {
-        staleTimeMs: 60000,
-        userScope
-      });
-    } catch {
-      // Ignore background errors
-    }
+  schedulePrefetch(cacheKey, async (signal) => {
+    await queryCache.fetchWithCache(cacheKey, (s) => api.projects.get(projectId, { signal: s }), {
+      staleTimeMs: 60000,
+      userScope,
+      signal
+    });
   });
 }
+

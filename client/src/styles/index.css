@@ -509,6 +509,12 @@ body {
   color: var(--text-main);
 }
 
+.search-input-box input[type="search"]::-webkit-search-cancel-button,
+.search-input-box input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  display: none;
+}
+
 .search-clear-btn {
   display: inline-flex;
   align-items: center;
@@ -966,16 +972,20 @@ body {
   color: var(--bg-card);
 }
 
-/* Workspace 2-Column Grid (Content + Blueprint Assistant) */
+/* Workspace Controlled Grid (Content + Optional Blueprint Assistant) */
 .workspace-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
 
+.workspace-grid.has-assistant {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+}
+
 .workspace-grid.full-width {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .workspace-main-column {
@@ -1518,7 +1528,8 @@ a { color: var(--copper); text-underline-offset: 3px; }
 .module-icon-large { width: 38px; height: 38px; flex-shrink: 0; background: var(--primary-light); }
 .module-toolbar { justify-content: flex-start; gap: 8px; max-width: 100%; }
 .module-toolbar > button, .module-toolbar > div > button, .module-lifecycle-actions > button { padding: 8px 12px; min-height: 36px; font-size: 12px; border-radius: 8px; }
-.workspace-grid { grid-template-columns: minmax(0,1fr) 290px; gap: 24px; align-items: start; }
+.workspace-grid { grid-template-columns: minmax(0,1fr); gap: 24px; align-items: start; }
+.workspace-grid.has-assistant { grid-template-columns: minmax(0,1fr) 290px; }
 .ai-assistant-panel { border: 1px solid var(--linen); border-radius: 14px; box-shadow: none; background: var(--bg-card); }
 .ai-assistant-header { background: var(--bg-subtle); border-radius: 14px 14px 0 0; }
 .ai-assistant-title { flex-wrap: wrap; }

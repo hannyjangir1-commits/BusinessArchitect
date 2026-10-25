@@ -6,7 +6,7 @@ import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
 interface Props {
   project: Project;
   messages: CopilotMessage[];
-  onSendMessage: (message: string) => Promise<void>;
+  onSendMessage: (message: string, tempId: string) => Promise<void>;
   onLoadOlderMessages?: () => Promise<void>;
   hasMoreOlder?: boolean;
   isLoadingOlder?: boolean;
@@ -324,9 +324,12 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   userScope
 }) => {
   const [input, setInput] = useState(() => (userScope ? getDraft<string>(userScope, 'copilot_input', project.id) || '' : ''));
+  const [isSending, setIsSending] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isPaginatingOlderRef = useRef(false);
+  const shouldScrollToBottomRef = useRef(false);
+  const isInitialLoadRef = useRef(true);
   const scrollSnapshotRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
 
   // Deduplicate messages by id preserving chronological order
@@ -351,8 +354,14 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
       container.scrollTop = scrollSnapshotRef.current.scrollTop + heightDiff;
       isPaginatingOlderRef.current = false;
       scrollSnapshotRef.current = null;
-    } else if (!isPaginatingOlderRef.current && typeof chatBottomRef.current?.scrollIntoView === 'function') {
-      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    } else if (shouldScrollToBottomRef.current || isInitialLoadRef.current) {
+      if (typeof chatBottomRef.current?.scrollIntoView === 'function') {
+        chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+      shouldScrollToBottomRef.current = false;
+      if (displayMessages.length > 0) {
+        isInitialLoadRef.current = false;
+      }
     }
   }, [displayMessages, isLoading]);
 
@@ -379,13 +388,30 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
     }
   }, [userScope, input, project.id]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    const msg = input.trim();
+  const handleSendText = async (text: string) => {
+    if (!text.trim() || isLoading || isSending) return;
+    const msg = text.trim();
+    const tempId = `temp-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const originalInput = input;
     setInput('');
     if (userScope) clearDraft(userScope, 'copilot_input', project.id);
-    await onSendMessage(msg);
+    shouldScrollToBottomRef.current = true;
+    setIsSending(true);
+
+    try {
+      await onSendMessage(msg, tempId);
+    } catch {
+      // Restore draft on confirmed failure so user never loses their question
+      setInput(originalInput || msg);
+      if (userScope) saveDraft(userScope, 'copilot_input', originalInput || msg, project.id);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSendText(input);
   };
 
   const starterPrompts = [
@@ -465,7 +491,34 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
             </button>
           </div>
         )}
-        {displayMessages.length === 0 ? (
+        {isLoading && displayMessages.length === 0 ? (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Loading conversation history"
+            style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 720, margin: '20px auto 0' }}
+          >
+            <div style={{ display: 'flex', gap: 12, maxWidth: '75%', alignSelf: 'flex-start' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border-color)', animation: 'pulse 1.5s infinite', flexShrink: 0 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                <div style={{ width: 140, height: 14, borderRadius: 4, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+                <div style={{ width: 320, height: 44, borderRadius: 8, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, maxWidth: '65%', alignSelf: 'flex-end', flexDirection: 'row-reverse' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, alignItems: 'flex-end' }}>
+                <div style={{ width: 240, height: 36, borderRadius: 8, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, maxWidth: '80%', alignSelf: 'flex-start' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border-color)', animation: 'pulse 1.5s infinite', flexShrink: 0 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                <div style={{ width: 180, height: 14, borderRadius: 4, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+                <div style={{ width: 420, height: 60, borderRadius: 8, background: 'var(--border-color)', animation: 'pulse 1.5s infinite' }} />
+              </div>
+            </div>
+          </div>
+        ) : displayMessages.length === 0 ? (
           <div style={{ textAlign: 'center', margin: 'auto 0', maxWidth: 540, alignSelf: 'center' }}>
             <div style={{
               width: 50,
@@ -490,7 +543,9 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
               {starterPrompts.map((p, idx) => (
                 <button
                   key={idx}
-                  onClick={() => onSendMessage(p)}
+                  type="button"
+                  disabled={isLoading || isSending}
+                  onClick={() => handleSendText(p)}
                   className="btn-secondary"
                   style={{ textAlign: 'left', fontSize: 12, padding: '10px 12px', height: '100%', lineHeight: 1.4 }}
                 >
@@ -535,10 +590,38 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                     borderRadius: 12,
                     fontSize: 13.5,
                     lineHeight: 1.5,
-                    border: isUser ? 'none' : '1px solid var(--border-color)',
+                    border: isUser ? (m.status === 'failed' ? '1px solid var(--danger, #ef4444)' : 'none') : '1px solid var(--border-color)',
+                    opacity: m.status === 'sending' ? 0.75 : 1
                   }}
                 >
                   <MarkdownContent content={m.content} isUser={isUser} />
+                  {m.status === 'sending' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, opacity: 0.85 }}>
+                      <Loader2 size={11} className="animate-spin" />
+                      <span>Sending...</span>
+                    </div>
+                  )}
+                  {m.status === 'failed' && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>Failed to deliver</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSendText(m.content)}
+                        style={{
+                          textDecoration: 'underline',
+                          background: 'none',
+                          border: 'none',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: 11,
+                          fontWeight: 600
+                        }}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {isUser && (
                   <div style={{
@@ -604,14 +687,14 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
         <input
           type="text"
           className="form-input"
-              placeholder={`Ask Planning Copilot about ${project.name}...`}
+          placeholder={`Ask Planning Copilot about ${project.name}...`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading}
+          disabled={isLoading || isSending}
           style={{ flex: 1 }}
         />
-        <button type="submit" className="btn-primary" disabled={isLoading || !input.trim()}>
-          {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+        <button type="submit" className="btn-primary" disabled={isLoading || isSending || !input.trim()}>
+          {isLoading || isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </form>
     </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { VersionItem } from '../types';
 import { ChevronDown, Download, Edit3, RotateCcw } from 'lucide-react';
 import { ModuleLifecycleActions } from './ModuleLifecycleActions';
+import { Dialog } from './common/Dialog';
 
 interface Props {
   moduleType: string;
@@ -218,99 +219,94 @@ export const VersionToolbar: React.FC<Props> = ({
       {actionError && <span role="alert" style={{ color: 'var(--danger-text)', fontSize: 12, maxWidth: 240 }}>{actionError}</span>}
 
       {/* Rename Version Modal */}
-      {renameModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: 440 }}>
-            <div className="modal-header">
-              <h3>Rename Version</h3>
-              <button onClick={() => setRenameModalOpen(false)} className="modal-close-btn">✕</button>
+      <Dialog
+        isOpen={renameModalOpen}
+        onClose={() => setRenameModalOpen(false)}
+        title="Rename Version"
+        maxWidth={440}
+      >
+        <form onSubmit={handleSaveRename}>
+          <div className="modal-body" style={{ padding: '8px 0' }}>
+            <div className="form-group">
+              <label htmlFor="rename-version-display-name" className="form-label">Version Display Name</label>
+              <input
+                id="rename-version-display-name"
+                type="text"
+                className="form-input"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+              />
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                E.g. "Subscription-Based Model", "Enterprise Expansion", or "Q4 Spikes"
+              </p>
             </div>
-            <form onSubmit={handleSaveRename}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Version Display Name</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    required
-                  />
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    E.g. "Subscription-Based Model", "Enterprise Expansion", or "Q4 Spikes"
-                  </p>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" onClick={() => setRenameModalOpen(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Save Name
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+          <div className="modal-footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+            <button type="button" onClick={() => setRenameModalOpen(false)} className="btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary">
+              Save Name
+            </button>
+          </div>
+        </form>
+      </Dialog>
 
       {/* Version History Modal */}
-      {historyModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: 640 }}>
-            <div className="modal-header">
-              <h3>Version History ({moduleTitle})</h3>
-              <button onClick={() => setHistoryModalOpen(false)} className="modal-close-btn">✕</button>
-            </div>
-            <div className="modal-body">
-              <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-                Each section maintains up to 5 saved versions. Restore an older snapshot here. {versions.length > 1
-                  ? "The module header's Delete button removes only the current version."
-                  : "The module header's Delete button removes this module and its saved data."}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-                {versions.map((v) => (
-                  <div
-                    key={v.id}
-                    className={`version-history-entry ${v.is_active ? 'active' : ''}`}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="version-history-entry-name">{v.version_name}</span>
-                        {v.is_active && (
-                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--primary)', color: 'var(--paper)', padding: '1px 6px', borderRadius: 4 }}>
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <div className="version-history-entry-summary">
-                        {v.change_summary || 'Initial creation'} • {new Date(v.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {!v.is_active && (
-                        <button
-                          onClick={() => { void restoreVersion(v.id, true); }}
-                          className="btn-secondary"
-                          style={{ padding: '4px 10px', fontSize: 12 }}
-                        >
-                          <RotateCcw size={12} /> Restore
-                        </button>
-                      )}
-                    </div>
+      <Dialog
+        isOpen={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+        title={`Version History (${moduleTitle})`}
+        maxWidth={640}
+      >
+        <div className="modal-body" style={{ padding: '8px 0' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+            Each section maintains up to 5 saved versions. Restore an older snapshot here. {versions.length > 1
+              ? "The module header's Delete button removes only the current version."
+              : "The module header's Delete button removes this module and its saved data."}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {versions.map((v) => (
+              <div
+                key={v.id}
+                className={`version-history-entry ${v.is_active ? 'active' : ''}`}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="version-history-entry-name">{v.version_name}</span>
+                    {v.is_active && (
+                      <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--primary)', color: 'var(--paper)', padding: '1px 6px', borderRadius: 4 }}>
+                        Active
+                      </span>
+                    )}
                   </div>
-                ))}
+                  <div className="version-history-entry-summary">
+                    {v.change_summary || 'Initial creation'} • {new Date(v.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {!v.is_active && (
+                    <button
+                      onClick={() => { void restoreVersion(v.id, true); }}
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: 12 }}
+                    >
+                      <RotateCcw size={12} /> Restore
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button onClick={() => setHistoryModalOpen(false)} className="btn-secondary">
-                Close
-              </button>
-            </div>
+            ))}
           </div>
         </div>
-      )}
+        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+          <button onClick={() => setHistoryModalOpen(false)} className="btn-secondary">
+            Close
+          </button>
+        </div>
+      </Dialog>
     </div>
   );
 };

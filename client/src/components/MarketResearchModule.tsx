@@ -117,7 +117,10 @@ export const MarketResearchModule: React.FC<Props> = ({
           <div className="card-title" style={{ color: 'var(--text-muted)' }}>
             <TrendingUp size={16} /> Addressable Market Size (TAM / SAM / SOM)
           </div>
-          <p style={{ fontSize: 13.5, color: 'var(--text-main)', marginTop: 10, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            TAM: total potential demand • SAM: serviceable segment reachable • SOM: realistic near-term target
+          </div>
+          <p style={{ fontSize: 13.5, color: 'var(--text-main)', marginTop: 8, lineHeight: 1.5 }}>
             {data.target_market_size}
           </p>
         </div>
@@ -138,9 +141,14 @@ export const MarketResearchModule: React.FC<Props> = ({
           Competitors Identified from Research
         </div>
         {(data.competitor_profiles || []).length === 0 ? (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-            No competitors are listed because this result did not contain verified competitor evidence. Check the source links and research gaps, then regenerate when grounded search is available.
-          </p>
+          <div style={{ background: 'var(--bg-subtle)', padding: 14, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-main)', fontWeight: 600, margin: '0 0 6px 0' }}>
+              Verified sources unavailable
+            </p>
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+              This does not mean no competitors exist in your market. Rather, verifiable grounded sources were not returned for this run. Complete the manual validation checklist below to verify local and direct competitors.
+            </p>
+          </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {(data.competitor_profiles || []).map((c, idx) => (
@@ -227,7 +235,7 @@ export const MarketResearchModule: React.FC<Props> = ({
           )}
         </section>
         <section className="card" aria-labelledby="market-gaps-title">
-          <div className="card-title" id="market-gaps-title">Research gaps to resolve</div>
+          <div className="card-title" id="market-gaps-title">Research gaps & validation checklist</div>
           {meaningfulGaps.length === 0 ? (
             <p style={{ fontSize: 12.5, color: 'var(--text-muted)', fontStyle: 'italic', margin: '10px 0 0' }}>
               No specific research gaps were provided.
@@ -237,6 +245,14 @@ export const MarketResearchModule: React.FC<Props> = ({
               {meaningfulGaps.map((gap, idx) => <li key={idx}>{gap}</li>)}
             </ul>
           )}
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-color)', fontSize: 12, color: 'var(--text-muted)' }}>
+            <b>Practical manual validation steps:</b>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+              <span>1. Search maps, Google Business, and trade directories for local or niche providers.</span>
+              <span>2. Conduct 5 customer discovery interviews focused on past purchase decisions.</span>
+              <span>3. Obtain published or direct pricing quotes from at least 2 alternative options.</span>
+            </div>
+          </div>
         </section>
       </div>
     </div>

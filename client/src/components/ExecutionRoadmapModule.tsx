@@ -56,11 +56,44 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
   generationProgress = null,
   isGenerateDisabled = false
 }) => {
-  // Mind Map is the primary generated view (ROAD-002)
-  const [activeSubTab, setActiveSubTab] = useState<'mindmap' | 'tasks' | 'gantt' | 'milestones' | 'dependencies'>('mindmap');
+  // Mind Map is the primary generated view (ROAD-002) with session persistence (Checkpoint 5.2)
+  const [activeSubTab, setActiveSubTab] = useState<'mindmap' | 'tasks' | 'gantt' | 'milestones' | 'dependencies'>(() => {
+    try {
+      const stored = sessionStorage.getItem(`roadmap_tab_${project.id}`);
+      if (stored && ['mindmap', 'tasks', 'gantt', 'milestones', 'dependencies'].includes(stored)) {
+        return stored as any;
+      }
+    } catch {}
+    return 'mindmap';
+  });
+
+  const handleSelectSubTab = (tab: 'mindmap' | 'tasks' | 'gantt' | 'milestones' | 'dependencies') => {
+    setActiveSubTab(tab);
+    try {
+      sessionStorage.setItem(`roadmap_tab_${project.id}`, tab);
+    } catch {}
+  };
+
   const [planningOpenForVersion, setPlanningOpenForVersion] = useState<string | null | false>(false);
   const [staleDismissed, setStaleDismissed] = useState<boolean>(false);
-  const [showAssistant, setShowAssistant] = useState<boolean>(false);
+  const [showAssistant, setShowAssistant] = useState<boolean>(() => {
+    try {
+      const stored = sessionStorage.getItem(`assistant_open_${project.id}_roadmap`);
+      return stored !== null ? stored === 'true' : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleShowAssistant = () => {
+    setShowAssistant(prev => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem(`assistant_open_${project.id}_roadmap`, String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const isPlanningOpen = !moduleDetail?.active_version_id || planningOpenForVersion === moduleDetail.active_version_id;
   const feasibility = moduleDetail?.data?.feasibility_evaluation;
@@ -276,35 +309,35 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
       <div className="subtabs-bar">
         <button
           className={`subtab-pill ${activeSubTab === 'mindmap' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('mindmap')}
+          onClick={() => handleSelectSubTab('mindmap')}
           aria-label="Mind Map Primary View"
         >
           <Workflow size={14} /> Mind Map (Primary)
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'tasks' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('tasks')}
+          onClick={() => handleSelectSubTab('tasks')}
           aria-label="Detailed Execution Breakdown"
         >
           <ListTodo size={14} /> Detailed Breakdown ({tasks.length})
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'gantt' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('gantt')}
+          onClick={() => handleSelectSubTab('gantt')}
           aria-label="Gantt Timeline View"
         >
           <Calendar size={14} /> Gantt Timeline
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'milestones' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('milestones')}
+          onClick={() => handleSelectSubTab('milestones')}
           aria-label="Milestone Cards"
         >
           <Milestone size={14} /> Milestones
         </button>
         <button
           className={`subtab-pill ${activeSubTab === 'dependencies' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('dependencies')}
+          onClick={() => handleSelectSubTab('dependencies')}
           aria-label="Dependencies View"
         >
           <GitPullRequest size={14} /> Dependencies
@@ -313,7 +346,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
         <div style={{ marginLeft: 'auto' }}>
           <button
             className={`subtab-pill ${showAssistant ? 'active' : ''}`}
-            onClick={() => setShowAssistant(!showAssistant)}
+            onClick={toggleShowAssistant}
             aria-label="Toggle Plan Assistant"
             style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
           >
@@ -323,7 +356,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
       </div>
 
       {/* Main Workspace Layout */}
-      <div className="workspace-grid">
+      <div className={showAssistant ? 'workspace-grid has-assistant' : 'workspace-grid'}>
         <div className="workspace-main-column">
           {/* Primary View: Interactive Mind Map (ROAD-002) */}
           {activeSubTab === 'mindmap' && (
@@ -399,7 +432,12 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
             moduleTitle="Roadmap & Execution Plan"
             moduleType="execution_roadmap"
             onModify={onModify}
-            onClose={() => setShowAssistant(false)}
+            onClose={() => {
+              setShowAssistant(false);
+              try {
+                sessionStorage.setItem(`assistant_open_${project.id}_roadmap`, 'false');
+              } catch {}
+            }}
             isLoading={isLoading}
           />
         )}

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BusinessStage } from '../types';
-import { Sparkles, ArrowRight, ArrowLeft, Check, Layers, AlertCircle, Loader2 } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft, Check, Layers, AlertCircle, Loader2, X } from 'lucide-react';
 import { buildNewProjectPayload } from '../utils/projectPayload';
 import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
+import { Dialog } from './common/Dialog';
 
 interface Props {
   onProjectCreated: (project: any) => Promise<void>;
@@ -31,7 +32,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
   // Form State
   const [name, setName] = useState(initialDraft?.name || '');
   const [stage, setStage] = useState<BusinessStage>(initialDraft?.stage || 'Idea');
-  const [industry, setIndustry] = useState(initialDraft?.industry || 'Enterprise SaaS');
+  const [industry, setIndustry] = useState(initialDraft?.industry || '');
   const [description, setDescription] = useState(initialDraft?.description || '');
   const [targetCustomers, setTargetCustomers] = useState(initialDraft?.targetCustomers || '');
   const [goals, setGoals] = useState(initialDraft?.goals || '');
@@ -40,7 +41,9 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
   const [customTechInput, setCustomTechInput] = useState('');
   const [customCategory, setCustomCategory] = useState('Backend');
 
-  // Save draft on edit
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Save draft on edit (scoped to user)
   useEffect(() => {
     if (userScope && (name || description || targetCustomers || goals || budget || Object.keys(existingStack).length > 0)) {
       saveDraft(userScope, 'wizard', {
@@ -85,17 +88,23 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
     if (currentStep === 1) {
       if (!name.trim()) {
         setErrorMsg('Please enter a project name.');
+        nameInputRef.current?.focus();
         return;
       }
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      setCurrentStep(3);
     }
+    setCurrentStep(prev => prev + 1);
   };
 
   const handleCreate = async () => {
-    setIsSubmitting(true);
     setErrorMsg(null);
+    if (!name.trim()) {
+      setErrorMsg('Project name is required.');
+      setCurrentStep(1);
+      setTimeout(() => nameInputRef.current?.focus(), 50);
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const payload = buildNewProjectPayload({
         name,
@@ -111,35 +120,55 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
       await onProjectCreated(payload);
       if (userScope) clearDraft(userScope, 'wizard');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to create project');
+      setErrorMsg(err.message || 'Could not create project. Please review your details and try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-card" style={{ maxWidth: 740, minHeight: 520 }}>
+    <Dialog
+      isOpen={true}
+      onClose={onCancel}
+      dismissible={!isSubmitting}
+      showCloseButton={false}
+      ariaLabelledBy="wizard-title"
+      maxWidth={740}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 480 }}>
         {/* Wizard Header */}
-        <div className="modal-header">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Layers size={18} />
             </div>
             <div>
-              <h3>Architect New Venture Blueprint</h3>
-              <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Three-step stage-aware business blueprint initialization</p>
+              <h3 id="wizard-title" style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                Create project
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                Three simple steps to configure your business workspace
+              </p>
             </div>
           </div>
-          <button onClick={onCancel} className="modal-close-btn">✕</button>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close project setup"
+            className="modal-close-btn"
+            disabled={isSubmitting}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: isSubmitting ? 'not-allowed' : 'pointer', padding: 4 }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Step Progress Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 8, marginBottom: 16 }}>
           {[
-            { num: 1, title: 'Venture & Stage' },
-            { num: 2, title: stage === 'Idea' ? 'Discovery & Goals' : 'Existing Stack & Architecture' },
-            { num: 3, title: 'Review & Blueprint' }
+            { num: 1, title: 'Basics & Stage' },
+            { num: 2, title: stage === 'Idea' ? 'Goals & Runway' : 'Tools & Architecture' },
+            { num: 3, title: 'Review & Create' }
           ].map((s) => {
             const isDone = currentStep > s.num;
             const isCurrent = currentStep === s.num;
@@ -148,21 +177,21 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
               <div key={s.num} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div
                   style={{
-                    width: 26,
-                    height: 26,
+                    width: 24,
+                    height: 24,
                     borderRadius: '50%',
-                    background: isCurrent ? 'var(--primary-text)' : isDone ? 'var(--primary-text)' : 'var(--border-color)',
+                    background: isCurrent || isDone ? 'var(--primary-text)' : 'var(--border-color)',
                     color: isCurrent || isDone ? 'var(--bg-card)' : 'var(--text-main)',
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 700,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}
                 >
-                  {isDone ? <Check size={14} /> : s.num}
+                  {isDone ? <Check size={13} /> : s.num}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? 'var(--text-main)' : 'var(--text-main)' }}>
+                <span style={{ fontSize: 12.5, fontWeight: isCurrent ? 700 : 500, color: 'var(--text-main)' }}>
                   {s.title}
                 </span>
               </div>
@@ -171,9 +200,9 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
         </div>
 
         {/* Wizard Body */}
-        <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
           {errorMsg && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: 'var(--bg-subtle)', color: 'var(--danger-text)', borderRadius: 8, fontSize: 13 }}>
+            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, background: 'var(--bg-subtle)', color: 'var(--danger-text)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
               <AlertCircle size={16} />
               <span>{errorMsg}</span>
             </div>
@@ -181,13 +210,15 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
 
           {/* STEP 1: Basic Venture Details & Stage */}
           {currentStep === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
-                <label className="form-label">Project / Venture Name *</label>
+                <label htmlFor="wizard-venture-name" className="form-label">Business / Project Name *</label>
                 <input
+                  id="wizard-venture-name"
+                  ref={nameInputRef}
                   type="text"
                   className="form-input"
-                  placeholder="e.g. PCB Designer or CircuitCloud"
+                  placeholder="e.g. Riverside Bike Works or CircuitCloud"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -195,54 +226,74 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
               </div>
 
               <div className="form-group">
-                <label className="form-label">Venture Stage *</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                <label id="wizard-stage-label" className="form-label">Business Stage *</label>
+                <div
+                  role="radiogroup"
+                  aria-labelledby="wizard-stage-label"
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}
+                >
                   {[
-                    { id: 'Idea', label: 'Idea', desc: 'Validate the problem, customers, value proposition, and initial concept' },
-                    { id: 'MVP', label: 'MVP', desc: 'Build or improve the minimum viable product and validate core workflows' },
-                    { id: 'Post-launch', label: 'Post-launch', desc: 'Operate a live product, learn from customers, and improve reliability' },
-                    { id: 'Growth', label: 'Growth', desc: 'Scale a proven product, operations, and customer acquisition' }
+                    { id: 'Idea', label: 'Idea', desc: 'Validate customer problem, value proposition, and initial concept' },
+                    { id: 'MVP', label: 'MVP', desc: 'Build or improve the initial offering and validate real workflows' },
+                    { id: 'Post-launch', label: 'Post-launch', desc: 'Operate a live business, learn from customers, and improve reliability' },
+                    { id: 'Growth', label: 'Growth', desc: 'Scale a proven business model, operations, and customer reach' }
                   ].map((st) => (
-                    <div
+                    <label
                       key={st.id}
-                      onClick={() => setStage(st.id as BusinessStage)}
+                      role="radio"
+                      aria-checked={stage === st.id}
                       style={{
-                        padding: 14,
-                        borderRadius: 10,
-                        border: `2px solid ${stage === st.id ? 'var(--primary-text)' : 'var(--border-color)'}`,
-                        background: stage === st.id ? 'var(--bg-subtle)' : 'var(--bg-card)',
+                        padding: 12,
+                        borderRadius: 8,
+                        border: `2px solid ${stage === st.id ? 'var(--primary)' : 'var(--border-color)'}`,
+                        background: stage === st.id ? 'rgb(69 60 55 / 0.1)' : 'var(--bg-card)',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: 6
                       }}
                     >
-                      <div style={{ fontWeight: 700, fontSize: 13.5, color: stage === st.id ? 'var(--primary-text)' : 'var(--text-main)' }}>
-                        {st.label}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>
+                          {st.label}
+                        </span>
+                        <input
+                          type="radio"
+                          name="wizard-business-stage"
+                          value={st.id}
+                          checked={stage === st.id}
+                          onChange={() => setStage(st.id as BusinessStage)}
+                          style={{ accentColor: 'var(--primary)' }}
+                        />
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.35 }}>
                         {st.desc}
                       </div>
-                    </div>
+                    </label>
                   ))}
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                  <label className="form-label">Industry</label>
+                  <label htmlFor="wizard-industry" className="form-label">Industry / Sector</label>
                   <input
+                    id="wizard-industry"
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Hardware Engineering, FinTech, HealthTech"
+                    placeholder="e.g. Local Services, Retail, Healthcare, or SaaS"
                     value={industry}
                     onChange={(e) => setIndustry(e.target.value)}
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Target ICP / Customers</label>
+                  <label htmlFor="wizard-target-customers" className="form-label">Target Customers</label>
                   <input
+                    id="wizard-target-customers"
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Electrical Engineers, Mid-market CTOs"
+                    placeholder="e.g. Local bicycle commuters, Homeowners, or Engineering leads"
                     value={targetCustomers}
                     onChange={(e) => setTargetCustomers(e.target.value)}
                   />
@@ -250,11 +301,12 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
               </div>
 
               <div className="form-group">
-                <label className="form-label">Venture Description</label>
+                <label htmlFor="wizard-description" className="form-label">Business Description</label>
                 <textarea
+                  id="wizard-description"
                   className="form-textarea"
                   rows={3}
-                  placeholder="Describe your core product value proposition and what pain points it addresses..."
+                  placeholder="Describe your core offering, how customers find you, and what needs you address..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
@@ -264,24 +316,31 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
 
           {/* STEP 2: Stage-aware discovery */}
           {currentStep === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
-                <label className="form-label">{stage === 'Idea' ? 'Initial Build Budget' : 'Available Budget / Runway'}</label>
+                <label htmlFor="wizard-budget" className="form-label">
+                  {stage === 'Idea' ? 'Initial Build / Startup Budget' : 'Available Budget or Monthly Runway'}
+                </label>
                 <input
+                  id="wizard-budget"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. $25,000 - $50,000, monthly runway, or Bootstrapped"
+                  placeholder="e.g. $5,000, 10,000 EUR, Bootstrapped, or $5k/mo runway"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
                 />
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Enter any currency or funding status. Distinguish upfront capital from recurring runway.
+                </p>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Primary Business Goals & Milestones</label>
+                <label htmlFor="wizard-goals" className="form-label">Primary Business Goals & Milestones</label>
                 <textarea
+                  id="wizard-goals"
                   className="form-textarea"
                   rows={3}
-                  placeholder="e.g. Validate retention, reach $10k MRR, reduce support time, or expand to two new regions..."
+                  placeholder="e.g. First 50 paying customers, open 2nd repair bay, or validate willingness to pay..."
                   value={goals}
                   onChange={(e) => setGoals(e.target.value)}
                 />
@@ -290,18 +349,18 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
               {stage !== 'Idea' && (
                 <>
                   <div>
-                    <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>
-                      Existing Technology Stack Selector
+                    <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)', margin: '8px 0 2px 0' }}>
+                      Existing Tools & Technology Stack (Optional)
                     </h4>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      Select the components currently powering your product. The planning engine will evaluate compatibility, scalability, and migration risks without forcing unnecessary rewrites.
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                      Select tools or systems currently in use. For non-software businesses, this can include spreadsheets or messaging.
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 260, overflowY: 'auto', paddingRight: 4 }}>
                     {Object.entries(STACK_CATEGORIES).map(([cat, techs]) => (
-                      <div key={cat} style={{ background: 'var(--bg-subtle)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8, textTransform: 'uppercase' }}>
+                      <div key={cat} style={{ background: 'var(--bg-subtle)', padding: 10, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6, textTransform: 'uppercase' }}>
                           {cat}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -316,15 +375,14 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
                                   padding: '4px 10px',
                                   fontSize: 12,
                                   fontWeight: isSelected ? 700 : 500,
-                                  borderRadius: 20,
-                                  border: `1px solid ${isSelected ? 'var(--primary-text)' : 'var(--border-color)'}`,
-                                  background: isSelected ? 'var(--primary-text)' : 'var(--bg-card)',
-                                  color: isSelected ? 'var(--bg-card)' : 'var(--text-main)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease'
+                                  borderRadius: 16,
+                                  border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-color)'}`,
+                                  background: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                                  color: isSelected ? 'var(--paper)' : 'var(--text-main)',
+                                  cursor: 'pointer'
                                 }}
                               >
-                                {tech} {isSelected && '✓'}
+                                {tech}
                               </button>
                             );
                           })}
@@ -333,27 +391,26 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
                     ))}
                   </div>
 
-                  {/* Add Custom Tech */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
                     <select
                       className="form-select"
-                      style={{ width: 150 }}
                       value={customCategory}
                       onChange={(e) => setCustomCategory(e.target.value)}
+                      style={{ maxWidth: 160, fontSize: 12 }}
                     >
                       {Object.keys(STACK_CATEGORIES).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <input
                       type="text"
                       className="form-input"
-                      style={{ flex: 1 }}
-                      placeholder="Add custom technology (e.g. Apache Kafka, Rust)..."
+                      placeholder="Add custom tool (e.g. WhatsApp, Google Sheets)..."
                       value={customTechInput}
                       onChange={(e) => setCustomTechInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTech(); } }}
+                      style={{ flex: 1, fontSize: 12 }}
                     />
-                    <button type="button" onClick={addCustomTech} className="btn-secondary">
-                      + Add
+                    <button type="button" onClick={addCustomTech} className="btn-secondary" style={{ fontSize: 12 }}>
+                      Add Tool
                     </button>
                   </div>
                 </>
@@ -361,22 +418,25 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
             </div>
           )}
 
-          {/* STEP 3: Review & Blueprint Confirmation */}
+          {/* STEP 3: Review & Project Confirmation */}
           {currentStep === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 10, padding: 16 }}>
-                <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)', marginBottom: 12 }}>
-                  Blueprint Generation Summary
+                <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-main)', margin: '0 0 12px 0' }}>
+                  Review project
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', rowGap: 8, fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Venture Name:</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, fontSize: 13 }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Business Name:</span>
                   <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{name}</span>
 
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Stage:</span>
                   <span><span className="stage-badge-purple">{stage}</span></span>
 
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Industry:</span>
-                  <span style={{ color: 'var(--text-main)' }}>{industry || 'Technology'}</span>
+                  <span style={{ color: 'var(--text-main)' }}>{industry || 'Not specified'}</span>
+
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Target Customers:</span>
+                  <span style={{ color: 'var(--text-main)' }}>{targetCustomers || 'Not specified'}</span>
 
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Description:</span>
                   <span style={{ color: 'var(--text-main)' }}>{description || 'Not specified'}</span>
@@ -387,9 +447,9 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Goals:</span>
                   <span style={{ color: 'var(--text-main)' }}>{goals || 'Not specified'}</span>
 
-                  {stage !== 'Idea' && (
+                  {stage !== 'Idea' && Object.keys(existingStack).length > 0 && (
                     <>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Existing Stack:</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Existing Tools:</span>
                       <div>
                         {Object.entries(existingStack).map(([c, list]) => list.length > 0 ? (
                           <div key={c} style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -405,7 +465,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
               <div style={{ padding: 12, background: 'rgb(69 60 55 / 0.1)', borderRadius: 8, border: '1px solid rgb(69 60 55 / 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Sparkles size={18} color="var(--primary-text)" />
                 <span style={{ fontSize: 12.5, color: 'var(--primary)' }}>
-                  Create the project first, then generate each module from its workspace. Your inputs will be saved and used by every generation.
+                  Create the project first, then generate each planning module inside your workspace. Your settings will be preserved across all sections.
                 </span>
               </div>
             </div>
@@ -413,7 +473,7 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
         </div>
 
         {/* Wizard Footer */}
-        <div className="modal-footer">
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
           {currentStep > 1 && (
             <button
               type="button"
@@ -451,6 +511,6 @@ export const NewProjectWizard: React.FC<Props> = ({ onProjectCreated, onCancel, 
           )}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 };

@@ -354,10 +354,15 @@ def update_active_module(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    """Persists the active navigation tab per-project in the database."""
-    project.active_module = normalize_module_type(req.active_module)
+    """Persists the active navigation tab per-project in the database without mutating business updated_at."""
+    preserved_updated_at = project.updated_at
+    normalized_mod = normalize_module_type(req.active_module)
+    db.query(Project).filter(Project.id == project.id).update(
+        {Project.active_module: normalized_mod, Project.updated_at: preserved_updated_at},
+        synchronize_session="fetch"
+    )
     db.commit()
-    return {"message": "Active module navigation saved", "active_module": project.active_module}
+    return {"message": "Active module navigation saved", "active_module": normalized_mod}
 
 @router.post("/bulk-delete", response_model=BulkDeleteProjectsResponse, dependencies=[Depends(verify_csrf)])
 def bulk_delete_projects(

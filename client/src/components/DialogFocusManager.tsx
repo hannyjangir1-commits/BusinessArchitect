@@ -28,7 +28,8 @@ export function DialogFocusManager() {
       current = next;
     };
     const onKey = (event: KeyboardEvent) => {
-      if (!current || event.key !== 'Tab') return;
+      // If a managed Dialog with its own stack is active, defer to it to prevent competing traps
+      if (document.querySelector('[role="dialog"][data-managed-dialog="true"]') || !current || event.key !== 'Tab') return;
       const controls = focusable(current);
       if (!controls.length) { event.preventDefault(); current.tabIndex = -1; current.focus(); return; }
       const first = controls[0], last = controls[controls.length - 1];

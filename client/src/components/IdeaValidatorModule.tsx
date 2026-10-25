@@ -81,7 +81,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
                 {moduleDetail.active_version_name || 'V1'}
               </span>
             </h2>
-            <p>Empirical hypothesis testing, differentiation audit, and risk mitigation plan</p>
+            <p>Preliminary assessment and practical validation experiments</p>
           </div>
         </div>
 
@@ -104,24 +104,30 @@ export const IdeaValidatorModule: React.FC<Props> = ({
 
       {/* Viability Score & Core Highlights Banner */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 28, padding: 24, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 120 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 140 }}>
           <div style={{ fontSize: 36, fontWeight: 900, color: scoreColor }}>
             {score}<span style={{ fontSize: 18, color: 'var(--text-muted)' }}>/100</span>
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 2 }}>
             Viability Score
           </div>
+          <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', marginTop: 6, textAlign: 'center' }}>
+            Preliminary AI assessment — not market validation
+          </span>
         </div>
 
         <div style={{ flex: 1, minWidth: 260, borderLeft: '1px solid var(--border-color)', paddingLeft: 24 }}>
           <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>
             Problem Urgency & Customer Fit
           </h4>
-          <p style={{ fontSize: 13, color: 'var(--text-main)', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-main)', lineHeight: 1.5, margin: 0 }}>
             {data.problem_clarity}
           </p>
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--primary-text)', fontWeight: 600 }}>
             ICP: {data.customer_fit}
+          </div>
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+            Score Rubric: Weighted across problem urgency (30%), customer willingness to pay (30%), feasibility & execution (25%), and practical differentiation (15%).
           </div>
         </div>
       </div>
@@ -171,7 +177,7 @@ export const IdeaValidatorModule: React.FC<Props> = ({
             {data.value_proposition}
           </p>
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--bg-subtle)', fontSize: 12, color: 'var(--text-muted)' }}>
-            <b>Moat:</b> {data.differentiation}
+            <b>Practical Differentiation / Advantage:</b> {data.differentiation}
           </div>
         </div>
 
@@ -220,21 +226,34 @@ export const IdeaValidatorModule: React.FC<Props> = ({
 
       {/* Recommended Validation Experiments */}
       <div className="card">
-        <div className="card-title" style={{ color: 'var(--primary-text)', marginBottom: 14 }}>
-          <FlaskConical size={16} /> Actionable Validation Experiments
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+          <div className="card-title" style={{ color: 'var(--primary-text)', margin: 0 }}>
+            <FlaskConical size={16} /> Actionable Validation Experiments
+          </div>
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+            Ask about past actual behavior before hypothetical willingness to pay
+          </span>
         </div>
+        <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 14 }}>
+          Practical experiments to validate customer interest and behavior before committing significant capital.
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
           {(data.validation_experiments || []).map((exp, idx) => (
-            <div key={idx} style={{ background: 'var(--bg-subtle)', padding: 14, borderRadius: 8, border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 6 }}>
+            <div key={idx} style={{ background: 'var(--bg-subtle)', padding: 14, borderRadius: 8, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
                 Experiment #{idx + 1}: {exp.experiment}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 <b>Metric:</b> {exp.metric}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--primary-text)', fontWeight: 600, marginTop: 4 }}>
-                <b>Target Criteria:</b> {exp.target_criteria}
+              <div style={{ fontSize: 12, color: 'var(--primary-text)', fontWeight: 600 }}>
+                <b>Suggested threshold:</b> {exp.target_criteria}
               </div>
+              {data.market_assumptions && data.market_assumptions[idx] && (
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', paddingTop: 6, marginTop: 4 }}>
+                  <b>Assumption tested:</b> {data.market_assumptions[idx]}
+                </div>
+              )}
             </div>
           ))}
         </div>

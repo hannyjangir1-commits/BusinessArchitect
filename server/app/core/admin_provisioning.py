@@ -109,7 +109,7 @@ def seed_development_admin(db: Session) -> bool:
         return True
     except Exception as e:
         db.rollback()
-        logger.error("Failed to seed development admin: %s", str(e))
+        logger.error("Failed to seed development admin: %s", type(e).__name__)
         raise
 
 def provision_initial_admin(db: Session) -> bool:
@@ -147,7 +147,7 @@ def provision_initial_admin(db: Session) -> bool:
     try:
         username = normalize_username(raw_username)
     except ValueError as e:
-        logger.error("Failed to normalize admin username: %s", str(e))
+        logger.error("Failed to normalize admin username: %s", type(e).__name__)
         if getattr(settings, "IS_PROD", False) or getattr(settings, "APP_ENV", "").lower() == "production":
             raise
         return False
@@ -205,5 +205,5 @@ def provision_initial_admin(db: Session) -> bool:
         return True
     except Exception as e:
         db.rollback()
-        logger.error("Error provisioning initial administrator: %s", str(e))
+        logger.error("Error provisioning initial administrator: %s", type(e).__name__)
         raise
