@@ -229,7 +229,7 @@ This register persists progress across phases, documenting findings, affected pa
     - `test_user_ai_rate_limiter_blocks_abusive_frequency`
     - `test_input_size_bounding_rejects_oversized_messages`
   - Regression suite (52 passed in 24.52s across Phase 3, 4, 5, AI failure modes, and Admin ops).
-- **Commit SHA:** `PENDING_COMMIT`
+- **Commit SHA:** `8d2dc489cdb11a8685b3d2e6afe925b2bed469bd`
 - **Remaining Limitations:** Multi-process distributed coordination of rate limits across separate dynos remains process-local, adhering to the free-tier single-container design.
 - **Production Config / Migration Requirements:**
   - Users can configure 1, 2, or 3 keys in `GEMINI_API_KEYS` (e.g. `key1, key2, key3` or `["key1", "key2", "key3"]`). Zero schema migrations required.
