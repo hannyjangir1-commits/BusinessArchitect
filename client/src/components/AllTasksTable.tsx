@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RoadmapTask } from '../types';
-import { Search, Plus, RotateCw, Edit3, Trash2, Copy, AlertCircle, Loader2, X, Flag, CheckCircle2 } from 'lucide-react';
-import { deriveAnchorDate, dueByDay, isTaskCompleted } from '../utils/taskMilestones';
+import { Search, Plus, RotateCw, Edit3, Trash2, Copy, AlertCircle, Loader2 } from 'lucide-react';
+import { deriveAnchorDate, dueByDay } from '../utils/taskMilestones';
 import { Dialog } from './common/Dialog';
 
 interface Props {

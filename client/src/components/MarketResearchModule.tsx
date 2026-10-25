@@ -107,7 +107,7 @@ export const MarketResearchModule: React.FC<Props> = ({
       <div style={{ padding: '10px 14px', background: 'rgb(69 60 55 / 0.1)', borderRadius: 8, border: '1px solid rgb(69 60 55 / 0.25)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <Info size={16} color="var(--text-muted)" />
         <span style={{ fontSize: 12, color: 'var(--text-main)' }}>
-          <b>Evidence status:</b> {data.provenance_note || 'Review the source links and research gaps before relying on time-sensitive claims.'}
+          <b>Evidence status:</b> <span>{data.provenance_note || 'Review the source links and research gaps before relying on time-sensitive claims.'}</span>
         </span>
       </div>
 

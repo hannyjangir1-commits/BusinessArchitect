@@ -33,6 +33,7 @@ router = APIRouter(prefix="/projects/{project_id}/modules", tags=["Modules & Ver
 ALLOWED_CHAT_MODULES = {"overview", "bmc", "tech_stack", "execution_roadmap", "detailed_roadmap"}
 DISALLOWED_CHAT_MODULES = {"idea_validator", "market_research"}
 DELETABLE_MODULE_TYPES = {"bmc", "tech_stack", "idea_validator", "market_research", "execution_roadmap"}
+HTTP_422_STATUS = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
 
 from app.services.roadmap_service import RoadmapDomainService
 from app.services.module_orchestration_service import ModuleOrchestrationService
@@ -322,7 +323,7 @@ def generate_module(
             typed_inputs = RoadmapPlanningRequest.model_validate(effective_inputs or {})
         except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=HTTP_422_STATUS,
                 detail=f"Invalid roadmap planning inputs: {e}"
             )
     elif module_type == "tech_stack":
@@ -330,7 +331,7 @@ def generate_module(
             typed_inputs = TechStackPlanningRequest.model_validate(effective_inputs or {})
         except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=HTTP_422_STATUS,
                 detail=f"Invalid tech stack planning inputs: {e}"
             )
     elif effective_inputs:
@@ -339,7 +340,7 @@ def generate_module(
     is_ready, missing_fields, error_msgs = ReadinessValidationService.validate_project_readiness(project, module_type)
     if not is_ready:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=HTTP_422_STATUS,
             detail={
                 "error": "READINESS_VALIDATION_FAILED",
                 "message": "Project details are insufficient or invalid for blueprint generation.",
@@ -676,7 +677,7 @@ def resolve_version_conflict(
         raise
     except Exception as ve:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=HTTP_422_STATUS,
             detail=f"Validation failed for {module_type}: {str(ve)}",
         )
 

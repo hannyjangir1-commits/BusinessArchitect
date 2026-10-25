@@ -88,4 +88,12 @@ client/test_*.cjs
 *.key
 *.pem
 COMPLETION_REGISTER.md
+audit/
+**/audit/
+BATCH_*.md
+CORRECTION_*.md
+WORKSPACE_AUDIT_COVERAGE.md
+APPLICATION_ISSUES_AND_FIXES.md
+VERIFICATION_REPORT.md
+STORAGE_REVIEW.md
 not_necessary_items/

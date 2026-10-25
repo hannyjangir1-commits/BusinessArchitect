@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import (
@@ -209,7 +210,10 @@ def admin_logout(
 ):
     token = get_request_session_token(request)
     if token:
-        db.query(DBSession).filter(DBSession.session_token == token).delete()
+        digest = hash_session_token(token)
+        db.query(DBSession).filter(
+            or_(DBSession.token_digest == digest, DBSession._session_token == token)
+        ).delete(synchronize_session=False)
         db.commit()
 
     response.delete_cookie(settings.COOKIE_NAME, path="/")

@@ -196,8 +196,9 @@ export const App: React.FC = () => {
 
   // Cleanup on unmount
   useEffect(() => {
+    const activeGenerations = activeGenerationsRef.current;
     return () => {
-      activeGenerationsRef.current.clear();
+      activeGenerations.clear();
       if (navPersistTimerRef.current) clearTimeout(navPersistTimerRef.current);
     };
   }, []);

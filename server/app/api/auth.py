@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import hash_password, verify_password, generate_session_token, hash_session_token, generate_csrf_token, DUMMY_PASSWORD_HASH
@@ -172,7 +172,10 @@ def login(req: UserLoginRequest, request: Request, response: Response, db: Sessi
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     token = get_request_session_token(request)
     if token:
-        db.query(DBSession).filter(DBSession.session_token == token).delete()
+        digest = hash_session_token(token)
+        db.query(DBSession).filter(
+            or_(DBSession.token_digest == digest, DBSession._session_token == token)
+        ).delete(synchronize_session=False)
         db.commit()
 
     response.delete_cookie(settings.COOKIE_NAME, path="/")
@@ -211,7 +214,10 @@ def refresh_session(
     expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
 
     if token:
-        db.query(DBSession).filter(DBSession.session_token == token).delete()
+        digest = hash_session_token(token)
+        db.query(DBSession).filter(
+            or_(DBSession.token_digest == digest, DBSession._session_token == token)
+        ).delete(synchronize_session=False)
 
     sess = DBSession(token_digest=new_digest, user_id=current_user.id, expires_at=expires_at)
     db.add(sess)

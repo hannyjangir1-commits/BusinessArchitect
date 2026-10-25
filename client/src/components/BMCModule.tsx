@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Project, ModuleDetail, BMCData } from '../types';
 import { RadialBMCInfographic } from './RadialBMCInfographic';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
-import { Compass, CirclePlus, LayoutGrid, Eye, Loader2, Sparkles, MessageCircle } from 'lucide-react';
+import { Compass, CirclePlus, LayoutGrid, Eye, Loader2, MessageCircle } from 'lucide-react';
 
 interface Props {
   project: Project;

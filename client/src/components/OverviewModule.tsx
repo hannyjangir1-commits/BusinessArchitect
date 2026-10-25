@@ -215,7 +215,7 @@ export const OverviewModule: React.FC<Props> = ({ project, onUpdateProject, isLo
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, color: 'var(--text-muted)', fontSize: 12.5, maxWidth: 480, lineHeight: 1.45 }}>
             <AlertTriangle size={16} color="var(--primary-text)" style={{ flexShrink: 0, marginTop: 2 }} />
             <span>
-              Saving updates this project directly. Creating a copy duplicates all project details, versions, and roadmap tasks into a new project while starting a fresh Copilot conversation.
+              Saving updates this project directly. Creating a copy duplicates all project details, versions, roadmap tasks, and conversation history into a new project record.
             </span>
           </div>
 

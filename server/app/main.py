@@ -64,7 +64,7 @@ async def registration_admission_middleware(request: Request, call_next):
             try:
                 if int(content_length) > 65536:
                     return JSONResponse(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        status_code=getattr(status, "HTTP_413_CONTENT_TOO_LARGE", 413),
                         content={"detail": "Registration request body exceeds maximum allowed size (64KB)."}
                     )
             except ValueError:

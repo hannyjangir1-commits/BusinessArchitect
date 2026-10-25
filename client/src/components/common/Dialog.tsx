@@ -134,7 +134,9 @@ export function useDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const id = useId();
-  const dismissCallback = useCallback(onDismiss, [onDismiss]);
+  const dismissCallback = useCallback(() => {
+    onDismiss();
+  }, [onDismiss]);
 
   useEffect(() => {
     if (!isOpen) return;

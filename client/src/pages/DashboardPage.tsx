@@ -75,7 +75,6 @@ export const DashboardPage: React.FC<Props> = ({
 
   // Metric computations from real user data
   const totalProjects = projects.length;
-  const mostRecentProject = projects.length > 0 ? projects[0] : null;
   const maxProjects = 10;
   const isLimitReached = totalProjects >= maxProjects;
 
