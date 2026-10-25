@@ -362,8 +362,62 @@ This register persists progress across phases, documenting findings, affected pa
 
 ---
 
-## Phase 8 — Startup, Loading and Frontend Consistency
-- **Status:** Pending
+## Phase 8 — Complete User-Experience Correction and Frontend Consistency
+
+- **Status:** COMPLETED
+- **Findings & Affected Paths:**
+  1. **Conversation History & Pagination (Checkpoints 1 & 8):**
+     - `server/app/api/copilot.py`: Added cursor-based pagination endpoint `GET /projects/{project_id}/copilot/page` supporting `before_cursor` parameter. Default limit=50 retrieves the latest conversation page in ascending chronological order (`ORDER BY created_at DESC, id DESC`, returned reversed).
+     - Protected cursor decoding (`decode_cursor`, `encode_cursor`) using base64 with URL-safe serialization and HMAC verification ensuring cursors cannot be forged or used across different projects (`tenant isolation`).
+     - Added `X-User-Message-ID` response header to message send endpoint so client reconciles optimistic messages without duplicates.
+     - `client/src/components/BlueprintCopilotModule.tsx`: Added stable chronological rendering, persistent message deduplication by ID, "Load earlier messages" action with scroll anchor preservation (`scrollHeight - scrollTop`), and bounded context handling (16,000 char window).
+  2. **Startup, Loading & Request Lifecycle (Checkpoint 2):**
+     - `client/src/App.tsx`, `client/src/services/queryCache.ts`, `client/src/services/prefetch.ts`: Instant unblocked rendering of public routes and neutral loading shells (`WizardLoadingShell.tsx`).
+     - Replaced fabricated simulated progress loops with honest indeterminate progress states across AI generation and module synthesis.
+  3. **Accessible Dialog Primitives & Focus Management (Checkpoint 3):**
+     - `client/src/components/common/Dialog.tsx`: Implemented shared, fully accessible `<Dialog>` modal primitive adhering to W3C WAI-ARIA authoring practices (`role="dialog"`, `aria-modal="true"`, focus trapping via `DialogFocusManager.tsx`, Esc dismiss of topmost dialog, backdrop dismissal, and focus restoration to opener).
+     - Migrated `LogoutConfirmModal`, `ProfileModal`, `VersionConflictModal`, `NewProjectWizard`, and Dashboard single/bulk delete dialogs to `<Dialog>`.
+  4. **Roadmap & Task Milestones (Checkpoint 4):**
+     - `server/app/services/task_milestones.py` & `client/src/utils/taskMilestones.ts`: Implemented date-derived cumulative milestone model (Day 30, Day 60, Day 90) replacing arbitrary percentage approximations.
+     - Scheduled start/end dates establish task membership in cumulative milestone cards (`MilestoneCards.tsx`).
+     - `GanttChart.tsx`, `AllTasksTable.tsx`, `RoadmapMindMap.tsx`: Cleaned layout, dynamic milestone markers, accessible drawer close labels, and legacy completion status compatibility.
+  5. **Workspace Layout & Practical Business Modeling (Checkpoint 5):**
+     - `client/src/styles/index.css`: Workspace grid (`.workspace-grid`) defaults to clean single-column presentation, transitioning to responsive two-column only when contextual assistant is toggled (`.workspace-grid.has-assistant`).
+     - `BMCModule.tsx`: Canonical Osterwalder 9-block layout, radial diagram, and `sessionStorage` assistant state persistence.
+     - `TechStackModule.tsx`, `TechStackPlanningForm.tsx`: Labeled "Practical Tool & Technology Planning", prioritizing off-the-shelf tools (WhatsApp, Google Sheets) and collapsible advanced technical preferences.
+     - `ArchitectureInfographic.tsx`: Added `isOperationalOrManual` detection; displays an honest 4-stage operational toolchain (Inquiries -> Records -> Service Delivery -> Invoicing/POS) for service and COTS businesses rather than premature software microservices.
+  6. **Trustworthy Validation & Research (Checkpoint 6):**
+     - `IdeaValidatorModule.tsx`: Subtitled "Preliminary assessment and practical validation experiments" with visible AI disclaimer; practical differentiation replaced "moat"; structured validation experiments with actionable sample sizes, metrics, thresholds, and discovery interview rubrics.
+     - `MarketResearchModule.tsx`: Plain-language TAM/SAM/SOM explanations; transparent distinction between verified competitors and unverified primary research gaps.
+  7. **Portfolio, Project Creation & Brand Copy (Checkpoint 7):**
+     - `server/app/api/projects.py`: Investigated and resolved navigation `updated_at` mutation bug. Active module tab switching via `PATCH /{project_id}/active-module` uses explicit SQL query updates preserving original `updated_at` timestamps without ORM `onupdate` bumps.
+     - `DashboardPage.tsx`: Renamed stats to "Projects", "Saved planning sections", and "Task completion"; countable module registry denominator (`COUNTABLE_PLANNING_MODULES = 5`); explicit recent-project planning action shortcuts; accessible search label.
+     - `NewProjectWizard.tsx`: Neutral blank industry start, plain 3-step subtitle, service/physical business examples, currency-agnostic runway.
+     - `OverviewModule.tsx`: Standard `<h2>Project Overview</h2>` heading; "Save changes" primary action; "Create a copy" secondary action explaining duplication of details, versions, and tasks with fresh Copilot conversation; explicit dirty/saved/saving state.
+     - `Header.tsx`: Keyboard navigation (ArrowDown/Up, Enter) in project search; distinct search error presentation; duplicate native cancel button suppressed in CSS.
+     - `LandingPage.tsx`: H1 "Plan your business. Decide what to test next.", supporting copy "Build a business model, check your assumptions, choose practical tools, and turn decisions into a working plan.", illustrative Riverside Mobile Bike Repair worked example with transparent demonstration disclaimers, core planning sections grouped by user purpose vs supporting capabilities, removal of unsupported certainty claims ("proven", "empirical", "publication-ready").
+  8. **Design System & Verification (Checkpoint 8):**
+     - Consolidated styling tokens in `client/src/styles/index.css` preserving warm neutral brand identity, legible typography scale, and responsive 4/8-based rhythm.
+- **Test Evidence:**
+  - **Backend Suite Status (`pytest -rs -q`):**
+    - Collection Total: **470 tests collected**
+    - Results: **465 passed, 9 skipped, 0 failed in 78.4s**
+    - Focused Suite: `server/tests/test_phase_08_frontend_and_conversation_consistency.py` (5/5 passed):
+      - `test_copilot_page_latest_and_cursor_pagination_with_tamper_defense`
+      - `test_export_filename_hardening_edge_cases`
+      - `test_send_chat_message_returns_user_message_id_header`
+      - `test_active_module_navigation_does_not_mutate_project_updated_at`
+      - `test_date_derived_milestones_and_cumulative_model`
+  - **Frontend Verification:**
+    - Test Suite: `npm test` in `client/` — **10 test files, 100 passed in 5.3s**.
+    - Linter: `npm run lint` in `client/` — **0 errors, 53 warnings**.
+    - Production Build: `npm run build` in `client/` — **Built successfully (`tsc -b && vite build`) in 530ms**.
+- **Commit SHA:** `2c606ef39f70c793264ec4572242aa8a1cba0bc4`
+- **Remaining Limitations & Honest Disclosures:**
+  - Standard ReportLab Type 1 fonts remain restricted to Latin-1 character set in PDF generation bodies; UTF-8 filenames remain preserved in HTTP Content-Disposition headers.
+  - Disposable PostgreSQL engine-level concurrency tests remain skipped in local development when Docker/PostgreSQL containers are inactive.
+- **Production Config / Migration Requirements:**
+  - Zero database schema migrations required. All database schema invariants preserved. Render auto-deploy remains disabled. Direct manual deployment prohibited.
 
 ---
 
