@@ -73,12 +73,18 @@ class GeminiAIService:
         # credential directly to the service instance.
         self.api_key = self.api_keys[0] if self.api_keys else ""
         self._key_cooldowns: Dict[str, float] = {}
+        self._disabled_keys: set[str] = set()
         self._key_state_lock = threading.Lock()
+        self._concurrency_semaphore = threading.Semaphore(settings.GEMINI_MAX_CONCURRENT_CALLS)
 
     def _configured_api_keys(self) -> List[str]:
-        if self.api_key and (not self.api_keys or self.api_key != self.api_keys[0]):
+        if self.api_keys:
+            if self.api_key and self.api_key not in self.api_keys:
+                return [self.api_key] + [k for k in self.api_keys]
+            return list(self.api_keys)
+        if self.api_key:
             return [self.api_key]
-        return list(self.api_keys)
+        return []
 
     @staticmethod
     def _key_id(api_key: str) -> str:
@@ -88,20 +94,102 @@ class GeminiAIService:
         now = time.monotonic()
         keys = self._configured_api_keys()
         with self._key_state_lock:
+            # Prune expired cooldowns
             self._key_cooldowns = {
                 key_id: expiry for key_id, expiry in self._key_cooldowns.items() if expiry > now
             }
             return [
                 (index, api_key)
                 for index, api_key in enumerate(keys, start=1)
-                if self._key_cooldowns.get(self._key_id(api_key), 0) <= now
+                if self._key_id(api_key) not in self._disabled_keys
+                and self._key_cooldowns.get(self._key_id(api_key), 0) <= now
             ]
 
-    def _cool_down_key(self, api_key: str) -> None:
+    def _cool_down_key(self, api_key: str, custom_cooldown: Optional[float] = None) -> None:
+        duration = custom_cooldown if custom_cooldown is not None else settings.GEMINI_KEY_COOLDOWN_SECONDS
         with self._key_state_lock:
-            self._key_cooldowns[self._key_id(api_key)] = (
-                time.monotonic() + settings.GEMINI_KEY_COOLDOWN_SECONDS
-            )
+            self._key_cooldowns[self._key_id(api_key)] = time.monotonic() + duration
+
+    def _mark_key_invalid(self, api_key: str) -> None:
+        """Permanently disable an invalid/rejected key for the lifetime of this process."""
+        with self._key_state_lock:
+            self._disabled_keys.add(self._key_id(api_key))
+
+    def get_key_slot_diagnostics(self) -> List[Dict[str, Any]]:
+        """Return safe diagnostics about configured key slots using opaque identifiers (slot_1, slot_2, etc.)."""
+        diagnostics = []
+        now = time.monotonic()
+        keys = self._configured_api_keys()
+        with self._key_state_lock:
+            for index, api_key in enumerate(keys, start=1):
+                key_id = self._key_id(api_key)
+                cooldown_exp = self._key_cooldowns.get(key_id, 0)
+                remaining_cooldown = max(0.0, cooldown_exp - now)
+                if key_id in self._disabled_keys:
+                    slot_status = "disabled"
+                elif remaining_cooldown > 0:
+                    slot_status = "cooling_down"
+                else:
+                    slot_status = "healthy"
+                diagnostics.append({
+                    "slot": index,
+                    "slot_id": f"slot_{index}",
+                    "status": slot_status,
+                    "cooldown_remaining_seconds": round(remaining_cooldown, 1),
+                })
+        return diagnostics
+
+    @staticmethod
+    def _is_credential_rejection(error: Exception) -> bool:
+        code = getattr(error, "code", None) or getattr(error, "status_code", None)
+        try:
+            code = int(code)
+        except (TypeError, ValueError):
+            code = None
+        message = str(error).lower()
+        return bool(
+            code in {400, 401, 403}
+            and any(term in message for term in (
+                "api key not valid", "api_key_invalid", "invalid api key",
+                "unauthorized", "permission denied", "api_key_service_blocked",
+                "credential rejected"
+            ))
+        )
+
+    @staticmethod
+    def _is_rate_limit(error: Exception) -> bool:
+        code = getattr(error, "code", None) or getattr(error, "status_code", None)
+        try:
+            code = int(code)
+        except (TypeError, ValueError):
+            code = None
+        message = str(error).lower()
+        return bool(
+            code == 429
+            or any(term in message for term in (
+                "resource_exhausted", "quota", "rate limit", "rate_limit", "ratelimit", "http 429", "too many requests"
+            ))
+        )
+
+    @staticmethod
+    def _extract_retry_delay(error: Exception) -> Optional[float]:
+        """Extract retry delay hint if present in exception, bounded between 1.0s and 60.0s."""
+        raw_delay = getattr(error, "retry_delay", None)
+        if raw_delay is not None:
+            try:
+                return min(max(float(raw_delay), 1.0), 60.0)
+            except (TypeError, ValueError):
+                pass
+        msg = str(error).lower()
+        match = re.search(r"retry[-_ ]after[:\s]+(\d+(?:\.\d+)?)", msg)
+        if not match:
+            match = re.search(r"retry in (\d+(?:\.\d+)?)\s*s", msg)
+        if match:
+            try:
+                return min(max(float(match.group(1)), 1.0), 60.0)
+            except (TypeError, ValueError):
+                pass
+        return None
 
     @staticmethod
     def _rotatable_key_error(error: Exception) -> bool:
@@ -112,7 +200,7 @@ class GeminiAIService:
             code = None
         message = str(error).lower()
         return bool(
-            code in {401, 403, 429, 500, 502, 503, 504}
+            code in {400, 401, 403, 429, 500, 502, 503, 504}
             or any(term in message for term in (
                 "api key not valid", "unauthorized", "permission denied",
                 "resource_exhausted", "quota", "rate limit", "http 429",
@@ -129,47 +217,43 @@ class GeminiAIService:
 
     def _get_client(self, api_key: str, remaining_seconds: Optional[float] = None) -> genai.Client:
         self._require_provider()
-        timeout_s, max_retries = 45, 0
+        timeout_s = 45
         try:
             from app.db.session import SessionLocal
             with SessionLocal() as db:
                 timeout_s = get_setting_int(db, "ai_timeout_seconds", timeout_s)
-                max_retries = get_setting_int(db, "ai_max_retries", max_retries)
         except Exception:
             logger.debug("Generation settings unavailable; using bounded connection defaults.")
         timeout_s = max(5, min(int(timeout_s), 25))
         if remaining_seconds is not None:
             timeout_s = max(1, min(timeout_s, int(max(1, remaining_seconds))))
-        max_retries = 0  # Do not multiply a two-stage request into several minutes of retries.
+        # Single attempt with 0 SDK retries: application-level bounded failover governs retries.
         return genai.Client(
             api_key=api_key,
             http_options=types.HttpOptions(
                 timeout=timeout_s * 1000,
                 retry_options=types.HttpRetryOptions(
-                    attempts=1 + max_retries, initial_delay=1.0, max_delay=3.0,
-                    http_status_codes=[500, 503],
+                    attempts=1,
                 ),
             ),
         )
 
     def _get_candidate_models(self) -> List[str]:
-        """Return the primary configured model followed by resilient fallback models if enabled."""
+        """Return the primary configured model followed by at most 1 resilient fallback model if enabled."""
         self._require_provider()
-        primary = settings.GEMINI_MODEL.strip() or "gemini-3.5-flash"
+        primary = settings.GEMINI_MODEL.strip() or "gemini-2.5-flash"
         if not getattr(settings, "GEMINI_FALLBACK_MODELS_ENABLED", True):
             return [primary]
-        # Highly available, tested models first, then preview/high-tier models
         fallbacks = [
-            "gemini-3.5-flash",
-            "gemini-3.1-flash-lite",
-            "gemini-3.5-flash-lite",
-            "gemini-3.8-flash",
-            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
         ]
         candidates = [primary]
         for m in fallbacks:
             if m not in candidates:
                 candidates.append(m)
+                break  # Bounded to at most 1 fallback model
         return candidates
 
     @staticmethod
@@ -214,7 +298,7 @@ class GeminiAIService:
         # Provider exception bodies can contain request text or credential URLs.
         status_code = getattr(error, "code", None) or getattr(error, "status_code", None)
         logger.warning("Generation request failed (%s, status=%s).", type(error).__name__, status_code or "unknown")
-        if "timeout" in str(error).lower() or "timed out" in str(error).lower():
+        if isinstance(error, TimeoutError) or any(term in str(error).lower() for term in ("timeout", "timed out", "deadline")):
             return RuntimeError("The generation request timed out. Your saved content was preserved; retry when the provider is available.")
         return RuntimeError("The generation provider did not return a valid result. Your saved content was preserved. Check provider availability and model support, then retry.")
 
@@ -247,63 +331,101 @@ class GeminiAIService:
         self, system_prompt: str, user_prompt: str, output_model: Any = None,
     ) -> Dict[str, Any]:
         self._require_provider()
-        candidate_models = self._get_candidate_models()
         key_slots = self._available_key_slots()
         if not key_slots:
+            now = time.monotonic()
+            with self._key_state_lock:
+                has_cooldown = any(self._key_cooldowns.get(self._key_id(k), 0) > now for k in self._configured_api_keys())
+            if has_cooldown:
+                raise RuntimeError(
+                    "All configured generation credentials are temporarily cooling down after provider failures. "
+                    "Your saved content was preserved; retry shortly."
+                )
             raise RuntimeError(
-                "All configured generation credentials are temporarily cooling down after provider failures. "
-                "Your saved content was preserved; retry shortly."
+                "The configured generation provider rejected its credentials or access. "
+                "Verify the server-side key and model permissions, then retry."
             )
+
         deadline = time.monotonic() + settings.GEMINI_TOTAL_TIMEOUT_SECONDS
+        candidate_models = self._get_candidate_models()
         last_error: Optional[Exception] = None
         config_values = {
             "system_instruction": SECURITY_SYSTEM_PROMPT + "\n\n" + system_prompt,
-            "response_mime_type": "application/json", "temperature": 0.3,
+            "response_mime_type": "application/json",
+            "temperature": 0.3,
+            "max_output_tokens": 8192,
         }
         if output_model is not None:
             config_values["response_json_schema"] = output_model.model_json_schema()
 
-        for slot, api_key in key_slots:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                last_error = TimeoutError("The total generation deadline was reached.")
-                break
-            client = self._get_client(api_key, remaining)
-            try:
-                for model_name in candidate_models:
-                    model_remaining = deadline - time.monotonic()
-                    if model_remaining <= 0:
-                        break
-                    try:
-                        logger.info("Attempting generation with model %s using credential slot %s.", model_name, slot)
-                        response = client.models.generate_content(
-                            model=model_name, contents=user_prompt,
-                            config=types.GenerateContentConfig(**config_values),
-                        )
-                        result = self._parse_object(getattr(response, "text", None) or "")
-                        if output_model is not None:
-                            result = output_model.model_validate(result).model_dump(mode="json")
-                        self._check_privacy(result)
-                        return result
-                    except Exception as model_err:
-                        last_error = model_err
-                        err_msg = str(model_err).lower()
-                        if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
-                            logger.warning(
-                                "Model %s hit capacity/availability issue (%s). Trying fallback candidate...",
-                                model_name, type(model_err).__name__,
-                            )
-                            continue
-                        if self._rotatable_key_error(model_err):
-                            self._cool_down_key(api_key)
-                            logger.warning(
-                                "Credential slot %s hit key constraint (%s); rotating to next credential slot.",
-                                slot, type(model_err).__name__,
-                            )
+        acquired = self._concurrency_semaphore.acquire(timeout=15.0)
+        if not acquired:
+            raise RuntimeError(
+                "The generation service is temporarily at maximum concurrent capacity. "
+                "Your saved content was preserved; retry shortly."
+            )
+
+        try:
+            for slot, api_key in key_slots:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    last_error = TimeoutError("The total generation deadline was reached.")
+                    break
+                client = self._get_client(api_key, remaining)
+                try:
+                    for model_name in candidate_models:
+                        model_remaining = deadline - time.monotonic()
+                        if model_remaining <= 0:
                             break
-                        raise model_err
-            finally:
-                self._close_client(client)
+                        try:
+                            logger.info("Attempting generation with model %s using credential slot %s.", model_name, slot)
+                            response = client.models.generate_content(
+                                model=model_name, contents=user_prompt,
+                                config=types.GenerateContentConfig(**config_values),
+                            )
+                            result = self._parse_object(getattr(response, "text", None) or "")
+                            if output_model is not None:
+                                result = output_model.model_validate(result).model_dump(mode="json")
+                            self._check_privacy(result)
+                            return result
+                        except Exception as model_err:
+                            last_error = model_err
+                            err_msg = str(model_err).lower()
+
+                            if self._is_credential_rejection(model_err):
+                                self._mark_key_invalid(api_key)
+                                logger.warning(
+                                    "Credential slot %s rejected credentials; disabled slot.", slot
+                                )
+                                break
+
+                            if self._is_rate_limit(model_err):
+                                retry_hint = self._extract_retry_delay(model_err)
+                                self._cool_down_key(api_key, retry_hint)
+                                logger.warning(
+                                    "Credential slot %s hit quota/rate limit; cooling down slot.", slot
+                                )
+                                break
+
+                            if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
+                                logger.warning(
+                                    "Model %s hit capacity/availability issue (%s). Trying fallback candidate...",
+                                    model_name, type(model_err).__name__,
+                                )
+                                continue
+
+                            if self._rotatable_key_error(model_err):
+                                self._cool_down_key(api_key)
+                                logger.warning(
+                                    "Credential slot %s hit key constraint (%s); rotating to next credential slot.",
+                                    slot, type(model_err).__name__,
+                                )
+                                break
+                            raise model_err
+                finally:
+                    self._close_client(client)
+        finally:
+            self._concurrency_semaphore.release()
 
         if last_error is not None:
             raise self._provider_failure(last_error) from last_error
@@ -326,76 +448,117 @@ class GeminiAIService:
         candidate_models = self._get_candidate_models()
         key_slots = self._available_key_slots()
         if not key_slots:
+            now = time.monotonic()
+            with self._key_state_lock:
+                has_cooldown = any(self._key_cooldowns.get(self._key_id(k), 0) > now for k in self._configured_api_keys())
+            if has_cooldown:
+                raise RuntimeError(
+                    "All configured generation credentials are temporarily cooling down after provider failures. "
+                    "No ungrounded competitor or market claims were saved."
+                )
             raise RuntimeError(
-                "All configured generation credentials are temporarily cooling down after provider failures. "
-                "No ungrounded competitor or market claims were saved."
+                "The configured generation provider rejected its credentials or access. "
+                "Verify the server-side key and model permissions, then retry."
             )
+
         deadline = time.monotonic() + settings.GEMINI_TOTAL_TIMEOUT_SECONDS
         last_error: Optional[Exception] = None
 
-        for slot, api_key in key_slots:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                last_error = TimeoutError("The total grounded-research deadline was reached.")
-                break
-            client = self._get_client(api_key, remaining)
-            try:
-                for model_name in candidate_models:
-                    model_remaining = deadline - time.monotonic()
-                    if model_remaining <= 0:
-                        break
-                    try:
-                        logger.info("Attempting grounded generation with model %s using credential slot %s.", model_name, slot)
-                        interaction = client.interactions.create(
-                            model=model_name, input=user_prompt,
-                            system_instruction=SECURITY_SYSTEM_PROMPT + "\n\n" + system_prompt,
-                            tools=[{"type": "google_search"}],
-                            response_format={"type": "text", "mime_type": "application/json", "schema": output_model.model_json_schema()},
-                            store=False,
-                        )
-                        result = self._parse_object(getattr(interaction, "output_text", None) or "")
-                        result = output_model.model_validate(result).model_dump(mode="json")
-                        sources: Dict[str, ResearchSource] = {}
-                        for step in getattr(interaction, "steps", None) or []:
-                            if getattr(step, "type", None) != "model_output":
-                                continue
-                            for content in getattr(step, "content", None) or []:
-                                for annotation in getattr(content, "annotations", None) or []:
-                                    url = getattr(annotation, "url", None)
-                                    if getattr(annotation, "type", None) == "url_citation" and self._safe_source_url(url):
-                                        sources[url] = ResearchSource(title=getattr(annotation, "title", None) or url, url=url)
-                        self._check_privacy(result)
-                        return result, list(sources.values())
-                    except Exception as model_err:
-                        last_error = model_err
-                        err_msg = str(model_err).lower()
-                        # If search tool quota or capability is unavailable, immediately fall back to ungrounded generation without penalizing key
-                        if any(term in err_msg for term in ("429", "too_many_requests", "quota", "rate_limit", "ratelimit", "unsupported tool", "search")):
-                            logger.info("Search tool quota or limit reached (%s); falling back immediately to ungrounded synthesis.", type(model_err).__name__)
-                            try:
-                                fallback_res = self._execute_json_prompt(system_prompt, user_prompt, output_model)
-                                return fallback_res, []
-                            except Exception as fb_err:
-                                logger.warning("Ungrounded fallback also encountered error (%s). Continuing rotation.", type(fb_err).__name__)
-                                if not self._terminal_provider_error_message(model_err):
-                                    last_error = fb_err
-                        if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
-                            logger.warning(
-                                "Grounded interaction with model %s hit capacity/availability issue (%s). Trying fallback candidate...",
-                                model_name, type(model_err).__name__,
-                            )
-                            continue
-                        if self._rotatable_key_error(model_err):
-                            self._cool_down_key(api_key)
-                            logger.warning(
-                                "Grounded credential slot %s hit key constraint (%s); rotating to next credential slot.",
-                                slot, type(model_err).__name__,
-                            )
+        acquired = self._concurrency_semaphore.acquire(timeout=15.0)
+        if not acquired:
+            raise RuntimeError(
+                "The generation service is temporarily at maximum concurrent capacity. "
+                "Your saved content was preserved; retry shortly."
+            )
+
+        try:
+            for slot, api_key in key_slots:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    last_error = TimeoutError("The total grounded-research deadline was reached.")
+                    break
+                client = self._get_client(api_key, remaining)
+                try:
+                    for model_name in candidate_models:
+                        model_remaining = deadline - time.monotonic()
+                        if model_remaining <= 0:
                             break
-                        logger.warning("Grounded interaction attempt failed (%s); trying fallback.", type(model_err).__name__)
-                        continue
-            finally:
-                self._close_client(client)
+                        try:
+                            logger.info("Attempting grounded generation with model %s using credential slot %s.", model_name, slot)
+                            interaction = client.interactions.create(
+                                model=model_name, input=user_prompt,
+                                system_instruction=SECURITY_SYSTEM_PROMPT + "\n\n" + system_prompt,
+                                tools=[{"type": "google_search"}],
+                                response_format={"type": "text", "mime_type": "application/json", "schema": output_model.model_json_schema()},
+                                store=False,
+                            )
+                            result = self._parse_object(getattr(interaction, "output_text", None) or "")
+                            result = output_model.model_validate(result).model_dump(mode="json")
+                            sources: Dict[str, ResearchSource] = {}
+                            for step in getattr(interaction, "steps", None) or []:
+                                if getattr(step, "type", None) != "model_output":
+                                    continue
+                                for content in getattr(step, "content", None) or []:
+                                    for annotation in getattr(content, "annotations", None) or []:
+                                        url = getattr(annotation, "url", None)
+                                        if getattr(annotation, "type", None) == "url_citation" and self._safe_source_url(url):
+                                            sources[url] = ResearchSource(title=getattr(annotation, "title", None) or url, url=url)
+                            self._check_privacy(result)
+                            return result, list(sources.values())
+                        except Exception as model_err:
+                            last_error = model_err
+                            err_msg = str(model_err).lower()
+
+                            if self._is_credential_rejection(model_err):
+                                self._mark_key_invalid(api_key)
+                                logger.warning(
+                                    "Grounded credential slot %s rejected credentials; disabled slot.", slot
+                                )
+                                break
+
+                            if self._is_rate_limit(model_err):
+                                retry_hint = self._extract_retry_delay(model_err)
+                                self._cool_down_key(api_key, retry_hint)
+                                logger.warning(
+                                    "Grounded credential slot %s hit quota/rate limit; cooling down slot.", slot
+                                )
+                                break
+
+                            # If search tool quota or capability is unavailable, fall back to ungrounded generation
+                            if any(term in err_msg for term in ("too_many_requests", "unsupported tool", "search")):
+                                logger.info("Search tool quota or limit reached (%s); falling back to ungrounded synthesis.", type(model_err).__name__)
+                                try:
+                                    fallback_res = self._execute_json_prompt(system_prompt, user_prompt, output_model)
+                                    return fallback_res, []
+                                except Exception as fb_err:
+                                    logger.warning("Ungrounded fallback also encountered error (%s). Continuing rotation.", type(fb_err).__name__)
+                                    if not self._terminal_provider_error_message(model_err):
+                                        last_error = fb_err
+
+                            if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
+                                logger.warning(
+                                    "Grounded interaction with model %s hit capacity/availability issue (%s). Trying fallback candidate...",
+                                    model_name, type(model_err).__name__,
+                                )
+                                continue
+
+                            if self._rotatable_key_error(model_err):
+                                self._cool_down_key(api_key)
+                                logger.warning(
+                                    "Grounded credential slot %s hit key constraint (%s); rotating to next credential slot.",
+                                    slot, type(model_err).__name__,
+                                )
+                                break
+                            logger.warning("Grounded interaction attempt failed (%s); trying fallback.", type(model_err).__name__)
+                            continue
+                finally:
+                    self._close_client(client)
+        finally:
+            self._concurrency_semaphore.release()
+
+        # If terminal provider error occurred (e.g. quota exhausted across all keys), fail cleanly without masking
+        if last_error is not None and self._terminal_provider_error_message(last_error):
+            raise self._provider_failure(last_error) from last_error
 
         # Fallback if loop finishes without returning
         try:
@@ -973,6 +1136,8 @@ class GeminiAIService:
             raise ValueError("This module does not support structured modification.")
         if not instruction or not instruction.strip():
             raise ValueError("Enter a specific change for this module.")
+        if len(instruction) > 4000:
+            raise ValueError("Instruction exceeds maximum allowed length of 4000 characters.")
         scoped_context = dict(cross_module_context or {})
         scoped_context[module_type] = current_data
         decision = self._scope_decision(project_info or {}, instruction, scoped_context, module_type)
@@ -1016,54 +1181,96 @@ class GeminiAIService:
         if history and history[-1]["role"] == "user" and history[-1]["content"] == user_message:
             history.pop()
         payload.update({"recent_conversation": history, "user_request": user_message})
+        if len(user_message) > 4000:
+            raise ValueError("Chat message exceeds maximum allowed length of 4000 characters.")
+
         key_slots = self._available_key_slots()
         if not key_slots:
-            raise RuntimeError("All configured generation credentials are temporarily cooling down. Please retry shortly.")
+            now = time.monotonic()
+            with self._key_state_lock:
+                has_cooldown = any(self._key_cooldowns.get(self._key_id(k), 0) > now for k in self._configured_api_keys())
+            if has_cooldown:
+                raise RuntimeError("All configured generation credentials are temporarily cooling down. Please retry shortly.")
+            raise RuntimeError("The configured generation provider rejected its credentials or access. Verify the server-side key and model permissions, then retry.")
+
         deadline = time.monotonic() + settings.GEMINI_TOTAL_TIMEOUT_SECONDS
         last_error: Optional[Exception] = None
         candidate_models = self._get_candidate_models()
-        for slot, api_key in key_slots:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                last_error = TimeoutError("The total assistant-response deadline was reached.")
-                break
-            client = self._get_client(api_key, remaining)
-            try:
-                for model_name in candidate_models:
-                    model_remaining = deadline - time.monotonic()
-                    if model_remaining <= 0:
-                        break
-                    try:
-                        logger.info("Attempting Copilot response with model %s using credential slot %s.", model_name, slot)
-                        response = client.models.generate_content(
-                            model=model_name,
-                            contents=self._request_text("Answer the active project's current question. Read supplied module snapshots; do not modify them.", payload),
-                            config=types.GenerateContentConfig(system_instruction=SECURITY_SYSTEM_PROMPT + "\n\n" + COPILOT_SYSTEM_PROMPT, temperature=0.4),
-                        )
-                        response_text = (getattr(response, "text", None) or "").strip()
-                        if not response_text:
-                            raise ValueError("The provider returned an empty assistant reply.")
-                        self._check_privacy(response_text)
-                        return response_text
-                    except Exception as model_err:
-                        last_error = model_err
-                        err_msg = str(model_err).lower()
-                        if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
-                            logger.warning(
-                                "Copilot with model %s hit capacity/availability issue (%s). Trying fallback candidate...",
-                                model_name, type(model_err).__name__,
-                            )
-                            continue
-                        if self._rotatable_key_error(model_err):
-                            self._cool_down_key(api_key)
-                            logger.warning(
-                                "Copilot credential slot %s hit key constraint (%s); rotating to next credential slot.",
-                                slot, type(model_err).__name__,
-                            )
+
+        acquired = self._concurrency_semaphore.acquire(timeout=15.0)
+        if not acquired:
+            raise RuntimeError(
+                "The generation service is temporarily at maximum concurrent capacity. "
+                "Your saved content was preserved; retry shortly."
+            )
+
+        try:
+            for slot, api_key in key_slots:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    last_error = TimeoutError("The total assistant-response deadline was reached.")
+                    break
+                client = self._get_client(api_key, remaining)
+                try:
+                    for model_name in candidate_models:
+                        model_remaining = deadline - time.monotonic()
+                        if model_remaining <= 0:
                             break
-                        raise model_err
-            finally:
-                self._close_client(client)
+                        try:
+                            logger.info("Attempting Copilot response with model %s using credential slot %s.", model_name, slot)
+                            response = client.models.generate_content(
+                                model=model_name,
+                                contents=self._request_text("Answer the active project's current question. Read supplied module snapshots; do not modify them.", payload),
+                                config=types.GenerateContentConfig(
+                                    system_instruction=SECURITY_SYSTEM_PROMPT + "\n\n" + COPILOT_SYSTEM_PROMPT,
+                                    temperature=0.4,
+                                    max_output_tokens=4096,
+                                ),
+                            )
+                            response_text = (getattr(response, "text", None) or "").strip()
+                            if not response_text:
+                                raise ValueError("The provider returned an empty assistant reply.")
+                            self._check_privacy(response_text)
+                            return response_text
+                        except Exception as model_err:
+                            last_error = model_err
+                            err_msg = str(model_err).lower()
+
+                            if self._is_credential_rejection(model_err):
+                                self._mark_key_invalid(api_key)
+                                logger.warning(
+                                    "Copilot credential slot %s rejected credentials; disabled slot.", slot
+                                )
+                                break
+
+                            if self._is_rate_limit(model_err):
+                                retry_hint = self._extract_retry_delay(model_err)
+                                self._cool_down_key(api_key, retry_hint)
+                                logger.warning(
+                                    "Copilot credential slot %s hit quota/rate limit; cooling down slot.", slot
+                                )
+                                break
+
+                            if any(term in err_msg for term in ("503", "504", "no capacity", "unavailable", "404", "not found", "deadline_exceeded", "deadline expired")):
+                                logger.warning(
+                                    "Copilot with model %s hit capacity/availability issue (%s). Trying fallback candidate...",
+                                    model_name, type(model_err).__name__,
+                                )
+                                continue
+
+                            if self._rotatable_key_error(model_err):
+                                self._cool_down_key(api_key)
+                                logger.warning(
+                                    "Copilot credential slot %s hit key constraint (%s); rotating to next credential slot.",
+                                    slot, type(model_err).__name__,
+                                )
+                                break
+                            raise model_err
+                finally:
+                    self._close_client(client)
+        finally:
+            self._concurrency_semaphore.release()
+
         if last_error is not None:
             raise self._provider_failure(last_error) from last_error
         raise RuntimeError("No generation credential was available for the assistant response.")

@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import urllib.parse
 from typing import List
 from pathlib import Path
@@ -42,23 +43,48 @@ class Settings:
         # Database
         self.DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./dev_database.db")
 
-        # Gemini generation. GEMINI_API_KEYS is the preferred comma/newline-separated
+        # Gemini generation. GEMINI_API_KEYS is the preferred comma/newline/JSON-separated
         # pool; GEMINI_API_KEY remains a backwards-compatible single-key alias.
-        raw_key_pool = os.getenv("GEMINI_API_KEYS", "")
+        raw_key_pool = os.getenv("GEMINI_API_KEYS", "").strip()
         legacy_key = os.getenv("GEMINI_API_KEY", "").strip()
-        parsed_keys = [key.strip() for key in re.split(r"[,;\s]+", raw_key_pool) if key.strip()]
-        if not parsed_keys and legacy_key:
-            parsed_keys = [legacy_key]
-        self.GEMINI_API_KEYS: List[str] = list(dict.fromkeys(parsed_keys))
+
+        parsed_keys: List[str] = []
+        if raw_key_pool.startswith("[") and raw_key_pool.endswith("]"):
+            try:
+                parsed_json = json.loads(raw_key_pool)
+                if isinstance(parsed_json, list):
+                    parsed_keys.extend(str(k).strip().strip("'\"") for k in parsed_json if str(k).strip())
+            except Exception:
+                pass
+
+        if not parsed_keys and raw_key_pool:
+            parsed_keys.extend(
+                k.strip().strip("'\"")
+                for k in re.split(r"[,;\r\n\s]+", raw_key_pool)
+                if k.strip()
+            )
+
+        if legacy_key:
+            parsed_keys.append(legacy_key.strip().strip("'\""))
+
+        # Deduplicate keys while preserving configuration order
+        cleaned_keys = [k for k in parsed_keys if k and not k.startswith("#")]
+        self.GEMINI_API_KEYS: List[str] = list(dict.fromkeys(cleaned_keys))
         self.GEMINI_API_KEY: str = self.GEMINI_API_KEYS[0] if self.GEMINI_API_KEYS else ""
         self.GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self.GEMINI_TOTAL_TIMEOUT_SECONDS: int = max(
-            10, min(int(os.getenv("GEMINI_TOTAL_TIMEOUT_SECONDS", "90")), 300)
+            10, min(int(os.getenv("GEMINI_TOTAL_TIMEOUT_SECONDS", "60")), 300)
         )
         self.GEMINI_KEY_COOLDOWN_SECONDS: int = max(
-            15, min(int(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", "120")), 3600)
+            10, min(int(os.getenv("GEMINI_KEY_COOLDOWN_SECONDS", "60")), 3600)
         )
         self.GEMINI_FALLBACK_MODELS_ENABLED: bool = os.getenv("GEMINI_FALLBACK_MODELS_ENABLED", "true").lower() in ("true", "1", "yes")
+        self.GEMINI_MAX_CONCURRENT_CALLS: int = max(
+            1, min(int(os.getenv("GEMINI_MAX_CONCURRENT_CALLS", "5")), 20)
+        )
+        self.GEMINI_MAX_USER_RPM: int = max(
+            5, min(int(os.getenv("GEMINI_MAX_USER_RPM", "30")), 120)
+        )
 
         # Observability & Performance Diagnostics (Batch 01)
         self.PERF_DIAGNOSTICS: bool = os.getenv("PERF_DIAGNOSTICS", "false").lower() in ("true", "1", "yes")

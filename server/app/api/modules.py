@@ -25,6 +25,7 @@ from app.core.telemetry import record_ai_operation, record_analytics_event
 from app.core.business_stage import normalize_business_stage
 from app.core.module_types import normalize_module_type
 from app.services.task_graph_validator import project_first_lock
+from app.core.ai_limiter import check_ai_rate_limit
 
 router = APIRouter(prefix="/projects/{project_id}/modules", tags=["Modules & Version Control"])
 
@@ -332,6 +333,8 @@ def generate_module(
     proj_info = _get_project_dict(project)
     module = _get_or_create_canonical_module(db, project.id, module_type)
 
+    check_ai_rate_limit(project.user_id)
+
     new_ver, data_dict = ModuleOrchestrationService.execute_module_generation(
         db=db,
         project=project,
@@ -413,6 +416,8 @@ def modify_module_with_ai(
     proj_info = _get_project_dict(project)
     cross_ctx = read_project_context(db, project_id, exclude_module=module_type)[0]
     saved_inputs = (active_ver.data or {}).get("planning_inputs", {}) if isinstance(active_ver.data, dict) else {}
+
+    check_ai_rate_limit(project.user_id)
 
     # Decouple: release database connection before calling the external provider
     db.close()
@@ -591,6 +596,8 @@ def resolve_version_conflict(
         instruction = req.instruction
         proj_info = _get_project_dict(project)
         cross_ctx = read_project_context(db, project_id, exclude_module=module_type)[0]
+
+        check_ai_rate_limit(project.user_id)
 
         # Decouple: release database connection before calling the external provider
         db.close()

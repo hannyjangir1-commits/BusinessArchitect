@@ -14,6 +14,7 @@ from app.models.all_models import (
 )
 from app.api.deps import require_admin, require_permission
 from app.core.config import settings
+from app.ai.gemini_service import ai_service
 
 router = APIRouter(prefix="/system", tags=["Admin System & Diagnostics"])
 
@@ -63,7 +64,8 @@ def get_system_health(
             "name": "Content Generation Service",
             "status": "healthy" if settings.GEMINI_API_KEYS else "not_configured",
             "latency_ms": 0.0,
-            "details": f"Processing configuration: {settings.GEMINI_MODEL}, Credential pool: {len(settings.GEMINI_API_KEYS)} configured"
+            "details": f"Processing configuration: {settings.GEMINI_MODEL}, Credential pool: {len(settings.GEMINI_API_KEYS)} configured",
+            "slots": ai_service.get_key_slot_diagnostics(),
         },
         {
             "name": "Session Store",

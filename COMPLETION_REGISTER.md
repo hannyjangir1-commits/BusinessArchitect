@@ -191,7 +191,48 @@ This register persists progress across phases, documenting findings, affected pa
 ---
 
 ## Phase 5 — Bounded Gemini Key Failover and Request Budgets
-- **Status:** Pending
+
+- **Status:** COMPLETED
+- **Findings & Affected Paths:**
+  1. `server/app/core/config.py`:
+     - Consolidated key sources: parsed `GEMINI_API_KEYS` (supports JSON list array e.g. `["key1", "key2"]` and comma/semicolon/newline-delimited text) alongside backwards-compatible `GEMINI_API_KEY`.
+     - Trimmed quotes, stripped comments, and deduplicated keys while preserving order.
+     - Added budget controls: `GEMINI_TOTAL_TIMEOUT_SECONDS` (60s default), `GEMINI_KEY_COOLDOWN_SECONDS` (60s default), `GEMINI_MAX_CONCURRENT_CALLS` (5 default), and `GEMINI_MAX_USER_RPM` (30 default).
+  2. `server/app/ai/gemini_service.py`:
+     - Thread-safe key health & slot tracking: `_available_key_slots`, `_cool_down_key`, `_mark_key_invalid`, `_key_cooldowns`, `_disabled_keys`, and `_key_state_lock`.
+     - Process-local key health cooldown: locks are held only for brief slot retrieval and update; zero locks held during provider I/O; zero threads sleep while holding key locks.
+     - Automatic recovery: once cooldown expires (`monotonic() >= cooldown_until`), keys immediately return to active rotation without permanent exhaustion.
+     - Invalid credential isolation: keys returning 400 API_KEY_INVALID, 401 Unauthorized, or 403 Forbidden are permanently marked `disabled` for the process lifetime without crashing or blocking other valid keys in the pool.
+     - Single attempt SDK configuration: passed `HttpRetryOptions(attempts=1)` to ensure provider SDK does not multiply request attempts with unbudgeted hidden retries.
+     - Bounded candidate models: restricted fallbacks to at most 1 resilient fallback model, avoiding combinatorial multiplication of attempts (keys × models).
+     - Opaque diagnostics: implemented `get_key_slot_diagnostics()`, exposing `slot_1`, `slot_2`, etc. with status (`healthy`, `cooling_down`, `disabled`) and cooldown seconds remaining without leaking any key secrets.
+     - Bounded in-flight concurrency: enforced `_concurrency_semaphore` (bounded to `GEMINI_MAX_CONCURRENT_CALLS`) to safeguard memory on free-tier Render instances (512MB RAM).
+  3. `server/app/core/ai_limiter.py`:
+     - Created `AIUserRateLimiter` sliding-window in-memory rate limiter enforcing `GEMINI_MAX_USER_RPM`.
+     - Rejects excessive frequency with HTTP 429 and `Retry-After` header.
+  4. `server/app/schemas/copilot.py` & `server/app/schemas/modules.py`:
+     - Bounded chat message (`CopilotChatRequest.message`) and modification instruction (`SectionModifyRequest.instruction`, `VersionConflictResolveRequest.instruction`) lengths to 4000 characters.
+  5. `server/app/api/admin/system.py`:
+     - Integrated `slots` diagnostics into the Content Generation Service health component.
+- **Test Evidence:**
+  - `server/tests/test_correction_phase_05_bounded_key_failover.py` (12 passed in 5.43s):
+    - `test_config_key_parsing_and_deduplication`
+    - `test_first_key_succeeds_without_further_rotation`
+    - `test_first_rate_limited_second_succeeds`
+    - `test_timeout_then_fallback_key`
+    - `test_invalid_key_handling_disables_slot_and_falls_back`
+    - `test_all_keys_unavailable_raises_clear_error_without_fabrication`
+    - `test_cooldown_recovery_restores_eligibility`
+    - `test_deadline_exhaustion_stops_failover`
+    - `test_concurrent_generation_semaphore_limits_in_flight_calls`
+    - `test_no_credential_leakage_in_diagnostics_and_system_health`
+    - `test_user_ai_rate_limiter_blocks_abusive_frequency`
+    - `test_input_size_bounding_rejects_oversized_messages`
+  - Regression suite (52 passed in 24.52s across Phase 3, 4, 5, AI failure modes, and Admin ops).
+- **Commit SHA:** `PENDING_COMMIT`
+- **Remaining Limitations:** Multi-process distributed coordination of rate limits across separate dynos remains process-local, adhering to the free-tier single-container design.
+- **Production Config / Migration Requirements:**
+  - Users can configure 1, 2, or 3 keys in `GEMINI_API_KEYS` (e.g. `key1, key2, key3` or `["key1", "key2", "key3"]`). Zero schema migrations required.
 
 ---
 

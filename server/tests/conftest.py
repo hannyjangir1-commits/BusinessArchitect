@@ -50,10 +50,20 @@ def reset_rate_limit_state():
         reset_auth_limiter_state()
     except Exception:
         pass
+    try:
+        from app.core.ai_limiter import reset_ai_limiter_state
+        reset_ai_limiter_state()
+    except Exception:
+        pass
     yield
     try:
         from app.core.auth_limiter import reset_auth_limiter_state
         reset_auth_limiter_state()
+    except Exception:
+        pass
+    try:
+        from app.core.ai_limiter import reset_ai_limiter_state
+        reset_ai_limiter_state()
     except Exception:
         pass
 

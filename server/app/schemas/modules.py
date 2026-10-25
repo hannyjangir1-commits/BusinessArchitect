@@ -240,9 +240,9 @@ class VersionRenameRequest(BaseModel):
 class VersionConflictResolveRequest(BaseModel):
     replace_version_id: str  # The existing version to remove/replace to keep <= 5 versions
     new_data: Optional[Dict[str, Any]] = None
-    instruction: Optional[str] = None
+    instruction: Optional[str] = Field(None, max_length=4000)
     new_version_name: Optional[str] = None
     change_summary: Optional[str] = None
 
 class SectionModifyRequest(BaseModel):
-    instruction: str = Field(..., min_length=2)
+    instruction: str = Field(..., min_length=2, max_length=4000)

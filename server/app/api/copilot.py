@@ -7,6 +7,7 @@ from app.schemas.copilot import CopilotChatRequest, CopilotMessageResponse
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
 from app.core.business_stage import normalize_business_stage
+from app.core.ai_limiter import check_ai_rate_limit
 
 router = APIRouter(prefix="/projects/{project_id}/copilot", tags=["Blueprint Copilot"])
 
@@ -26,6 +27,8 @@ def send_chat_message(
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
+    check_ai_rate_limit(project.user_id)
+
     # Save user message
     user_msg = CopilotMessage(
         project_id=project.id,
