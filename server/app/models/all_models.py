@@ -180,6 +180,25 @@ class CopilotMessage(Base):
 
     project = relationship("Project", back_populates="copilot_messages")
 
+class CopilotOperation(Base):
+    __tablename__ = "copilot_operations"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("cop_"))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_msg_id = Column(String(128), nullable=False)
+    message_hash = Column(String(64), nullable=False)
+    status = Column(String(32), default="pending", nullable=False)  # pending, completed, failed
+    user_message_id = Column(String(36), ForeignKey("copilot_messages.id", ondelete="SET NULL"), nullable=True)
+    assistant_message_id = Column(String(36), ForeignKey("copilot_messages.id", ondelete="SET NULL"), nullable=True)
+    error_detail = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "client_msg_id", name="uq_copilot_operations_project_client_msg_id"),
+    )
+
 class AIOperation(Base):
     __tablename__ = "ai_operations"
 

@@ -471,3 +471,56 @@ This register persists progress across phases, documenting findings, affected pa
   - `APPLICATION_ISSUES_AND_FIXES.md`: 9 confirmed issues documented with root causes, fixes, and verification.
   - `VERIFICATION_REPORT.md`: Comprehensive commands, exit codes, pass/fail totals, and environmental limitations.
   - `STORAGE_REVIEW.md`: Measured data across all 7 storage dimensions.
+
+---
+
+## Phase 8.1 — Close Independent Review Findings (Chat, Budgets, Milestones, Dates, and Reports)
+
+- **Status:** COMPLETED
+- **Findings & Implemented Remediations:**
+  1. **Authoritative Copilot Message IDs & Reconciliation:**
+     - Created typed `CopilotSendResponse` in `server/app/schemas/copilot.py` returning database IDs for user and assistant messages, `operation_status`, and `client_msg_id`.
+     - Implemented `client/src/utils/copilotReconciliation.ts` with `reconcileSend(previous, tempId, result)` replacing temporary optimistic IDs with authoritative database IDs, setting `status: 'saved'`, preventing duplicate bubbles without fragile text comparison, and preserving earlier loaded pages and stable chronological order.
+  2. **Idempotent Chat Operations & Ambiguous Failure Recovery:**
+     - Added `CopilotOperation` database model in `server/app/models/all_models.py` and Alembic migration `c2d3e4f5a6b7_add_copilot_operations_table.py` tracking operations scoped by `(project_id, client_msg_id)`.
+     - Implemented short-transaction lock pattern (`project_first_lock`) in `server/app/api/copilot.py` guaranteeing sequential retries return saved answers without duplicate LLM calls, concurrent sends return 200 with `pending` status, and conflicting payloads return 409 Conflict.
+     - Added `GET /projects/{project_id}/copilot/operations/{client_msg_id}` with tenant isolation (403/404).
+     - Added frontend message statuses (`sending`, `saved`, `failed`, `uncertain`), timeout handling setting `uncertain`, and retry preserving original `client_msg_id`.
+  3. **Strict Context Budgets & Guardrails:**
+     - Enforced unconditionally before any provider invocation in `server/app/ai/gemini_service.py`: conversation history strictly `<= 16000` chars drops oversized first message instead of accepting it by exception.
+     - Added overall prompt budget `<= 80000` chars pruning optional cross-module summaries and source provenance before provider invocation.
+     - Bounded user message length `<= 4000` chars with explicit HTTP 400 validation instead of silent truncation.
+  4. **Shared Strict Date-Only Contract:**
+     - Canonical `YYYY-MM-DD`, years `1900-2100`, calendar validity checked in lockstep in Python (`services/task_milestones.py`) and TypeScript (`utils/taskMilestones.ts`).
+     - Created `shared_fixtures/strict_date_cases.json` covering 20 edge cases (leap years, month overflows, bad formats).
+  5. **Cumulative Milestone Boundaries & Elimination of Search Fallbacks:**
+     - Enforced exact calendar day math `(end_date - anchor) + 1` with 0 string fallback searches:
+       - Day 30 in 30-, 60-, and 90-day milestones.
+       - Day 31 in 60- and 90-day milestones (strictly excluded from 30-day card).
+       - Day 60 in 60- and 90-day milestones.
+       - Day 61 in 90-day milestone (strictly excluded from 60-day card).
+       - Day 90 in 90-day milestone.
+       - Day 91 in later work (strictly excluded from 30/60/90 cards).
+       - Overdue tasks (`<= 0`) retained in cumulative totals.
+       - Undated tasks included in total tasks, excluded from dated milestone cards.
+  6. **Authenticated HMAC-SHA256 Cursor (Option B):**
+     - Formatted as `v1|{project_id}|{iso_timestamp}|{msg_id}` signed with `settings.SESSION_SECRET`.
+     - Serialized as `base64url(payload).base64url(hmac_signature)`.
+     - Bounded `<= 512` characters, verified with `hmac.compare_digest` in constant time, project_id tenant isolation checked, and authoritative database row existence verified before applying `(created_at, id) < (cursor_created_at, cursor_id)`.
+  7. **Report Alignments:**
+     - `STORAGE_REVIEW.md` updated with unmeasured Docker status and separated bundle breakdown.
+     - `VERIFICATION_REPORT.md` updated with Option B HMAC cursor documentation, exact test counts (Backend 475 passed, 0 failed, 9 skipped; Frontend 109 passed, 0 failed across 11 test files), linter (0 errors, 42 warnings), build (1.14s), and honest browser status.
+     - `APPLICATION_ISSUES_AND_FIXES.md` updated with ISSUE-10 through ISSUE-15.
+     - `WORKSPACE_AUDIT_COVERAGE.md` updated to 275 files.
+- **Verification Evidence:**
+  - Dedicated backend tests: `server/tests/test_correction_phase_08_1_close_findings.py` — **10 passed in 4.57s**.
+  - Dedicated frontend tests: `client/src/__tests__/correction_phase_08_1_close_findings.test.tsx` — **8 passed in 1.40s**.
+  - Full backend test suite (`pytest -rs -q`): **475 passed, 9 skipped, 0 failed in 124.50s**.
+  - Full frontend test suite (`npm test`): **11 test files, 109 passed, 0 failed in 12.32s**.
+  - Frontend linter (`npm run lint`): **0 errors, 42 warnings**.
+  - Production TypeScript/SPA build (`npm run build`): **Built successfully in 1.14s** (initial critical load 109.08 kB gzip).
+  - Alembic migrations (`alembic heads`): **1 sequential head (`c2d3e4f5a6b7`)**.
+  - Whitespace check (`git diff --check`): **0 errors**.
+- **Remaining Limitations:**
+  - Docker daemon is unavailable in this local Windows host; container image size is unmeasured directly.
+  - Real browser automation pending local browser session / unrestricted network for Playwright browser binary downloads; component behavior and user flows verified in Vitest JSDOM.

@@ -78,7 +78,9 @@ def test_roadmap_task_sync_and_milestone_recalculation(project_fixture):
     headers = project_fixture["headers"]
     project_id = project_fixture["project_id"]
 
-    # Create two 30-day tasks
+    # Create two 30-day tasks. Anchor is 2026-10-01.
+    # Day 30 inclusive limit is 2026-10-30 ((30 - 1) + 1 = 30 days).
+    # 2026-10-31 is Day 31 (which strictly belongs to 60-day milestone, not 30-day).
     t1 = cli.post(f"/api/projects/{project_id}/tasks", json={
         "task_code": "TSK-01",
         "phase": "Planning & Research",
@@ -95,7 +97,7 @@ def test_roadmap_task_sync_and_milestone_recalculation(project_fixture):
         "title": "Task 2",
         "timeline": "30-day",
         "start_date": "2026-10-16",
-        "end_date": "2026-10-31",
+        "end_date": "2026-10-30",
         "status": "Pending"
     }, headers=headers).json()
 

@@ -1160,9 +1160,48 @@ class GeminiAIService:
         return new_data, result["change_summary"]
 
     def chat_copilot(self, project_info: Dict[str, Any], chat_history: List[Dict[str, str]], user_message: str, cross_module_context: Optional[Dict[str, Any]] = None) -> str:
+        if len(user_message) > 4000:
+            raise ValueError("Chat message exceeds maximum allowed length of 4000 characters.")
         decision = self._scope_decision(project_info, user_message, cross_module_context)
         if not decision.allowed:
             return "This request is out of scope for project planning or asks for protected system information. I can help with this project's business model, market, technology, validation, and execution plan; please connect your question to the active project."
+
+        payload = self._context_payload(project_info, cross_module_context)
+        # Budget up to 20 messages, enforcing strict total character budget of 16,000 chars
+        MAX_HISTORY_CHARS = 16000
+        reversed_history = list(reversed(chat_history))
+        budgeted_history = []
+        cur_chars = 0
+        for msg in reversed_history:
+            if msg.get("role") in {"user", "assistant"}:
+                c = self._clean_data(msg.get("content", ""))
+                content_len = len(c)
+                if cur_chars + content_len > MAX_HISTORY_CHARS:
+                    break
+                budgeted_history.append({"role": msg["role"], "content": c})
+                cur_chars += content_len
+                if len(budgeted_history) >= 20:
+                    break
+        assert cur_chars <= MAX_HISTORY_CHARS
+        history = list(reversed(budgeted_history))
+        # Some callers already persisted the pending message before loading history.
+        if history and history[-1]["role"] == "user" and history[-1]["content"] == user_message:
+            history.pop()
+        payload.update({"recent_conversation": history, "user_request": user_message})
+
+        # Overall serialized payload budget: max 80,000 characters
+        MAX_OVERALL_PROMPT_CHARS = 80000
+        if len(json.dumps(payload, default=str)) > MAX_OVERALL_PROMPT_CHARS:
+            # Prune optional read_only_modules first
+            payload["read_only_modules"] = {}
+            if len(json.dumps(payload, default=str)) > MAX_OVERALL_PROMPT_CHARS:
+                payload["source_provenance"] = []
+                if len(json.dumps(payload, default=str)) > MAX_OVERALL_PROMPT_CHARS:
+                    raise ValueError(
+                        "The planning request exceeds the allowable context limit. "
+                        "Please reduce saved project details or ask a more specific question."
+                    )
+
         if not self._configured_api_keys():
             name = str(project_info.get("name") or "this project").strip()
             request = user_message.lower()
@@ -1175,28 +1214,6 @@ class GeminiAIService:
             else:
                 guidance = "Connect the request to one customer problem, project constraint, or next milestone. Break the decision into a small test, a measurable result, and a follow-up action."
             return f"Offline planning guidance for {name}: {guidance} No current market sources were checked, so validate assumptions before acting."
-        payload = self._context_payload(project_info, cross_module_context)
-        # Budget up to 20 messages, enforcing total character budget of 16,000 chars
-        MAX_HISTORY_CHARS = 16000
-        reversed_history = list(reversed(chat_history))
-        budgeted_history = []
-        cur_chars = 0
-        for msg in reversed_history:
-            if msg.get("role") in {"user", "assistant"}:
-                c = self._clean_data(msg.get("content", ""))
-                if cur_chars + len(c) > MAX_HISTORY_CHARS and budgeted_history:
-                    break
-                budgeted_history.append({"role": msg["role"], "content": c})
-                cur_chars += len(c)
-                if len(budgeted_history) >= 20:
-                    break
-        history = list(reversed(budgeted_history))
-        # Some callers already persisted the pending message before loading history.
-        if history and history[-1]["role"] == "user" and history[-1]["content"] == user_message:
-            history.pop()
-        payload.update({"recent_conversation": history, "user_request": user_message})
-        if len(user_message) > 4000:
-            raise ValueError("Chat message exceeds maximum allowed length of 4000 characters.")
 
         key_slots = self._available_key_slots()
         if not key_slots:

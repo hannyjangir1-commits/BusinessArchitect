@@ -1,0 +1,117 @@
+[
+  {
+    "input": "2026-02-28",
+    "valid": true,
+    "year": 2026,
+    "month": 2,
+    "day": 28,
+    "reason": "Standard valid non-leap February end"
+  },
+  {
+    "input": "2026-02-29",
+    "valid": false,
+    "reason": "Impossible date: 2026 is not a leap year"
+  },
+  {
+    "input": "2028-02-29",
+    "valid": true,
+    "year": 2028,
+    "month": 2,
+    "day": 29,
+    "reason": "Valid leap year February 29"
+  },
+  {
+    "input": "2026-02-31",
+    "valid": false,
+    "reason": "Impossible date: February never has 31 days"
+  },
+  {
+    "input": "2026-04-31",
+    "valid": false,
+    "reason": "Impossible date: April only has 30 days"
+  },
+  {
+    "input": "2026-13-01",
+    "valid": false,
+    "reason": "Invalid month: 13"
+  },
+  {
+    "input": "2026-00-10",
+    "valid": false,
+    "reason": "Invalid month: 00"
+  },
+  {
+    "input": "2026-10-00",
+    "valid": false,
+    "reason": "Invalid day: 00"
+  },
+  {
+    "input": "2026-10-32",
+    "valid": false,
+    "reason": "Invalid day: 32"
+  },
+  {
+    "input": "2026-1-01",
+    "valid": false,
+    "reason": "Partial numeric field: month must be 2 digits"
+  },
+  {
+    "input": "2026-10-1",
+    "valid": false,
+    "reason": "Partial numeric field: day must be 2 digits"
+  },
+  {
+    "input": "2026-10-01junk",
+    "valid": false,
+    "reason": "Trailing characters rejected"
+  },
+  {
+    "input": "2026-10-01T12:00:00Z",
+    "valid": false,
+    "reason": "ISO datetime rejected where date-only is required"
+  },
+  {
+    "input": "",
+    "valid": false,
+    "reason": "Empty string rejected"
+  },
+  {
+    "input": null,
+    "valid": false,
+    "reason": "Null value rejected"
+  },
+  {
+    "input": "   2026-03-15  ",
+    "valid": true,
+    "year": 2026,
+    "month": 3,
+    "day": 15,
+    "reason": "Valid date with surrounding whitespace accepted"
+  },
+  {
+    "input": "1899-12-31",
+    "valid": false,
+    "reason": "Year 1899 below minimum supported boundary 1900"
+  },
+  {
+    "input": "1900-01-01",
+    "valid": true,
+    "year": 1900,
+    "month": 1,
+    "day": 1,
+    "reason": "Minimum supported boundary year 1900"
+  },
+  {
+    "input": "2100-12-31",
+    "valid": true,
+    "year": 2100,
+    "month": 12,
+    "day": 31,
+    "reason": "Maximum supported boundary year 2100"
+  },
+  {
+    "input": "2101-01-01",
+    "valid": false,
+    "reason": "Year 2101 above maximum supported boundary 2100"
+  }
+]

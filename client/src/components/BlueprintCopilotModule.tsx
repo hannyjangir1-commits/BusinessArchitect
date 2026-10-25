@@ -6,8 +6,10 @@ import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
 interface Props {
   project: Project;
   messages: CopilotMessage[];
-  onSendMessage: (message: string, tempId: string) => Promise<void>;
+  onSendMessage: (message: string, clientMsgId: string) => Promise<void>;
   onLoadOlderMessages?: () => Promise<void>;
+  onRefreshMessages?: () => Promise<void>;
+  onCheckStatus?: (clientMsgId: string) => Promise<void>;
   hasMoreOlder?: boolean;
   isLoadingOlder?: boolean;
   isLoading: boolean;
@@ -117,7 +119,7 @@ export const parseMarkdownBlocks = (cleanContent: string): MarkdownBlockData[] =
     }
 
     // Horizontal Rule: ---, ***, ___ (at least 3 characters)
-    if (/^(\-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
       blocks.push({ type: 'hr' });
       continue;
     }
@@ -318,6 +320,8 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   messages,
   onSendMessage,
   onLoadOlderMessages,
+  onRefreshMessages,
+  onCheckStatus,
   hasMoreOlder = false,
   isLoadingOlder = false,
   isLoading,
@@ -388,22 +392,26 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
     }
   }, [userScope, input, project.id]);
 
-  const handleSendText = async (text: string) => {
+  const handleSendText = async (text: string, existingClientMsgId?: string) => {
     if (!text.trim() || isLoading || isSending) return;
     const msg = text.trim();
-    const tempId = `temp-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const clientMsgId = existingClientMsgId || `temp-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const originalInput = input;
-    setInput('');
-    if (userScope) clearDraft(userScope, 'copilot_input', project.id);
+    if (!existingClientMsgId) {
+      setInput('');
+      if (userScope) clearDraft(userScope, 'copilot_input', project.id);
+    }
     shouldScrollToBottomRef.current = true;
     setIsSending(true);
 
     try {
-      await onSendMessage(msg, tempId);
+      await onSendMessage(msg, clientMsgId);
     } catch {
       // Restore draft on confirmed failure so user never loses their question
-      setInput(originalInput || msg);
-      if (userScope) saveDraft(userScope, 'copilot_input', originalInput || msg, project.id);
+      if (!existingClientMsgId) {
+        setInput(originalInput || msg);
+        if (userScope) saveDraft(userScope, 'copilot_input', originalInput || msg, project.id);
+      }
     } finally {
       setIsSending(false);
     }
@@ -601,12 +609,44 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
                       <span>Sending...</span>
                     </div>
                   )}
+                  {m.status === 'uncertain' && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#fef08a', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span>We could not confirm whether this response finished.</span>
+                      <div style={{ display: 'flex', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
+                        {onCheckStatus && (m.client_msg_id || m.id) && (
+                          <button
+                            type="button"
+                            onClick={() => onCheckStatus(m.client_msg_id || m.id)}
+                            style={{ textDecoration: 'underline', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}
+                          >
+                            Check status
+                          </button>
+                        )}
+                        {onRefreshMessages && (
+                          <button
+                            type="button"
+                            onClick={() => onRefreshMessages()}
+                            style={{ textDecoration: 'underline', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}
+                          >
+                            Refresh conversation
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleSendText(m.content, m.client_msg_id || m.id)}
+                          style={{ textDecoration: 'underline', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {m.status === 'failed' && (
                     <div style={{ marginTop: 6, fontSize: 11, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>Failed to deliver</span>
                       <button
                         type="button"
-                        onClick={() => handleSendText(m.content)}
+                        onClick={() => handleSendText(m.content, m.client_msg_id || m.id)}
                         style={{
                           textDecoration: 'underline',
                           background: 'none',

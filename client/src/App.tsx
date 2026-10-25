@@ -34,6 +34,9 @@ const normalizeModuleType = (moduleType: string) => {
   const canonical = moduleType === 'detailed_roadmap' ? 'execution_roadmap' : moduleType;
   return MODULE_TYPES.has(canonical) ? canonical : 'overview';
 };
+
+import { reconcileSend } from './utils/copilotReconciliation';
+
 const EMPTY_SUMMARY: RoadmapSummary = {
   milestone_30_progress: 0, milestone_30_completed: 0, milestone_30_total: 0,
   milestone_60_progress: 0, milestone_60_completed: 0, milestone_60_total: 0,
@@ -1024,10 +1027,12 @@ export const App: React.FC = () => {
     const cursor = copilotOlderCursor || copilotMessages[0]?.id;
     if (!cursor) return;
     const projectId = currentProject.id;
+    const navigation = navigationRef.current;
+    const userId = currentUser?.id;
     setLoadingOlderCopilot(true);
     try {
       const page = await api.copilot.getPage(projectId, cursor, 50);
-      if (isViewing(projectId, 'blueprint_copilot')) {
+      if (isViewing(projectId, 'blueprint_copilot', navigation) && currentUser?.id === userId) {
         setCopilotMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
           const freshOlder = page.messages.filter(m => !existingIds.has(m.id));
@@ -1039,9 +1044,59 @@ export const App: React.FC = () => {
     } catch (e) {
       console.warn('Failed to load older copilot messages:', e);
     } finally {
-      if (isViewing(projectId, 'blueprint_copilot')) {
+      if (isViewing(projectId, 'blueprint_copilot', navigation) && currentUser?.id === userId) {
         setLoadingOlderCopilot(false);
       }
+    }
+  };
+
+  const handleRefreshCopilot = async () => {
+    if (!currentProject) return;
+    const projectId = currentProject.id;
+    const navigation = navigationRef.current;
+    const userId = currentUser?.id;
+    try {
+      const page = await api.copilot.getPage(projectId, undefined, 50);
+      if (isViewing(projectId, 'blueprint_copilot', navigation) && currentUser?.id === userId) {
+        setCopilotMessages(page.messages);
+        setHasMoreCopilot(page.has_more);
+        setCopilotOlderCursor(page.before_cursor || null);
+      }
+    } catch (e) {
+      console.warn('Failed to refresh copilot messages:', e);
+    }
+  };
+
+  const handleCheckCopilotStatus = async (clientMsgId: string) => {
+    if (!currentProject) return;
+    const projectId = currentProject.id;
+    const navigation = navigationRef.current;
+    const userId = currentUser?.id;
+    try {
+      const op = await api.copilot.getOperationStatus(projectId, clientMsgId);
+      if (!isViewing(projectId, 'blueprint_copilot', navigation) || currentUser?.id !== userId) return;
+      if (op.status === 'completed' && op.user_message) {
+        setCopilotMessages(prev => reconcileSend(prev, clientMsgId, {
+          id: op.assistant_message?.id || '',
+          role: 'assistant',
+          content: op.assistant_message?.content || '',
+          created_at: op.assistant_message?.created_at || '',
+          user_message: op.user_message!,
+          assistant_message: op.assistant_message,
+          operation_status: 'completed',
+          client_msg_id: clientMsgId
+        }));
+      } else if (op.status === 'failed') {
+        setCopilotMessages(prev =>
+          prev.map(m => (m.id === clientMsgId || m.client_msg_id === clientMsgId) ? {
+            ...m,
+            status: 'failed' as const,
+            error: op.error_detail || 'Operation failed on server.'
+          } : m)
+        );
+      }
+    } catch (err: any) {
+      console.warn('Copilot status check failed:', err);
     }
   };
 
@@ -1487,30 +1542,55 @@ export const App: React.FC = () => {
                     hasMoreOlder={hasMoreCopilot}
                     isLoadingOlder={loadingOlderCopilot}
                     onLoadOlderMessages={handleLoadOlderCopilot}
-                    onSendMessage={async (msg, tempId) => {
+                    onRefreshMessages={handleRefreshCopilot}
+                    onCheckStatus={handleCheckCopilotStatus}
+                    onSendMessage={async (msg, clientMsgId) => {
                       const projectId = currentProject.id;
+                      const navigation = navigationRef.current;
+                      const userId = currentUser?.id;
+
                       const optimisticUserMsg: CopilotMessage = {
-                        id: tempId,
+                        id: clientMsgId,
                         role: 'user',
                         content: msg,
                         created_at: new Date().toISOString(),
-                        status: 'sending'
+                        status: 'sending',
+                        client_msg_id: clientMsgId
                       };
-                      setCopilotMessages(prev => [...prev, optimisticUserMsg]);
+                      setCopilotMessages(prev => {
+                        const exists = prev.some(m => m.id === clientMsgId || m.client_msg_id === clientMsgId);
+                        if (exists) {
+                          return prev.map(m => (m.id === clientMsgId || m.client_msg_id === clientMsgId)
+                            ? { ...m, status: 'sending' as const, error: undefined }
+                            : m
+                          );
+                        }
+                        return [...prev, optimisticUserMsg];
+                      });
 
                       try {
-                        const assistantMsg = await api.copilot.sendMessage(projectId, msg, tempId);
+                        const sendResult = await api.copilot.sendMessage(projectId, msg, clientMsgId);
                         queryCache.invalidate(`copilot:page:${projectId}`);
-                        if (isViewing(projectId, 'blueprint_copilot')) {
-                          setCopilotMessages(prev => {
-                            const updated = prev.map(m => m.id === tempId ? { ...m, status: 'saved' as const } : m);
-                            return [...updated, assistantMsg];
-                          });
+                        if (isViewing(projectId, 'blueprint_copilot', navigation) && currentUser?.id === userId) {
+                          setCopilotMessages(prev => reconcileSend(prev, clientMsgId, sendResult));
                         }
                       } catch (err: any) {
-                        if (isViewing(projectId, 'blueprint_copilot')) {
+                        const isTimeout = err?.message && (
+                          err.message.toLowerCase().includes('longer than') ||
+                          err.message.toLowerCase().includes('timeout') ||
+                          err.message.toLowerCase().includes('network')
+                        );
+                        if (isViewing(projectId, 'blueprint_copilot', navigation) && currentUser?.id === userId) {
                           setCopilotMessages(prev =>
-                            prev.map(m => m.id === tempId ? { ...m, status: 'failed' as const, error: err.message || 'Failed to send' } : m)
+                            prev.map(m => (m.id === clientMsgId || m.client_msg_id === clientMsgId)
+                              ? {
+                                  ...m,
+                                  status: isTimeout ? ('uncertain' as const) : ('failed' as const),
+                                  client_msg_id: clientMsgId,
+                                  error: err.message || 'Failed to send'
+                                }
+                              : m
+                            )
                           );
                         }
                         throw err;

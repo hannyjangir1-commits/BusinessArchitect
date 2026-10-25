@@ -1,4 +1,4 @@
-import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, RoadmapPlanningInputs, TechStackPlanningInputs } from '../types';
+import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, CopilotSendResult, CopilotOperationStatus, RoadmapPlanningInputs, TechStackPlanningInputs } from '../types';
 
 let csrfTokenCache = '';
 
@@ -382,11 +382,14 @@ export const api = {
       return page.messages;
     },
 
-    sendMessage: (projectId: string, message: string, clientMsgId?: string): Promise<CopilotMessage> =>
-      request<CopilotMessage>(`/api/projects/${projectId}/copilot`, {
+    sendMessage: (projectId: string, message: string, clientMsgId?: string): Promise<CopilotSendResult> =>
+      request<CopilotSendResult>(`/api/projects/${projectId}/copilot`, {
         method: 'POST',
         body: JSON.stringify({ message, client_msg_id: clientMsgId })
-      })
+      }),
+
+    getOperationStatus: (projectId: string, clientMsgId: string): Promise<CopilotOperationStatus> =>
+      request<CopilotOperationStatus>(`/api/projects/${projectId}/copilot/operations/${encodeURIComponent(clientMsgId)}`)
   },
 
   exports: {

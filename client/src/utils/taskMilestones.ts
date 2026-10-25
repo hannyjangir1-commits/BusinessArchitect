@@ -6,18 +6,31 @@ export interface DateOnly {
   day: number;
 }
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Parse strict YYYY-MM-DD date string without timezone or DST drift.
+ * Enforces canonical YYYY-MM-DD, supported year boundary 1900-2100, and calendar validity.
  */
 export function parseStrictDateOnly(dStr?: string | null): DateOnly | null {
-  if (!dStr || typeof dStr !== 'string') return null;
-  const parts = dStr.trim().split('-');
-  if (parts.length !== 3) return null;
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const day = parseInt(parts[2], 10);
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  if (typeof dStr !== 'string') return null;
+  const trimmed = dStr.trim();
+  if (!DATE_ONLY_REGEX.test(trimmed)) return null;
+  const [yearStr, monthStr, dayStr] = trimmed.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (year < 1900 || year > 2100) return null;
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== day
+  ) {
+    return null;
+  }
   return { year, month, day };
 }
 
@@ -34,7 +47,8 @@ export function differenceInCalendarDays(d1: DateOnly, d2: DateOnly): number {
 /**
  * Derive planning anchor date:
  * 1. Saved active roadmap planning start date if valid.
- * 2. Legacy fallback: earliest valid task start_date.
+ * 2. Fallback: earliest valid task start_date.
+ * 3. Returns null if no valid start dates are established.
  */
 export function deriveAnchorDate(tasks: RoadmapTask[], savedStartDate?: string | null): string | null {
   if (savedStartDate && parseStrictDateOnly(savedStartDate)) {
@@ -68,12 +82,16 @@ export function isTaskCompleted(status?: string | null): boolean {
 
 /**
  * Contract for cumulative milestone membership:
- * A task is due by dayCount if its inclusive calendar day from anchor is <= dayCount.
- * Tasks due on or before day 30 also belong to day 60 and 90 cumulative totals.
+ * A task is due by dayLimit if its inclusive calendar day from anchor is <= dayLimit.
+ * Planning anchor and valid task end_date are strictly required.
+ * - Inclusive calendar day: (task_end - anchor) + 1.
+ * - Tasks due on or before day 30 also belong to day 60 and 90 cumulative totals.
+ * - Overdue tasks before anchor (inclusiveDay <= 0) belong to cumulative totals.
+ * - Missing/invalid end date or anchor: excluded from date-derived milestone cards (returns false).
+ * - Zero timeline string fallbacks. Zero Day-31 exceptions.
  */
 export function dueByDay(task: RoadmapTask, anchor: string | null | undefined, dayLimit: number): boolean {
-  if (!anchor) {
-    if (task.timeline) return task.timeline.includes(String(dayLimit));
+  if (!anchor || !task.end_date) {
     return false;
   }
 
@@ -81,24 +99,11 @@ export function dueByDay(task: RoadmapTask, anchor: string | null | undefined, d
   const base = parseStrictDateOnly(anchor);
 
   if (!due || !base) {
-    if (!task.end_date && task.timeline && task.timeline.includes(String(dayLimit))) {
-      return true;
-    }
     return false;
   }
 
   const inclusiveDay = differenceInCalendarDays(due, base) + 1;
-
-  if (inclusiveDay <= dayLimit) {
-    return true;
-  }
-
-  // Month 1 boundary tolerance (e.g. October 1 to October 31 is 31 days) for legacy tasks marked 30-day
-  if (dayLimit === 30 && inclusiveDay === 31 && (task.timeline || '').includes('30')) {
-    return true;
-  }
-
-  return false;
+  return inclusiveDay <= dayLimit;
 }
 
 /**
@@ -107,32 +112,26 @@ export function dueByDay(task: RoadmapTask, anchor: string | null | undefined, d
  * '60-day': due between day 31 and 60
  * '90-day': due between day 61 and 90
  * 'later': due past day 90
- * 'undated': no valid end date
+ * 'undated': missing or invalid end date or missing anchor
  */
 export function classifyTaskMilestone(
   task: RoadmapTask,
   anchor: string | null | undefined
 ): '30-day' | '60-day' | '90-day' | 'later' | 'undated' {
-  if (!anchor) {
-    if (task.timeline?.includes('30')) return '30-day';
-    if (task.timeline?.includes('60')) return '60-day';
-    if (task.timeline?.includes('90')) return '90-day';
-    return task.end_date ? 'later' : 'undated';
+  if (!anchor || !task.end_date) {
+    return 'undated';
   }
 
   const due = parseStrictDateOnly(task.end_date);
   const base = parseStrictDateOnly(anchor);
 
   if (!due || !base) {
-    if (task.timeline?.includes('30')) return '30-day';
-    if (task.timeline?.includes('60')) return '60-day';
-    if (task.timeline?.includes('90')) return '90-day';
     return 'undated';
   }
 
   const inclusiveDay = differenceInCalendarDays(due, base) + 1;
 
-  if (inclusiveDay <= 30 || (inclusiveDay === 31 && (task.timeline || '').includes('30'))) {
+  if (inclusiveDay <= 30) {
     return '30-day';
   }
   if (inclusiveDay <= 60) {

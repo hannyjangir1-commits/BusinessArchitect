@@ -1,16 +1,16 @@
 # Venture Atlas — Complete Workspace File Inventory and Coverage Ledger
 
-**Total Files Inventoried:** 270
+**Total Files Inventoried:** 275
 
 ### Classification Summary
 
 | Category | Classification Description | Count |
 | :--- | :--- | :--- |
-| A (Application Source) | Files belonging to category A | 126 |
+| A (Application Source) | Files belonging to category A | 127 |
 | B (Runtime Configuration) | Files belonging to category B | 5 |
 | C (Build/Deployment Configuration) | Files belonging to category C | 15 |
-| D (Database Schema/Migrations) | Files belonging to category D | 9 |
-| E (Tests and Fixtures) | Files belonging to category E | 48 |
+| D (Database Schema/Migrations) | Files belonging to category D | 10 |
+| E (Tests and Fixtures) | Files belonging to category E | 51 |
 | F (Documentation/Reports) | Files belonging to category F | 27 |
 | G (Runtime Assets) | Files belonging to category G | 1 |
 | H (Generated Output) | Files belonging to category H | 23 |
@@ -90,6 +90,7 @@
 | client\src\utils\researchPlaceholders.ts | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Repaired provenance notes, Dialog hooks, status deprecations | Full test suite, lint, build | Retain in Git and production bundle |
 | client\src\utils\svgExport.ts | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Repaired provenance notes, Dialog hooks, status deprecations | Full test suite, lint, build | Retain in Git and production bundle |
 | client\src\utils\taskMilestones.ts | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Repaired provenance notes, Dialog hooks, status deprecations | Full test suite, lint, build | Retain in Git and production bundle |
+| client\src\utils\copilotReconciliation.ts | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Authoritative copilot message reconciliation by DB id | npm test | Retain in Git and production bundle |
 | scripts\app_manager.py | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Repaired provenance notes, Dialog hooks, status deprecations | Full test suite, lint, build | Retain in Git and production bundle |
 | server\app\ai\gemini_service.py | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Repaired provenance notes, Dialog hooks, status deprecations | Full test suite, lint, build | Retain in Git and production bundle |
 | server\app\ai\prompts.py | A (Application Source) | Fully Reviewed | FastAPI ASGI / React SPA | Repaired provenance notes, Dialog hooks, status deprecations | Full test suite, lint, build | Retain in Git and production bundle |
@@ -177,12 +178,14 @@
 | server\alembic\versions\d4f6a2c91b7e_persist_roadmap_assignments.py | D (Database Schema/Migrations) | Fully Reviewed | Alembic migration runner | Sequential migration chain up to b1c2d3e4f5a6 | alembic heads | Retain in Git and Docker runtime |
 | server\alembic\versions\e6b30f8a2c19_persist_account_preferences.py | D (Database Schema/Migrations) | Fully Reviewed | Alembic migration runner | Sequential migration chain up to b1c2d3e4f5a6 | alembic heads | Retain in Git and Docker runtime |
 | server\alembic\versions\f1a8b9c0d1e2_add_auth_rate_limit_events.py | D (Database Schema/Migrations) | Fully Reviewed | Alembic migration runner | Sequential migration chain up to b1c2d3e4f5a6 | alembic heads | Retain in Git and Docker runtime |
+| server\alembic\versions\c2d3e4f5a6b7_add_copilot_operations_table.py | D (Database Schema/Migrations) | Fully Reviewed | Alembic migration runner | Sequential migration head c2d3e4f5a6b7 adding copilot_operations table | alembic heads | Retain in Git and Docker runtime |
 | client\src\__tests__\audit_findings_frontend.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\batch_03_1_live_validation_fixes.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\batch_03_perceived_performance.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\batch_03_security_and_race_conditions.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\bmc_svg_export.test.ts | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\components.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
+| client\src\__tests__\correction_phase_08_1_close_findings.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Milestone boundary math, date fixtures, copilot status badges and reconciliation tests | npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\generation_progress.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\header_actions.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | client\src\__tests__\module_evidence.test.tsx | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
@@ -216,6 +219,7 @@
 | server\tests\test_correction_phase_05_bounded_key_failover.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | server\tests\test_correction_phase_06_generation_validation_and_roadmap.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | server\tests\test_correction_phase_07_error_sanitization_exports_chat.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
+| server\tests\test_correction_phase_08_1_close_findings.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Idempotent chat operations, Option B HMAC cursor, context budgets, strict dates | pytest -rs -q | Retain in Git; excluded from production container |
 | server\tests\test_deployment_and_supabase_readiness.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | server\tests\test_e2e_full_workflows.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | server\tests\test_grounded_market_research.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
@@ -225,6 +229,7 @@
 | server\tests\test_phase_08_frontend_and_conversation_consistency.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | server\tests\test_production_config_safety.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
 | server\tests\test_version_and_tasks.py | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Clean coverage for auth, tasks, modules, race conditions | pytest -rs -q / npm test | Retain in Git; excluded from production container |
+| shared_fixtures\strict_date_cases.json | E (Tests and Fixtures) | Fully Reviewed | pytest / vitest | Cross-platform strict calendar date contract test cases | pytest / npm test | Retain in Git; excluded from production container |
 | BATCH_01_PERFORMANCE_BASELINE.md | F (Documentation/Reports) | Reviewed | Developer & QA documentation | Comprehensive batch audit and completion registers | Inspected for accuracy | Retain in Git; excluded from production container |
 | BATCH_02_DATABASE_READ_PATH.md | F (Documentation/Reports) | Reviewed | Developer & QA documentation | Comprehensive batch audit and completion registers | Inspected for accuracy | Retain in Git; excluded from production container |
 | BATCH_03_PERCEIVED_PERFORMANCE.md | F (Documentation/Reports) | Reviewed | Developer & QA documentation | Comprehensive batch audit and completion registers | Inspected for accuracy | Retain in Git; excluded from production container |

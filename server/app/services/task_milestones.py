@@ -1,18 +1,26 @@
+import re
 from datetime import date
 from typing import Any, Dict, List, Optional
 from app.models.all_models import RoadmapTask
 
+DATE_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 
 def parse_strict_date_only(d_str: Optional[str]) -> Optional[date]:
-    """Parse a strict YYYY-MM-DD date string without timezone or DST drift."""
+    """
+    Parse a strict YYYY-MM-DD date string without timezone or DST drift.
+    Enforces format YYYY-MM-DD, supported year boundary 1900-2100, and calendar validity.
+    """
     if not d_str or not isinstance(d_str, str):
         return None
     trimmed = d_str.strip()
-    parts = trimmed.split("-")
-    if len(parts) != 3:
+    if not DATE_REGEX.match(trimmed):
         return None
+    parts = trimmed.split("-")
     try:
         y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+        if y < 1900 or y > 2100:
+            return None
         return date(y, m, d)
     except (ValueError, TypeError):
         return None
@@ -22,7 +30,8 @@ def derive_anchor_date(tasks: List[RoadmapTask], saved_start_date: Optional[str]
     """
     Planning anchor date derivation contract:
     1. Saved active roadmap start date if valid.
-    2. Legacy fallback: earliest valid start_date across all tasks.
+    2. Fallback: earliest valid start_date across all tasks.
+    3. If neither valid: returns None (no date-derived milestone membership).
     """
     if saved_start_date:
         parsed = parse_strict_date_only(saved_start_date)
@@ -49,33 +58,23 @@ def is_task_completed(status: Optional[str]) -> bool:
 def due_by_day(task: RoadmapTask, anchor_date: Optional[date], day_limit: int) -> bool:
     """
     Check if a task is due by day_limit (cumulative calendar days from anchor).
-    - If anchor and task end date are valid: calendar day arithmetic.
-    - Tasks due on or before day_limit (including overdue tasks before anchor) belong to cumulative totals.
-    - Legacy fallback: if undated or end of month 1 boundary for legacy test tasks with '30-day'.
+    Planning anchor and valid task end_date are strictly required.
+    - Inclusive calendar day: (task_end - anchor_date).days + 1.
+    - Day 30 belongs to cumulative 30/60/90.
+    - Day 31 belongs to cumulative 60/90, NOT 30.
+    - Tasks due on or before day_limit (including overdue tasks before anchor, <= 0) belong to cumulative totals.
+    - Undated or invalid end dates do not enter milestone totals (return False).
+    - Zero timeline string fallbacks. Zero Day-31 exceptions.
     """
-    if not anchor_date:
-        # Fallback if no anchor date could be established
-        if task.timeline:
-            return str(day_limit) in task.timeline
+    if not anchor_date or not task.end_date:
         return False
 
     task_end = parse_strict_date_only(task.end_date)
     if not task_end:
-        # Undated tasks do not belong to date-derived milestone cards
-        if not task.end_date and task.timeline and str(day_limit) in task.timeline:
-            return True
         return False
 
     inclusive_day = (task_end - anchor_date).days + 1
-
-    if inclusive_day <= day_limit:
-        return True
-
-    # Month 1 boundary tolerance (e.g. October 1 to October 31 is 31 days) for legacy tasks marked 30-day
-    if day_limit == 30 and inclusive_day == 31 and "30" in (task.timeline or ""):
-        return True
-
-    return False
+    return inclusive_day <= day_limit
 
 
 def calculate_roadmap_summary(tasks: List[RoadmapTask], saved_start_date: Optional[str] = None) -> Dict[str, Any]:

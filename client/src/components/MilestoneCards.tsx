@@ -1,6 +1,6 @@
 import React from 'react';
 import { RoadmapSummary } from '../types';
-import { Flag, CheckCircle2 } from 'lucide-react';
+import { Flag } from 'lucide-react';
 
 interface Props {
   summary: RoadmapSummary;

@@ -279,6 +279,26 @@ export interface CopilotMessage {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
-  status?: 'sending' | 'saved' | 'failed';
+  status?: 'sending' | 'saved' | 'failed' | 'uncertain';
+  client_msg_id?: string;
   error?: string;
+}
+
+export interface CopilotSendResult {
+  id: string;
+  role: string;
+  content: string;
+  created_at: string;
+  user_message: CopilotMessage;
+  assistant_message?: CopilotMessage;
+  operation_status: 'completed' | 'pending' | 'failed';
+  client_msg_id?: string;
+}
+
+export interface CopilotOperationStatus {
+  client_msg_id: string;
+  status: 'completed' | 'pending' | 'failed';
+  user_message?: CopilotMessage;
+  assistant_message?: CopilotMessage;
+  error_detail?: string;
 }
