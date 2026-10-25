@@ -237,7 +237,46 @@ This register persists progress across phases, documenting findings, affected pa
 ---
 
 ## Phase 6 — Generation Validation, Roadmap Semantics and Retry Intent
-- **Status:** Pending
+
+- **Status:** COMPLETED
+- **Findings & Affected Paths:**
+  1. `server/app/api/modules.py` (`generate_module`):
+     - Unwrapped embedded `planning_inputs` payload when passed by clients.
+     - Added strict preflight schema validation for `RoadmapPlanningRequest` and `TechStackPlanningRequest` before project readiness checks and before provider invocation.
+     - Invalid generation/planning payloads now return controlled HTTP 422 Unprocessable Entity with 0 provider calls, eliminating unhandled 500 errors.
+     - Attached `retry_context` metadata during section modification and version replacement conflict paths.
+  2. `server/app/services/roadmap_service.py` (`normalize_roadmap_schedule`, `canonicalize_incoming_tasks`):
+     - Removed silent date clamping `if end < start: end = start + timedelta(days=6)`; contradictory inverted schedules are preserved as parsed and cleanly rejected during canonicalization.
+     - Updated `canonicalize_incoming_tasks` to raise `IncompatibleTaskGraphError` with `INVALID_DATE_RANGE` on `end_date < start_date`.
+     - Removed `cls.detect_and_break_dependency_cycles(tasks)` from `normalize_roadmap_schedule`; normalization no longer silently destroys dependency edges to manufacture artificial acyclic graphs.
+     - Preserved same-day handover (`dependent.start_date >= prerequisite.end_date`) as valid graph boundaries without schedule conflicts.
+  3. `server/app/core/telemetry.py` (`record_ai_operation`):
+     - Added `retry_context` parameter storing minimal non-secret intent (`planning_inputs`, `instruction`, `module_type`, `operation_type`, `target_version_id`, `replace_version_id`).
+     - Safely recorded intent in the existing `audit_logs` table under `action="ai_operation_intent"` and `target_type="ai_operation"` with 0 schema migrations and zero prompt/credential leakage.
+  4. `server/app/services/module_orchestration_service.py` (`execute_module_generation`):
+     - Moved provenance metadata attachment and `validate_module_payload` inside the provider execution try-block to ensure generated blueprints are strictly validated before persistence.
+     - Attached `retry_context` to both failed and persisted operations.
+  5. `server/app/api/admin/ai_ops.py` (`retry_failed_operation`):
+     - Recovers original user planning intent from `AuditLog` (`action="ai_operation_intent"`).
+     - Retries user-specific roadmaps and tech stacks with their exact original inputs (`start_date`, `horizon_weeks`, `checklist`, `team_capacity`) instead of guessing with generic defaults.
+     - Retries modifications with original user instructions.
+     - Rejects unsupported legacy operations (where intent was not captured) with a controlled HTTP 400 Bad Request explanation rather than guessing or mutating user work.
+     - Strictly validates generated output via `validate_module_payload` before persistence and propagates intent along the retry lineage.
+- **Test Evidence:**
+  - `server/tests/test_correction_phase_06_generation_validation_and_roadmap.py` (9/9 passed in 7.82s):
+    - `test_invalid_planning_request_returns_422_with_zero_provider_calls`
+    - `test_missing_foreign_task_references_rejected`
+    - `test_circular_dependency_detected_and_not_silently_removed`
+    - `test_invalid_dates_rejected_and_not_silently_clamped`
+    - `test_valid_equality_boundary_same_day_handover_accepted`
+    - `test_retry_preserves_original_user_planning_intent`
+    - `test_unsupported_legacy_retry_returns_controlled_explanation`
+    - `test_provider_success_plus_persistence_conflict_preserves_content`
+    - `test_snapshot_and_working_tasks_consistency_after_successful_generation`
+  - Regression suite (61/61 passed in 28.20s across Phase 3, 4, 5, 6, Admin ops, AI failure modes, and end-to-end catalogue).
+- **Commit SHA:** `4c575aee5c5674c391694f8373b3060cb59fbb1c`
+- **Remaining Limitations:** None. Structured graph errors and retry intent preservation operate with zero production database migrations.
+- **Production Config / Migration Requirements:** None. Uses existing `audit_logs.details` JSON column.
 
 ---
 
