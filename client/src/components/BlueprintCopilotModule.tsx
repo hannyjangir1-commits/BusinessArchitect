@@ -320,11 +320,26 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   const [input, setInput] = useState(() => (userScope ? getDraft<string>(userScope, 'copilot_input', project.id) || '' : ''));
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Deduplicate messages by id preserving chronological order
+  const displayMessages = React.useMemo(() => {
+    const seen = new Set<string>();
+    const unique: CopilotMessage[] = [];
+    for (const m of (messages || [])) {
+      if (m && m.id && !seen.has(m.id)) {
+        seen.add(m.id);
+        unique.push(m);
+      } else if (m && !m.id) {
+        unique.push(m);
+      }
+    }
+    return unique;
+  }, [messages]);
+
   useEffect(() => {
     if (typeof chatBottomRef.current?.scrollIntoView === 'function') {
       chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isLoading]);
+  }, [displayMessages, isLoading]);
 
   // Persist unsent draft input
   useEffect(() => {
@@ -399,7 +414,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
 
       {/* Messages Stream */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {messages.length === 0 ? (
+        {displayMessages.length === 0 ? (
           <div style={{ textAlign: 'center', margin: 'auto 0', maxWidth: 540, alignSelf: 'center' }}>
             <div style={{
               width: 50,
@@ -434,7 +449,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          messages.map((m) => {
+          displayMessages.map((m) => {
             const isUser = m.role === 'user';
             return (
               <div

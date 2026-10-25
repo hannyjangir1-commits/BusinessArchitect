@@ -1,5 +1,5 @@
-import re
-from fastapi import APIRouter, Depends, HTTPException, Response
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.all_models import Project, ModuleContent, ModuleVersion, RoadmapTask
@@ -8,13 +8,12 @@ from app.api.deps import get_user_project
 from app.core.telemetry import record_analytics_event
 from app.core.business_stage import normalize_business_stage
 from app.core.module_types import normalize_module_type
+from app.core.exports import format_content_disposition
 from app.services.project_context_service import read_project_context, find_module, active_version, current_module_data
 
-router = APIRouter(prefix="/projects/{project_id}/export", tags=["Exports"])
+logger = logging.getLogger(__name__)
 
-def _slugify(text: str) -> str:
-    text = re.sub(r'[^\w\s-]', '', text).strip().lower()
-    return re.sub(r'[-\s]+', '_', text)
+router = APIRouter(prefix="/projects/{project_id}/export", tags=["Exports"])
 
 @router.get("/pdf")
 def export_full_project_pdf(
@@ -25,6 +24,12 @@ def export_full_project_pdf(
     Exports a consolidated multi-page PDF covering all active modules.
     Explicitly excludes Copilot messages, version history, and audit records.
     """
+    if not PDFService.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDF export service is temporarily unavailable: missing export engine."
+        )
+
     proj_dict = {
         "name": project.name,
         "stage": normalize_business_stage(project.stage),
@@ -60,15 +65,24 @@ def export_full_project_pdf(
 
     try:
         pdf_bytes = PDFService.generate_full_project_pdf(proj_dict, modules_data, tasks_list)
-        filename = f"{_slugify(project.name)}_enterprise_blueprint.pdf"
+        disposition = format_content_disposition(
+            f"{project.name}_enterprise_blueprint",
+            fallback="enterprise_blueprint"
+        )
         record_analytics_event(db, user_id=project.user_id, project_id=project.id, event_name="export_pdf")
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": disposition}
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate project PDF: {str(e)}")
+        logger.error("Failed to generate project PDF for project %s: %s", project.id, type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate project PDF. Please retry shortly."
+        )
 
 @router.get("/modules/{module_type}/pdf")
 def export_module_pdf(
@@ -77,6 +91,12 @@ def export_module_pdf(
     db: Session = Depends(get_db)
 ):
     """Exports a dedicated PDF for a single specified module."""
+    if not PDFService.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDF export service is temporarily unavailable: missing export engine."
+        )
+
     proj_dict = {
         "name": project.name,
         "stage": normalize_business_stage(project.stage),
@@ -92,11 +112,20 @@ def export_module_pdf(
 
     try:
         pdf_bytes = PDFService.generate_single_module_pdf(proj_dict, module_type, module_data)
-        filename = f"{_slugify(project.name)}_{module_type}.pdf"
+        disposition = format_content_disposition(
+            f"{project.name}_{module_type}",
+            fallback=f"{module_type}_blueprint"
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": disposition}
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to export module PDF: {str(e)}")
+        logger.error("Failed to export module PDF for project %s module %s: %s", project.id, module_type, type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export {module_type} module PDF. Please retry shortly."
+        )

@@ -397,9 +397,11 @@ def bulk_delete_projects(
         db.commit()
     except Exception as e:
         db.rollback()
+        import logging
+        logging.getLogger(__name__).error("Failed to delete projects: %s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete projects: {str(e)}"
+            detail="Failed to delete projects due to an internal error."
         )
 
     return BulkDeleteProjectsResponse(

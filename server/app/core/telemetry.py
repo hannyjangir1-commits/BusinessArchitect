@@ -79,7 +79,7 @@ def record_ai_operation(
         return op
     except Exception as e:
         db.rollback()
-        logger.error("Failed to record AI operation telemetry: %s", str(e))
+        logger.error("Failed to record AI operation telemetry: %s", type(e).__name__)
         return None
 
 def record_analytics_event(
@@ -107,7 +107,7 @@ def record_analytics_event(
         return evt
     except Exception as e:
         db.rollback()
-        logger.error("Failed to record analytics event: %s", str(e))
+        logger.error("Failed to record analytics event: %s", type(e).__name__)
         return None
 
 def record_security_event(
@@ -143,7 +143,7 @@ def record_security_event(
             return sec
         except Exception as e:
             sec_db.rollback()
-            logger.error("Failed to record security event: %s", str(e))
+            logger.error("Failed to record security event: %s", type(e).__name__)
             return None
 
 def record_audit_log(
@@ -175,5 +175,5 @@ def record_audit_log(
         return log_entry
     except Exception as e:
         db.rollback()
-        logger.error("Failed to record administrative audit log: %s", str(e))
+        logger.error("Failed to record administrative audit log: %s", type(e).__name__)
         return None

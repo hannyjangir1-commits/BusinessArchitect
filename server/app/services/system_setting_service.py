@@ -22,7 +22,7 @@ def get_setting_raw(db: Session, key: str) -> Optional[SystemSetting]:
     try:
         return db.query(SystemSetting).filter(SystemSetting.key == key).first()
     except Exception as e:
-        logger.warning("Failed to query system setting '%s': %s", key, str(e))
+        logger.warning("Failed to query system setting '%s': %s", key, type(e).__name__)
         return None
 
 def get_setting_int(db: Session, key: str, default: Optional[int] = None) -> int:
@@ -132,7 +132,7 @@ def _fetch_maintenance_from_db_worker(ttl_seconds: float = MAINTENANCE_CACHE_TTL
         update_maintenance_cache(val, ttl_seconds)
         return val
     except Exception as e:
-        logger.warning("Failed to refresh cached maintenance mode from database: %s", str(e))
+        logger.warning("Failed to refresh cached maintenance mode from database: %s", type(e).__name__)
         with _maintenance_cache_lock:
             if _cached_maintenance_value is not None:
                 return _cached_maintenance_value
@@ -158,7 +158,7 @@ def get_maintenance_mode_cached(
             update_maintenance_cache(val, ttl_seconds)
             return val
         except Exception as e:
-            logger.warning("Failed to refresh cached maintenance mode from database: %s", str(e))
+            logger.warning("Failed to refresh cached maintenance mode from database: %s", type(e).__name__)
             with _maintenance_cache_lock:
                 if _cached_maintenance_value is not None:
                     return _cached_maintenance_value

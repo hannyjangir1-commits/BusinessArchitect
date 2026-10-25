@@ -24,6 +24,7 @@ from app.api.deps import get_user_project, verify_csrf
 from app.core.telemetry import record_ai_operation, record_analytics_event
 from app.core.business_stage import normalize_business_stage
 from app.core.module_types import normalize_module_type
+from app.core.exports import format_content_disposition
 from app.services.task_graph_validator import project_first_lock
 from app.core.ai_limiter import check_ai_rate_limit
 
@@ -635,7 +636,7 @@ def resolve_version_conflict(
         except Exception as e:
             dur_ms = int((time.time() - t0) * 1000)
             terminal_provider_error = ai_service._terminal_provider_error_message(e)
-            err_msg = terminal_provider_error or str(e)
+            err_msg = terminal_provider_error or "An unexpected internal error occurred during conflict resolution."
             try:
                 with SessionLocal() as telemetry_db:
                     record_ai_operation(
@@ -838,6 +839,12 @@ def export_module_pdf_alias(
     proj_dict = _get_project_dict(project)
     module = _get_or_create_canonical_module(db, project.id, module_type)
 
+    if not PDFService.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDF export service is temporarily unavailable: missing export engine."
+        )
+
     if not module or not module.active_version_id:
         # If overview or default, generate fallback data
         if module_type == "overview":
@@ -852,11 +859,22 @@ def export_module_pdf_alias(
 
     try:
         pdf_bytes = PDFService.generate_single_module_pdf(proj_dict, module_type, mod_data)
+        disposition = format_content_disposition(
+            f"{project.name}_{module_type}",
+            fallback=f"{module_type}_blueprint"
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{project.name}_{module_type}.pdf"'}
+            headers={"Content-Disposition": disposition}
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to export module PDF: {str(e)}")
+        import logging
+        logging.getLogger(__name__).error("Failed to export module PDF for %s: %s", module_type, type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export {module_type} module PDF. Please retry shortly."
+        )
 

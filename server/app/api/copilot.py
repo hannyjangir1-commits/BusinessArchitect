@@ -1,5 +1,6 @@
+import logging
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.models.all_models import Project, CopilotMessage, User
@@ -9,17 +10,25 @@ from app.api.deps import get_user_project, verify_csrf
 from app.core.business_stage import normalize_business_stage
 from app.core.ai_limiter import check_ai_rate_limit
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/projects/{project_id}/copilot", tags=["Blueprint Copilot"])
 
 @router.get("", response_model=List[CopilotMessageResponse])
 def get_chat_history(
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of messages to return (1-200)"),
+    offset: int = Query(0, ge=0, description="Number of messages to skip"),
+    order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order by creation time ('asc' or 'desc')"),
     project: Project = Depends(get_user_project),
     db: Session = Depends(get_db)
 ):
-    messages = db.query(CopilotMessage).filter(
-        CopilotMessage.project_id == project.id
-    ).order_by(CopilotMessage.created_at.asc()).all()
-    return messages
+    query = db.query(CopilotMessage).filter(CopilotMessage.project_id == project.id)
+    if order == "desc":
+        query = query.order_by(CopilotMessage.created_at.desc(), CopilotMessage.id.desc())
+    else:
+        query = query.order_by(CopilotMessage.created_at.asc(), CopilotMessage.id.asc())
+
+    return query.offset(offset).limit(limit).all()
 
 @router.post("", response_model=CopilotMessageResponse, dependencies=[Depends(verify_csrf)])
 def send_chat_message(
@@ -38,12 +47,16 @@ def send_chat_message(
     db.add(user_msg)
     db.commit()
 
-    # Retrieve history for context
-    past_messages = db.query(CopilotMessage).filter(
-        CopilotMessage.project_id == project.id
-    ).order_by(CopilotMessage.created_at.asc()).all()
-
-    history_dicts = [{"role": m.role, "content": m.content} for m in past_messages]
+    # Retrieve bounded recent history for provider context (independently of stored history)
+    recent_messages = (
+        db.query(CopilotMessage)
+        .filter(CopilotMessage.project_id == project.id, CopilotMessage.id != user_msg.id)
+        .order_by(CopilotMessage.created_at.desc(), CopilotMessage.id.desc())
+        .limit(20)
+        .all()
+    )
+    recent_messages.reverse()
+    history_dicts = [{"role": m.role, "content": m.content} for m in recent_messages]
 
     # Read authorized snapshots without changing any source module.
     from app.services.project_context_service import read_project_context
@@ -95,7 +108,8 @@ def send_chat_message(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("Planning Copilot error: %s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Planning Copilot error: {str(e)}"
+            detail="Planning Copilot failed to process the request. Please retry shortly."
         ) from e

@@ -355,7 +355,7 @@ def retry_failed_operation(
     except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
         terminal_provider_error = ai_service._terminal_provider_error_message(e)
-        err_msg = terminal_provider_error or str(e)
+        err_msg = terminal_provider_error or "An internal error occurred during admin retry execution."
         try:
             with SessionLocal() as fail_db:
                 failed_retry_record = AIOperation(

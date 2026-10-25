@@ -174,7 +174,11 @@ async def diagnostics_middleware(request: Request, call_next):
                 "sql_commits": diag.sql.commits,
             }
         )
-        raise exc
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "An internal server error occurred.", "request_id": req_id},
+            headers={"X-Request-ID": req_id}
+        )
     else:
         total_duration_ms = (time.perf_counter() - t_start) * 1000.0
         route_template = normalize_route_template(request)
@@ -336,6 +340,43 @@ app.add_middleware(TrustedProxyMiddleware)
 
 # API Routers
 api_v1 = FastAPI(title="API V1")
+
+# Global sanitized exception handlers with correlation IDs
+async def global_unhandled_exception_handler(request: Request, exc: Exception):
+    from app.core.diagnostics import _current_request_id
+    req_id = _current_request_id.get() or "unknown"
+    import logging
+    logging.getLogger("uvicorn.error").error(
+        f"Unhandled exception on {request.method} {request.url.path} [request_id={req_id}]: {type(exc).__name__}"
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "An internal server error occurred.",
+            "request_id": req_id
+        },
+        headers={"X-Request-ID": req_id}
+    )
+
+async def global_http_exception_handler(request: Request, exc: HTTPException):
+    from app.core.diagnostics import _current_request_id
+    req_id = _current_request_id.get() or "unknown"
+    headers = dict(exc.headers or {})
+    headers["X-Request-ID"] = req_id
+    content = {"detail": exc.detail}
+    if exc.status_code >= 500:
+        content["request_id"] = req_id
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=content,
+        headers=headers
+    )
+
+app.add_exception_handler(Exception, global_unhandled_exception_handler)
+app.add_exception_handler(HTTPException, global_http_exception_handler)
+api_v1.add_exception_handler(Exception, global_unhandled_exception_handler)
+api_v1.add_exception_handler(HTTPException, global_http_exception_handler)
+
 api_v1.include_router(auth.router)
 api_v1.include_router(projects.router)
 api_v1.include_router(modules.router)

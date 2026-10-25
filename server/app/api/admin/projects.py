@@ -246,6 +246,13 @@ def delete_project(
         )
 
         return {"message": f"Project '{proj_name}' has been permanently deleted."}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
+        import logging
+        logging.getLogger(__name__).error("Failed to delete project %s: %s", project_id, type(e).__name__)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete project due to an internal error."
+        )

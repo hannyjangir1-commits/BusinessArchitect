@@ -2,22 +2,31 @@ import io
 from html import escape
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
-)
-
-# Copper & Paper export palette matches the application.
-PRIMARY = colors.HexColor("#955137")
-PRIMARY_DARK = colors.HexColor("#955137")
-SECONDARY = colors.HexColor("#955137")
-NEUTRAL_DARK = colors.HexColor("#453C37")
-NEUTRAL_MID = colors.HexColor("#453C37")
-NEUTRAL_LIGHT = colors.HexColor("#FAF7F2")
-CARD_BG = colors.HexColor("#FAF7F2")
-BORDER_COLOR = colors.HexColor("#DED0C2")
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
+    )
+    REPORTLAB_AVAILABLE = True
+    # Copper & Paper export palette matches the application.
+    PRIMARY = colors.HexColor("#955137")
+    PRIMARY_DARK = colors.HexColor("#955137")
+    SECONDARY = colors.HexColor("#955137")
+    NEUTRAL_DARK = colors.HexColor("#453C37")
+    NEUTRAL_MID = colors.HexColor("#453C37")
+    NEUTRAL_LIGHT = colors.HexColor("#FAF7F2")
+    CARD_BG = colors.HexColor("#FAF7F2")
+    BORDER_COLOR = colors.HexColor("#DED0C2")
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+    letter = None
+    colors = None
+    getSampleStyleSheet = None
+    ParagraphStyle = None
+    SimpleDocTemplate = Paragraph = Spacer = Table = TableStyle = PageBreak = KeepTogether = HRFlowable = None
+    PRIMARY = PRIMARY_DARK = SECONDARY = NEUTRAL_DARK = NEUTRAL_MID = NEUTRAL_LIGHT = CARD_BG = BORDER_COLOR = None
 
 
 def _export_data(value):
@@ -32,6 +41,11 @@ def _export_data(value):
     return value
 
 class PDFService:
+    @classmethod
+    def is_available(cls) -> bool:
+        """Returns True if the required reportlab export engine is installed and operational."""
+        return REPORTLAB_AVAILABLE
+
     @staticmethod
     def _create_styles():
         styles = getSampleStyleSheet()
@@ -127,6 +141,8 @@ class PDFService:
         Generates a consolidated enterprise blueprint PDF containing all active modules.
         Explicitly excludes version history, copilot conversations, and audit records.
         """
+        if not cls.is_available():
+            raise RuntimeError("PDF export dependency 'reportlab' is not installed or available.")
         project_dict = _export_data(project_dict)
         modules_data = _export_data(modules_data)
         tasks_list = _export_data(tasks_list)
@@ -457,6 +473,8 @@ class PDFService:
         module_data: Dict[str, Any]
     ) -> bytes:
         """Generates a PDF dedicated solely to the single specified module."""
+        if not cls.is_available():
+            raise RuntimeError("PDF export dependency 'reportlab' is not installed or available.")
         project_dict = _export_data(project_dict)
         module_data = _export_data(module_data)
         buffer = io.BytesIO()
