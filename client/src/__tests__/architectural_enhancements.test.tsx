@@ -153,11 +153,28 @@ describe('BMCModule Multi-Framework and Epistemic States', () => {
     versions: [],
   };
 
-  it('renders framework selector dropdown and switches to Lean Canvas', () => {
+  it('renders Lean Canvas layout when version framework is lean_canvas', () => {
+    const mockDetailLean: ModuleDetail<any> = {
+      ...mockDetail,
+      framework_type: 'lean_canvas',
+      data: {
+        framework_type: 'lean_canvas',
+        problem: ['Bike chain snaps frequently'],
+        solution: ['Mobile emergency tool trailer'],
+        key_metrics: ['Average turnaround minutes'],
+        unique_value_proposition: ['15-minute express campus repair'],
+        unfair_advantage: ['Exclusive campus permit'],
+        channels: ['Campus flyers'],
+        customer_segments: ['Commuter students'],
+        cost_structure: ['Student mechanic wages'],
+        revenue_streams: ['Pay-per-repair fees']
+      }
+    };
+
     render(
       <BMCModule
         project={mockProject}
-        moduleDetail={mockDetail}
+        moduleDetail={mockDetailLean}
         onGenerate={vi.fn()}
         onModify={vi.fn()}
         onRenameVersion={vi.fn()}
@@ -168,20 +185,29 @@ describe('BMCModule Multi-Framework and Epistemic States', () => {
       />
     );
 
-    const select = screen.getByRole('combobox');
-    expect(select).toBeDefined();
-
-    // Switch to Lean Canvas
-    fireEvent.change(select, { target: { value: 'lean_canvas' } });
     expect(screen.getByText('1. Problem')).toBeDefined();
     expect(screen.getByText('4. Unique Value Prop')).toBeDefined();
   });
 
-  it('switches to Value Proposition Canvas', () => {
+  it('renders Value Proposition Canvas layout when version framework is value_prop_canvas', () => {
+    const mockDetailValueProp: ModuleDetail<any> = {
+      ...mockDetail,
+      framework_type: 'value_prop_canvas',
+      data: {
+        framework_type: 'value_prop_canvas',
+        customer_jobs: ['Commute to class on time'],
+        customer_pains: ['Flat tire during midterms'],
+        customer_gains: ['Fast mobile repair'],
+        products_and_services: ['On-demand mechanic dispatch'],
+        pain_relievers: ['Instant student dispatch notification'],
+        gain_creators: ['Quarterly tune-up subscription']
+      }
+    };
+
     render(
       <BMCModule
         project={mockProject}
-        moduleDetail={mockDetail}
+        moduleDetail={mockDetailValueProp}
         onGenerate={vi.fn()}
         onModify={vi.fn()}
         onRenameVersion={vi.fn()}
@@ -192,8 +218,6 @@ describe('BMCModule Multi-Framework and Epistemic States', () => {
       />
     );
 
-    const select = screen.getByRole('combobox');
-    fireEvent.change(select, { target: { value: 'value_prop_canvas' } });
     expect(screen.getByText('Customer Profile')).toBeDefined();
     expect(screen.getByText('Value Map')).toBeDefined();
     expect(screen.getByText('Customer Jobs')).toBeDefined();

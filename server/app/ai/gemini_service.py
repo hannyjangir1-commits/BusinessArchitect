@@ -19,14 +19,16 @@ from google.genai import types
 from pydantic import BaseModel, Field, create_model
 
 from app.ai.prompts import (
-    BRIEF_SYSTEM_PROMPT, BMC_SYSTEM_PROMPT, TECH_STACK_SYSTEM_PROMPT,
+    BRIEF_SYSTEM_PROMPT, BMC_SYSTEM_PROMPT, LEAN_CANVAS_SYSTEM_PROMPT,
+    VALUE_PROP_CANVAS_SYSTEM_PROMPT, TECH_STACK_SYSTEM_PROMPT,
     IDEA_VALIDATOR_SYSTEM_PROMPT, MARKET_RESEARCH_SYSTEM_PROMPT,
     ROADMAP_SYSTEM_PROMPT, SECTION_MODIFICATION_SYSTEM_PROMPT,
     COPILOT_SYSTEM_PROMPT, SECURITY_SYSTEM_PROMPT, SCOPE_SYSTEM_PROMPT,
 )
 from app.core.config import settings
 from app.schemas.modules import (
-    GenerationBrief, BMCData, TechStackData, IdeaValidatorData,
+    GenerationBrief, BMCData, LeanCanvasData, ValuePropositionCanvasData,
+    TechStackData, IdeaValidatorData,
     MarketResearchData, ResearchSource, ExecutionRoadmapData,
 )
 from app.services.system_setting_service import get_setting_int
@@ -661,16 +663,191 @@ class GeminiAIService:
         payload["private_generation_brief"] = brief.model_dump(mode="json")
         return payload
 
-    def generate_bmc(self, project_info: Dict[str, Any], brief: Optional[GenerationBrief] = None, cross_module_context: Optional[Dict[str, Any]] = None) -> BMCData:
+    def generate_bmc(
+        self,
+        project_info: Dict[str, Any],
+        brief: Optional[GenerationBrief] = None,
+        cross_module_context: Optional[Dict[str, Any]] = None,
+        planning_inputs: Optional[Dict[str, Any]] = None,
+    ) -> Union[BMCData, LeanCanvasData, ValuePropositionCanvasData]:
+        framework_type = (planning_inputs or {}).get("framework_type") or "standard_bmc"
+        if framework_type not in ("standard_bmc", "lean_canvas", "value_prop_canvas"):
+            raise ValueError(f"Unsupported business model framework: {framework_type}")
+
         if not self._configured_api_keys():
+            if framework_type == "lean_canvas":
+                return self._generate_offline_lean_canvas(project_info)
+            elif framework_type == "value_prop_canvas":
+                return self._generate_offline_value_prop(project_info)
             return self._generate_offline_bmc(project_info)
+
         payload = self._generation_payload(project_info, "bmc", brief, cross_module_context)
-        result = self._execute_json_prompt(BMC_SYSTEM_PROMPT, self._request_text("Generate the complete Business Model Canvas.", payload), BMCData)
-        output = BMCData.model_validate(result)
-        for name in ("customer_segments", "value_propositions", "channels", "customer_relationships", "revenue_streams", "key_resources", "key_activities", "key_partnerships", "cost_structure"):
-            if not all(item.strip() for item in getattr(output, name)):
-                raise ValueError("The canvas contains an empty block item and was not saved.")
-        return output
+        payload["framework_type"] = framework_type
+
+        if framework_type == "lean_canvas":
+            result = self._execute_json_prompt(
+                LEAN_CANVAS_SYSTEM_PROMPT,
+                self._request_text("Generate the complete Lean Canvas.", payload),
+                LeanCanvasData
+            )
+            output = LeanCanvasData.model_validate(result)
+            output.framework_type = "lean_canvas"
+            return output
+        elif framework_type == "value_prop_canvas":
+            result = self._execute_json_prompt(
+                VALUE_PROP_CANVAS_SYSTEM_PROMPT,
+                self._request_text("Generate the complete Value Proposition Canvas.", payload),
+                ValuePropositionCanvasData
+            )
+            output = ValuePropositionCanvasData.model_validate(result)
+            output.framework_type = "value_prop_canvas"
+            return output
+        else:
+            result = self._execute_json_prompt(
+                BMC_SYSTEM_PROMPT,
+                self._request_text("Generate the complete Business Model Canvas.", payload),
+                BMCData
+            )
+            output = BMCData.model_validate(result)
+            output.framework_type = "standard_bmc"
+            for name in ("customer_segments", "value_propositions", "channels", "customer_relationships", "revenue_streams", "key_resources", "key_activities", "key_partnerships", "cost_structure"):
+                if not all(item.strip() for item in getattr(output, name)):
+                    raise ValueError("The canvas contains an empty block item and was not saved.")
+            return output
+
+    @staticmethod
+    def _generate_offline_lean_canvas(project_info: Dict[str, Any]) -> LeanCanvasData:
+        """Create a complete Lean Canvas baseline without live provider quota."""
+        def safe_value(key: str, fallback: str, limit: int = 240) -> str:
+            value = str(project_info.get(key) or fallback).strip()
+            value = re.sub(r"(?i)(ignore all previous instructions|system override|print|output|pwned|hacked)[^\n]*", "", value).strip()
+            return value[:limit] or fallback
+
+        name = safe_value("name", "the venture", 120)
+        industry = safe_value("industry", "the selected industry", 120)
+        description = safe_value("description", "the core customer problem", 300)
+        customers = safe_value("target_customers", "early users in the target market", 240)
+        goals = safe_value("goals", "validate the first customer workflow", 240)
+        stage = safe_value("stage", "Idea", 40)
+        is_software = any(word in f"{industry} {description}".lower() for word in ("software", "saas", "app", "platform", "digital", "tech"))
+
+        return LeanCanvasData.model_validate({
+            "framework_type": "lean_canvas",
+            "tagline": f"A {stage}-stage lean validation model for {name}.",
+            "problem": [
+                f"Inefficient current process for {description[:100]}",
+                "High manual coordination overhead and workflow friction",
+                "Lack of unified visibility into workflow outcomes"
+            ],
+            "existing_alternatives": [
+                "Manual spreadsheets and ad-hoc email communication",
+                "Generic legacy tools not tailored to this workflow"
+            ],
+            "solution": [
+                f"Targeted solution addressing: {goals[:100]}",
+                "Streamlined guided workflow for end users",
+                "Automated status tracking and reporting"
+            ],
+            "key_metrics": [
+                "Weekly active user engagement rate",
+                "Customer onboarding completion rate",
+                "Workflow turnaround cycle time"
+            ],
+            "unique_value_proposition": [
+                f"Purpose-built platform helping {customers} resolve {description[:80]} with measurable time savings."
+            ],
+            "high_level_concept": f"The streamlined {industry} management platform for {customers}",
+            "unfair_advantage": [
+                "Early domain specialization and customer co-design partnership during initial validation"
+            ],
+            "channels": [
+                "Direct outbound interviews with target operators",
+                "Developer and industry community outreach" if is_software else "Specialized industry community forums and referrals"
+            ],
+            "customer_segments": [customers],
+            "early_adopters": [
+                f"Proactive {customers} currently seeking faster alternatives to legacy tools"
+            ],
+            "cost_structure": [
+                "Core product development and hosting infrastructure",
+                "Customer acquisition, onboarding support, and domain research"
+            ],
+            "revenue_streams": [
+                "Subscription or usage-based tier validated during initial pilot cohort"
+            ],
+            "actionable_guidance": {
+                "problem": "Interview 5 target customers to rank the severity of these 3 problems.",
+                "solution": "Demo an interactive wireframe or manual prototype before building full automation.",
+                "uvp": "A/B test the tagline on a simple landing page to measure click-through interest."
+            },
+            "assumptions": [
+                "Target customers experience significant friction with existing alternatives.",
+                "Willingness to pay exists if workflow completion time is halved."
+            ]
+        })
+
+    @staticmethod
+    def _generate_offline_value_prop(project_info: Dict[str, Any]) -> ValuePropositionCanvasData:
+        """Create a complete Value Proposition Canvas baseline without live provider quota."""
+        def safe_value(key: str, fallback: str, limit: int = 240) -> str:
+            value = str(project_info.get(key) or fallback).strip()
+            value = re.sub(r"(?i)(ignore all previous instructions|system override|print|output|pwned|hacked)[^\n]*", "", value).strip()
+            return value[:limit] or fallback
+
+        name = safe_value("name", "the venture", 120)
+        industry = safe_value("industry", "the selected industry", 120)
+        description = safe_value("description", "the core customer problem", 300)
+        customers = safe_value("target_customers", "early users in the target market", 240)
+        goals = safe_value("goals", "validate the first customer workflow", 240)
+
+        return ValuePropositionCanvasData.model_validate({
+            "framework_type": "value_prop_canvas",
+            "customer_jobs": [
+                f"Complete primary operational goal: {goals[:120]}",
+                "Coordinate stakeholders and maintain consistent data across team workflows",
+                "Demonstrate measurable performance and compliance to management"
+            ],
+            "pains": [
+                f"Time lost navigating fragmented processes: {description[:100]}",
+                "Unpredictable errors and lack of standardized audit trail",
+                "High switching costs and resistance to complex software"
+            ],
+            "customer_pains": [
+                f"Time lost navigating fragmented processes: {description[:100]}",
+                "Unpredictable errors and lack of standardized audit trail",
+                "High switching costs and resistance to complex software"
+            ],
+            "gains": [
+                "Predictable, fast completion of daily critical workflows",
+                "Clear real-time visibility into progress and bottleneck identification",
+                "Confidence in accurate outcomes without manual double-checking"
+            ],
+            "customer_gains": [
+                "Predictable, fast completion of daily critical workflows",
+                "Clear real-time visibility into progress and bottleneck identification",
+                "Confidence in accurate outcomes without manual double-checking"
+            ],
+            "products_and_services": [
+                f"{name} Core Workflow Suite tailored for {industry}",
+                "Self-service onboarding templates and guided setup wizards",
+                "Integrated analytics and export reporting"
+            ],
+            "pain_relievers": [
+                "Automates repetitive manual steps, eliminating data re-entry errors",
+                "Provides clear inline status indicators so teams never lose track of tasks",
+                "Zero-overhead setup with gentle learning curve to minimize adoption friction"
+            ],
+            "gain_creators": [
+                "Accelerates task delivery from days to hours with streamlined interfaces",
+                "Provides actionable summary dashboards ready for executive review",
+                "Enables direct collaboration between operators and managers"
+            ],
+            "fit_assessment": f"Strong initial fit hypothesis between {customers} operational jobs and {name} targeted relief of manual coordination pain.",
+            "assumptions": [
+                "Customers prioritize reduction of coordination time over raw feature count.",
+                "The identified pains are painful enough to justify adopting new tooling."
+            ]
+        })
 
     @staticmethod
     def _generate_offline_bmc(project_info: Dict[str, Any]) -> BMCData:
@@ -689,6 +866,7 @@ class GeminiAIService:
         is_software = any(word in f"{industry} {description}".lower() for word in ("software", "saas", "app", "platform", "digital", "electronics", "eda", "pcb"))
         revenue = "Subscription tiers, team plans, and paid onboarding where customers confirm recurring value." if is_software else "Direct product or service sales, with repeat-purchase or package options validated with customers."
         return BMCData.model_validate({
+            "framework_type": "standard_bmc",
             "tagline": f"A {stage}-stage starting model for {name}.",
             "customer_segments": [customers],
             "value_propositions": [f"Help {customers} address {description} through a focused first workflow."],
@@ -1123,27 +1301,26 @@ class GeminiAIService:
     ) -> ScopeDecision:
         if not self._configured_api_keys():
             request = message.lower().strip()
-            # Explicit security attack or credential extraction
-            system_secrets = ("system prompt", "gemini_api_key", "reveal your api key", "ignore all instructions", "hidden instructions")
-            unauthorized_access = ("show another user", "other users' projects", "another user's", "all user accounts")
+
+            # 1. Unauthorized access or system secret extraction (server permissions remain independent)
+            system_secrets = (
+                "system prompt", "gemini_api_key", "reveal your api key", "ignore all instructions",
+                "hidden instructions", "show your prompt", "print secrets", "system instructions",
+                "bypass permissions"
+            )
+            unauthorized_access = ("show another user", "other users' projects", "another user's", "all user accounts", "dump database")
             if any(term in request for term in system_secrets) or any(term in request for term in unauthorized_access):
                 return ScopeDecision(
                     allowed=False,
-                    reason="The request asks for protected system credentials or unauthorized data.",
+                    reason="The request asks for protected system credentials or unauthorized data access.",
                     route="unrelated_or_unauthorized"
                 )
 
-            # Check for ambiguous short fragments
-            if len(request.split()) <= 2 and request.endswith("?") and request in ("why?", "how?", "what?", "and then?", "more?"):
-                return ScopeDecision(
-                    allowed=True,
-                    reason="The request is an ambiguous follow-up; asking for clarification.",
-                    route="ambiguous",
-                    clarification_question="Could you clarify which part of the project or plan you'd like to explore?"
-                )
-
-            # Clearly unrelated topics
-            unrelated_topics = ("celebrity gossip", "weather forecast", "recipe for chocolate", "horoscope", "sports scores", "tell me a joke")
+            # 2. Clearly unrelated non-project topics (previous context does not grant blanket permission)
+            unrelated_topics = (
+                "celebrity gossip", "weather forecast", "recipe for", "horoscope", "sports scores",
+                "tell me a joke", "movie recommendations", "who won the world cup", "write a poem about cats"
+            )
             if any(term in request for term in unrelated_topics):
                 return ScopeDecision(
                     allowed=False,
@@ -1151,36 +1328,73 @@ class GeminiAIService:
                     route="unrelated_or_unauthorized"
                 )
 
+            # 3. Ambiguous fragments without identifiable referent
+            ambiguous_patterns = ("what about that?", "what about that", "what about this?", "why?", "how?", "what?", "and then?", "more?", "what else?", "elaborate?")
+            if request in ambiguous_patterns or (len(request.split()) <= 3 and request.endswith("?") and not any(term in request for term in ("login", "auth", "cost", "price", "stack", "tech", "task", "roadmap", "risk"))):
+                return ScopeDecision(
+                    allowed=True,
+                    reason="The request is an ambiguous follow-up; asking for clarification.",
+                    route="ambiguous",
+                    clarification_question="Could you clarify which part of the project or plan you'd like to explore?"
+                )
+
+            # 4. Supporting business / technical / economic concepts
             supporting_concepts = (
-                "what does", "explain", "definition of", "how does", "what is",
+                "what does", "explain", "definition of", "how does", "what is", "difference between",
                 "gross margin", "flywheel", "burn rate", "churn", "tam", "sam", "som", "unit economics",
-                "postgresql", "mongodb", "docker", "kubernetes", "sheets", "excel", "oauth", "jwt"
+                "contribution margin", "runway", "cac", "ltv", "ebitda", "operating cash", "working capital",
+                "postgresql", "mongodb", "docker", "kubernetes", "sheets", "excel", "oauth", "jwt",
+                "rest api", "graphql", "microservices", "serverless", "acid", "redis", "elasticsearch"
             )
             is_supporting = any(term in request for term in supporting_concepts)
+
+            # 5. Direct module modification directives
+            directive_verbs = (
+                "add", "create", "remove", "delete", "update", "modify", "change", "include", "replace",
+                "focus", "focus on", "prioritize", "integrate", "scale", "build", "expand", "shift",
+                "target", "refine", "detail", "incorporate", "align", "improve", "optimize", "reduce",
+                "increase", "make it", "make our", "make the"
+            )
+            is_directive = any(request.startswith(verb) or f" {verb} " in f" {request} " for verb in directive_verbs)
 
             scope_terms = (
                 "business", "project", "venture", "customer", "market", "pricing", "price", "revenue", "product", "software",
                 "technology", "tech stack", "architecture", "roadmap", "execution", "budget", "validation", "competitor",
                 "launch", "feature", "workflow", "industry", "growth", "team", "mvp", "idea", "sales", "sell", "eda", "pcb",
-                "security", "login", "auth", "cost", "margin", "cheaper", "sheets", "database", "api", "service", "repair",
-                "student", "user", "client", "plan", "task", "work", "goal"
+                "security", "login", "auth", "credentials", "cost", "margin", "cheaper", "sheets", "database", "api", "service", "repair",
+                "student", "user", "client", "plan", "task", "work", "goal", "waste", "recycling", "clean", "filter", "pilot",
+                "emission", "environmental", "solution", "problem", "channel", "partner", "partnership", "value prop"
             )
-            project_terms = [str(project_info.get(key) or "").lower() for key in ("name", "industry", "description", "target_customers")]
+            project_terms = [str(project_info.get(key) or "").lower() for key in ("name", "industry", "description", "target_customers", "goals")]
+            project_words = [w for term in project_terms for w in term.replace("/", " ").replace("-", " ").split() if len(w) > 3]
 
-            recent_context_match = False
-            if chat_history:
-                recent_user_or_asst = " ".join([m.get("content", "").lower() for m in chat_history[-3:]])
-                if any(k in recent_user_or_asst for k in ("pricing", "cost", "technology", "stack", "sheets", "roadmap", "feature", "login")):
-                    recent_context_match = True
+            # Context-sensitive relative instructions (e.g. "make it cheaper", "faster", "more secure")
+            relative_modifications = ("cheaper", "faster", "more secure", "less expensive", "simpler", "easier", "more scalable")
+            is_relative = any(term in request for term in relative_modifications)
 
-            in_scope = any(term in request for term in scope_terms) or any(term and term in request for term in project_terms) or recent_context_match
+            matches_scope_terms = any(term in request for term in scope_terms)
+            matches_project_terms = any(w in request for w in project_words)
 
-            if in_scope or is_supporting:
-                route = "supporting_concept" if (is_supporting and not any(term and term in request for term in project_terms)) else "clearly_relevant"
+            # If modifying a specific module, any domain directive or scope term is clearly relevant
+            if module_type and (is_directive or matches_scope_terms or matches_project_terms):
                 return ScopeDecision(
                     allowed=True,
-                    reason="The request is relevant to the active project or provides a supporting concept.",
-                    route=route
+                    reason=f"The request is a valid modification instruction for the {module_type} module.",
+                    route="clearly_relevant"
+                )
+
+            if is_supporting:
+                return ScopeDecision(
+                    allowed=True,
+                    reason="The request asks to explain a supporting business, financial, or architectural concept.",
+                    route="supporting_concept"
+                )
+
+            if matches_scope_terms or matches_project_terms or (is_relative and chat_history):
+                return ScopeDecision(
+                    allowed=True,
+                    reason="The request is relevant to the active project workspace.",
+                    route="clearly_relevant"
                 )
 
             return ScopeDecision(
@@ -1218,29 +1432,65 @@ class GeminiAIService:
         decision = self._scope_decision(project_info or {}, instruction, scoped_context, module_type)
         if not decision.allowed:
             raise ValueError("This request is outside the current module. Open the appropriate module to request that change.")
+        schema = MODULE_SCHEMAS[module_type]
+        if module_type == "bmc":
+            framework = current_data.get("framework_type") or "standard_bmc"
+            if framework == "lean_canvas":
+                schema = LeanCanvasData
+            elif framework == "value_prop_canvas":
+                schema = ValuePropositionCanvasData
+            else:
+                schema = BMCData
+
         if not self._configured_api_keys():
             new_data = copy.deepcopy(current_data)
             change_summary = f"Planned modification: {instruction.strip()[:100]}"
             if module_type == "bmc":
-                revs = new_data.setdefault("revenue_streams", [])
-                revs.append(f"Proposed: {instruction.strip()[:80]}")
+                framework = current_data.get("framework_type") or "standard_bmc"
+                if framework == "lean_canvas":
+                    new_data.setdefault("solution", []).append(f"Proposed: {instruction.strip()[:80]}")
+                elif framework == "value_prop_canvas":
+                    new_data.setdefault("products_and_services", []).append(f"Proposed: {instruction.strip()[:80]}")
+                else:
+                    new_data.setdefault("revenue_streams", []).append(f"Proposed: {instruction.strip()[:80]}")
             elif module_type == "idea_validator":
-                new_data.setdefault("critical_assumptions", []).append(instruction.strip()[:80])
+                new_data.setdefault("risks", []).append({
+                    "risk": instruction.strip()[:80],
+                    "severity": "Medium",
+                    "mitigation": "Planned validation step"
+                })
             elif module_type == "tech_stack":
-                new_data.setdefault("key_technologies", []).append(instruction.strip()[:80])
+                new_data.setdefault("recommendations", []).append({
+                    "technology": f"Proposed: {instruction.strip()[:40]}",
+                    "category": "Services",
+                    "purpose": instruction.strip()[:100],
+                    "suitability": "Evaluated during offline planning.",
+                    "estimated_cost_tier": "Low / Free Tier",
+                })
             elif module_type == "market_research":
-                new_data.setdefault("direct_competitors", []).append(instruction.strip()[:80])
+                new_data.setdefault("competitors", []).append({
+                    "name": f"Competitor ({instruction.strip()[:30]})",
+                    "strengths": ["Market presence"],
+                    "weaknesses": ["To be evaluated"],
+                    "differentiation": "Unique customer workflow"
+                })
             elif module_type == "execution_roadmap":
-                if "phases" in new_data and new_data["phases"]:
-                    new_data["phases"][0].setdefault("tasks", []).append({
-                        "id": "t_offline", "code": "OFF-1", "title": instruction.strip()[:60],
-                        "estimated_effort_hours": 8, "status": "pending",
-                        "start_date": date.today().isoformat(),
-                        "due_date": (date.today() + timedelta(days=7)).isoformat()
-                    })
-            return new_data, change_summary
+                tasks = new_data.setdefault("tasks", [])
+                tasks.append({
+                    "task_code": f"TSK-MOD-{len(tasks) + 1}",
+                    "title": instruction.strip()[:80],
+                    "phase": new_data.get("phases", [{}])[0].get("name", "Phase 1 - Validation") if new_data.get("phases") else "Phase 1 - Validation",
+                    "timeline": "30-day",
+                    "start_date": date.today().isoformat(),
+                    "end_date": (date.today() + timedelta(days=14)).isoformat(),
+                    "priority": "Medium",
+                    "status": "Pending",
+                    "is_ai_generated": False
+                })
+            # Ensure output is strictly schema-valid
+            validated = schema.model_validate(new_data)
+            return validated.model_dump(mode="json"), change_summary
 
-        schema = MODULE_SCHEMAS[module_type]
         wrapper_schema = create_model("ScopedModuleChange", change_summary=(str, ...), data=(schema, ...))
         payload = self._context_payload(project_info or {}, scoped_context)
         payload.update({"target_module": module_type, "allowed_scope": MODULE_SCOPES[module_type], "current_data": self._clean_data(schema.model_validate(current_data).model_dump(mode="json")), "requested_change": instruction})

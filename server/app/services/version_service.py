@@ -218,6 +218,7 @@ class VersionService:
                 ModuleVersion.module_content_id,
                 ModuleVersion.version_number,
                 ModuleVersion.version_name,
+                ModuleVersion.framework_type,
                 ModuleVersion.change_summary,
                 ModuleVersion.is_active,
                 ModuleVersion.created_at,
@@ -287,11 +288,18 @@ class VersionService:
                     "overview": "Overview"
                 }.get(module.module_type, "Version")
                 version_name = custom_name or f"{default_prefix} V{next_number}"
+                fw_type = data.get("framework_type") if isinstance(data, dict) else None
+                if not fw_type:
+                    fw_type = getattr(module, "framework_type", "standard_bmc") or "standard_bmc"
+                if fw_type == "standard":
+                    fw_type = "standard_bmc"
+                module.framework_type = fw_type
 
                 new_version = ModuleVersion(
                     module_content_id=module.id,
                     version_number=next_number,
                     version_name=version_name,
+                    framework_type=fw_type,
                     data=data,
                     change_summary=change_summary or f"Created {version_name}",
                     is_active=True
@@ -355,11 +363,18 @@ class VersionService:
                     "overview": "Overview"
                 }.get(module.module_type, "Version")
                 v_name = new_name or f"{default_prefix} V{next_num}"
+                fw_type = new_data.get("framework_type") if isinstance(new_data, dict) else None
+                if not fw_type:
+                    fw_type = getattr(module, "framework_type", "standard_bmc") or "standard_bmc"
+                if fw_type == "standard":
+                    fw_type = "standard_bmc"
+                module.framework_type = fw_type
 
                 new_ver = ModuleVersion(
                     module_content_id=module.id,
                     version_number=next_num,
                     version_name=v_name,
+                    framework_type=fw_type,
                     data=new_data,
                     change_summary=change_summary or f"Created {v_name} (replaced {target_name})",
                     is_active=True
@@ -471,6 +486,8 @@ class VersionService:
                     flag_modified(v, "is_active")
 
                 module.active_version_id = target.id
+                if target.framework_type:
+                    module.framework_type = "standard_bmc" if target.framework_type == "standard" else target.framework_type
 
                 if module.module_type in ("execution_roadmap", "detailed_roadmap"):
                     VersionService.sync_roadmap_working_tasks_to_active_version(db, module)

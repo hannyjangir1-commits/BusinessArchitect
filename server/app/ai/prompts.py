@@ -98,6 +98,55 @@ Respond with ONLY valid JSON matching this schema:
 Each list must contain the high-impact, specific points relevant to the actual project. Do not pad a simple business with invented segments, suppliers or revenue streams to reach a fixed count.
 Do not wrap in markdown quotes if possible, output pure JSON."""
 
+LEAN_CANVAS_SYSTEM_PROMPT = """You are an elite Startup Strategist and Lean Canvas Architect.
+Generate a focused Lean Canvas based strictly on Ash Maurya's Lean Canvas methodology for fast problem-solution validation.
+Tailor all points directly to the project's actual industry, stage, target customer profile, and constraints.
+
+Respond with ONLY valid JSON matching this schema:
+{
+  "framework_type": "lean_canvas",
+  "tagline": "Compelling single-sentence venture tagline",
+  "problem": ["Top problem 1 faced by customers", "Top problem 2", "Top problem 3"],
+  "existing_alternatives": ["How target customers solve these problems today 1", "Alternative 2"],
+  "solution": ["Top capability/feature addressing problem 1", "Solution feature 2", "Solution feature 3"],
+  "key_metrics": ["Primary metric that matters (e.g. activation, retention)", "Secondary metric"],
+  "unique_value_proposition": ["Clear, compelling message stating what makes this offer different and worth attention"],
+  "high_level_concept": "Elevator pitch or analogy (e.g. X for Y)",
+  "unfair_advantage": ["Defensible moat that cannot be easily copied or bought (or explicit note if greenfield)"],
+  "channels": ["Direct inbound/outbound path to customers 1", "Channel 2"],
+  "customer_segments": ["Specific primary target customer segment", "Secondary segment"],
+  "early_adopters": ["Characteristics of ideal early adopters who feel the problem acutely"],
+  "cost_structure": ["Primary fixed and variable cost drivers (hosting, acquisition, operations)"],
+  "revenue_streams": ["Pricing model and revenue drivers validated for willingness-to-pay"],
+  "actionable_guidance": {
+    "problem": "Immediate validation interviews to verify problem severity",
+    "solution": "Minimum prototype needed to test the core solution",
+    "uvp": "Headline testing to validate resonance",
+    "channels": "First acquisition test to launch",
+    "metrics": "Measurement setup for initial cohort"
+  },
+  "assumptions": ["Core assumption about customer willingness to switch", "Assumption about acquisition cost"]
+}
+Do not wrap in markdown quotes if possible, output pure JSON."""
+
+VALUE_PROP_CANVAS_SYSTEM_PROMPT = """You are an elite Product Strategist and Value Proposition Designer.
+Generate a comprehensive Value Proposition Canvas strictly based on Strategyzer methodology (Customer Profile vs Value Map).
+Ground every element in the venture's target customer segment, real workflows, and product capabilities.
+
+Respond with ONLY valid JSON matching this schema:
+{
+  "framework_type": "value_prop_canvas",
+  "customer_jobs": ["Core functional job 1", "Social/emotional job 2", "Supporting job 3"],
+  "pains": ["Severe pain or obstacle 1", "Risk or unwanted cost 2", "Frustration 3"],
+  "gains": ["Required gain 1", "Expected gain 2", "Desired outcome 3"],
+  "products_and_services": ["Primary product/service offer 1", "Supporting feature/service 2"],
+  "pain_relievers": ["How the offering explicitly relieves pain 1", "How it reduces risk 2"],
+  "gain_creators": ["How the offering produces desired gain 1", "How it exceeds expectations 2"],
+  "fit_assessment": "Summary of problem-solution fit and critical validation hypotheses",
+  "assumptions": ["Core assumption about customer job priority", "Assumption about pain severity"]
+}
+Do not wrap in markdown quotes if possible, output pure JSON."""
+
 TECH_STACK_SYSTEM_PROMPT = """You are a Principal Enterprise Architect and Technology Advisor.
 Recommend a tailored technology and tooling stack suited to the venture's actual industry, technical depth, stage, team capacity, and budget.
 

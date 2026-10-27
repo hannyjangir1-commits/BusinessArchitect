@@ -1,6 +1,6 @@
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any, Literal, Union
 from datetime import date, datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator
 
 # --- Generation Brief Schemas (Two-Stage Pipeline) ---
 class GenerationBrief(BaseModel):
@@ -25,6 +25,11 @@ class CanvasItemState(BaseModel):
     evidence_ref: Optional[str] = None
     assumption_id: Optional[str] = None
 
+class BusinessModelPlanningRequest(BaseModel):
+    framework_type: Literal["standard_bmc", "lean_canvas", "value_prop_canvas"] = "standard_bmc"
+    target_outcome: Optional[str] = Field(default="", max_length=1000)
+    notes: Optional[str] = Field(default="", max_length=2000)
+
 class BMCData(BaseModel):
     framework_type: str = "standard_bmc"
     tagline: Optional[str] = "A practical solution for its target customers"
@@ -39,7 +44,7 @@ class BMCData(BaseModel):
     cost_structure: List[str] = Field(default_factory=list)
     actionable_guidance: Optional[Dict[str, str]] = Field(default_factory=dict)
     assumptions: Optional[List[str]] = Field(default_factory=list)
-    item_metadata: Optional[Dict[str, List[CanvasItemState]]] = Field(default_factory=dict)
+    item_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class LeanCanvasData(BaseModel):
     framework_type: str = "lean_canvas"
@@ -56,17 +61,41 @@ class LeanCanvasData(BaseModel):
     early_adopters: List[str] = Field(default_factory=list)
     cost_structure: List[str] = Field(default_factory=list)
     revenue_streams: List[str] = Field(default_factory=list)
-    item_metadata: Optional[Dict[str, List[CanvasItemState]]] = Field(default_factory=dict)
+    actionable_guidance: Optional[Dict[str, str]] = Field(default_factory=dict)
+    assumptions: Optional[List[str]] = Field(default_factory=list)
+    item_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class ValuePropositionCanvasData(BaseModel):
     framework_type: str = "value_prop_canvas"
     customer_jobs: List[str] = Field(default_factory=list)
+    customer_pains: List[str] = Field(default_factory=list)
+    customer_gains: List[str] = Field(default_factory=list)
     pains: List[str] = Field(default_factory=list)
     gains: List[str] = Field(default_factory=list)
     products_and_services: List[str] = Field(default_factory=list)
     pain_relievers: List[str] = Field(default_factory=list)
     gain_creators: List[str] = Field(default_factory=list)
-    item_metadata: Optional[Dict[str, List[CanvasItemState]]] = Field(default_factory=dict)
+    fit_assessment: Optional[str] = None
+    assumptions: Optional[List[str]] = Field(default_factory=list)
+    item_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_pains_gains(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            pains = data.get("pains") or []
+            cust_pains = data.get("customer_pains") or []
+            if pains and not cust_pains:
+                data["customer_pains"] = list(pains)
+            elif cust_pains and not pains:
+                data["pains"] = list(cust_pains)
+            gains = data.get("gains") or []
+            cust_gains = data.get("customer_gains") or []
+            if gains and not cust_gains:
+                data["customer_gains"] = list(gains)
+            elif cust_gains and not gains:
+                data["gains"] = list(cust_gains)
+        return data
 
 # --- Tech Stack Schemas ---
 class TechItem(BaseModel):
@@ -264,15 +293,23 @@ class VersionItemResponse(BaseModel):
     id: str
     version_number: int
     version_name: str
+    framework_type: Optional[str] = "standard_bmc"
     change_summary: Optional[str] = None
     is_active: bool
     created_at: datetime
+
+    @field_validator("framework_type", mode="before")
+    @classmethod
+    def normalize_framework(cls, v: Optional[str]) -> Optional[str]:
+        if v == "standard":
+            return "standard_bmc"
+        return v or "standard_bmc"
 
     model_config = ConfigDict(from_attributes=True)
 
 class ModuleDetailResponse(BaseModel):
     module_type: str
-    framework_type: Optional[str] = "standard"
+    framework_type: Optional[str] = "standard_bmc"
     active_version_id: Optional[str] = None
     active_version_name: Optional[str] = None
     active_version_number: Optional[int] = None
@@ -282,6 +319,13 @@ class ModuleDetailResponse(BaseModel):
     stale_reason: Optional[str] = None
     stale_source_module: Optional[str] = None
     context_metadata: Optional[Dict[str, Any]] = None
+
+    @field_validator("framework_type", mode="before")
+    @classmethod
+    def normalize_framework(cls, v: Optional[str]) -> Optional[str]:
+        if v == "standard":
+            return "standard_bmc"
+        return v or "standard_bmc"
 
 class VersionRenameRequest(BaseModel):
     version_name: str = Field(..., min_length=1, max_length=128)

@@ -12,7 +12,7 @@ from app.schemas.modules import (
     ModuleDetailResponse, VersionItemResponse, VersionRenameRequest,
     VersionConflictResolveRequest, SectionModifyRequest,
     BMCData, TechStackData, IdeaValidatorData, MarketResearchData,
-    ExecutionRoadmapData, RoadmapPlanningRequest, TechStackPlanningRequest
+    ExecutionRoadmapData, RoadmapPlanningRequest, TechStackPlanningRequest, BusinessModelPlanningRequest
 )
 from app.services.version_service import VersionService
 from app.services.readiness_service import ReadinessValidationService
@@ -237,7 +237,11 @@ def get_module(
 
     return ModuleDetailResponse(
         module_type=module_type,
-        framework_type=getattr(active_ver, "framework_type", getattr(module, "framework_type", "standard")) if active_ver else (getattr(module, "framework_type", "standard") if module else "standard"),
+        framework_type=(
+            ("standard_bmc" if getattr(active_ver, "framework_type", None) == "standard" else getattr(active_ver, "framework_type", None))
+            or ("standard_bmc" if getattr(module, "framework_type", None) == "standard" else getattr(module, "framework_type", None))
+            or "standard_bmc"
+        ),
         active_version_id=active_ver.id if active_ver else None,
         active_version_name=active_ver.version_name if active_ver else None,
         active_version_number=active_ver.version_number if active_ver else None,
@@ -335,6 +339,14 @@ def generate_module(
                 status_code=HTTP_422_STATUS,
                 detail=f"Invalid tech stack planning inputs: {e}"
             )
+    elif module_type == "bmc":
+        try:
+            typed_inputs = BusinessModelPlanningRequest.model_validate(effective_inputs or {})
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTP_422_STATUS,
+                detail=f"Invalid business model planning inputs: {e}"
+            )
     elif effective_inputs:
         raise HTTPException(status_code=400, detail="This module does not accept planning inputs")
     # Enforce input readiness validation before invoking AI service
@@ -372,6 +384,7 @@ def generate_module(
 
     return ModuleDetailResponse(
         module_type=module_type,
+        framework_type=(new_ver.framework_type if getattr(new_ver, "framework_type", None) != "standard" else "standard_bmc") or "standard_bmc",
         active_version_id=new_ver.id,
         active_version_name=new_ver.version_name,
         active_version_number=new_ver.version_number,
@@ -450,6 +463,12 @@ def modify_module_with_ai(
             instruction=instruction,
             project_info=proj_info,
             cross_module_context=cross_ctx,
+        )
+    except ValueError as e:
+        dur_ms = int((time.time() - t0) * 1000)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
     except Exception as e:
         dur_ms = int((time.time() - t0) * 1000)
@@ -575,6 +594,7 @@ def modify_module_with_ai(
 
     return ModuleDetailResponse(
         module_type=module_type,
+        framework_type=(new_ver.framework_type if getattr(new_ver, "framework_type", None) != "standard" else "standard_bmc") or "standard_bmc",
         active_version_id=new_ver.id,
         active_version_name=new_ver.version_name,
         active_version_number=new_ver.version_number,
@@ -749,6 +769,7 @@ def resolve_version_conflict(
 
     return ModuleDetailResponse(
         module_type=module_type,
+        framework_type=(replaced_ver.framework_type if getattr(replaced_ver, "framework_type", None) != "standard" else "standard_bmc") or "standard_bmc",
         active_version_id=replaced_ver.id,
         active_version_name=replaced_ver.version_name,
         active_version_number=replaced_ver.version_number,
@@ -824,6 +845,7 @@ def restore_version(
 
     return ModuleDetailResponse(
         module_type=module_type,
+        framework_type=(new_ver.framework_type if getattr(new_ver, "framework_type", None) != "standard" else "standard_bmc") or "standard_bmc",
         active_version_id=new_ver.id,
         active_version_name=new_ver.version_name,
         active_version_number=new_ver.version_number,

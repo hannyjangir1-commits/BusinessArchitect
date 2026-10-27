@@ -795,7 +795,7 @@ export const App: React.FC = () => {
   }
 
   // 5. Generate Module with Readiness Validation
-  const handleGenerateModule = async (moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs) => {
+  const handleGenerateModule = async (moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs | Record<string, any>) => {
     if (!currentProject) return;
     const targetProjectId = currentProject.id;
     const targetModuleType = normalizeModuleType(moduleType);
@@ -1450,12 +1450,12 @@ export const App: React.FC = () => {
                   <BMCModule
                     project={currentProject}
                     moduleDetail={moduleDetail as any}
-                    onGenerate={() => handleGenerateModule('bmc')}
+                    onGenerate={(inputs?: any) => handleGenerateModule('bmc', inputs)}
                     onModify={handleModifyModule}
                     onRenameVersion={handleRenameVersion}
                     onDeleteVersion={handleDeleteVersion}
                     onRestoreVersion={handleRestoreVersion}
-                    onCreateNew={() => handleGenerateModule('bmc')}
+                    onCreateNew={(inputs?: any) => handleGenerateModule('bmc', inputs)}
                     onDeleteModule={() => handleDeleteModule('bmc')}
                     onExportPdf={() => api.exports.downloadModulePdf(currentProject.id, 'bmc', currentProject.name)}
                     isLoading={moduleLoading}

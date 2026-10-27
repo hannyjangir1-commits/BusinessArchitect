@@ -269,7 +269,7 @@ export const api = {
     delete: (projectId: string, moduleType: string): Promise<{ message: string; module_type: string; deleted_records: number; deleted_tasks: number }> =>
       request(`/api/projects/${projectId}/modules/${moduleType}`, { method: 'DELETE' }),
 
-    generate: (projectId: string, moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs): Promise<ModuleDetail> =>
+    generate: (projectId: string, moduleType: string, planningInputs?: RoadmapPlanningInputs | TechStackPlanningInputs | Record<string, any>): Promise<ModuleDetail> =>
       request<ModuleDetail>(`/api/projects/${projectId}/modules/${moduleType}/generate`, {
         method: 'POST',
         body: planningInputs ? JSON.stringify(planningInputs) : undefined

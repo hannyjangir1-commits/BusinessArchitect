@@ -10,7 +10,8 @@ from app.core.telemetry import record_ai_operation, record_analytics_event
 from app.db.session import SessionLocal
 from app.models.all_models import Project, ModuleContent, ModuleVersion, User
 from app.schemas.modules import (
-    BMCData, TechStackData, IdeaValidatorData, MarketResearchData,
+    BMCData, LeanCanvasData, ValuePropositionCanvasData, BusinessModelPlanningRequest,
+    TechStackData, IdeaValidatorData, MarketResearchData,
     ExecutionRoadmapData, RoadmapPlanningRequest, TechStackPlanningRequest, GenerationBrief
 )
 from app.services.version_service import VersionService
@@ -34,6 +35,17 @@ class ModuleOrchestrationService:
     def validate_module_payload(module_type: str, data: Dict[str, Any]) -> None:
         if not isinstance(data, dict):
             raise ValueError("Module payload must be a structured dictionary.")
+        if module_type == "bmc":
+            framework = data.get("framework_type") or "standard_bmc"
+            if framework == "lean_canvas":
+                LeanCanvasData.model_validate(data)
+                return
+            elif framework == "value_prop_canvas":
+                ValuePropositionCanvasData.model_validate(data)
+                return
+            else:
+                BMCData.model_validate(data)
+                return
         model_cls = VALIDATION_MODELS.get(module_type)
         if not model_cls:
             raise HTTPException(status_code=404, detail=f"Unsupported module schema: {module_type}")
@@ -46,7 +58,7 @@ class ModuleOrchestrationService:
         project: Project,
         module: ModuleContent,
         module_type: str,
-        planning_inputs: Optional[RoadmapPlanningRequest | TechStackPlanningRequest] = None,
+        planning_inputs: Optional[RoadmapPlanningRequest | TechStackPlanningRequest | BusinessModelPlanningRequest] = None,
         project_dict: Optional[Dict[str, Any]] = None,
     ) -> Tuple[ModuleVersion, Dict[str, Any]]:
         # Stage 0: Version-capacity preflight
@@ -63,8 +75,13 @@ class ModuleOrchestrationService:
         proj_info["context_sources"] = context_sources
 
         planning_dict = None
-        if module_type in ("execution_roadmap", "detailed_roadmap", "tech_stack"):
-            planning = planning_inputs or (RoadmapPlanningRequest() if module_type != "tech_stack" else TechStackPlanningRequest())
+        if module_type in ("execution_roadmap", "detailed_roadmap", "tech_stack", "bmc"):
+            if module_type == "bmc":
+                planning = planning_inputs or BusinessModelPlanningRequest()
+            elif module_type == "tech_stack":
+                planning = planning_inputs or TechStackPlanningRequest()
+            else:
+                planning = planning_inputs or RoadmapPlanningRequest()
             planning_dict = planning.model_dump(mode="json")
         else:
             planning = None
@@ -94,8 +111,11 @@ class ModuleOrchestrationService:
         try:
             with record_stage("provider_call"):
                 if module_type == "bmc":
-                    generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx)
-                    data_dict = generated.model_dump()
+                    framework_type = planning_dict.get("framework_type", "standard_bmc") if planning_dict else "standard_bmc"
+                    generated = ai_service.generate_bmc(proj_info, brief, cross_module_context=cross_ctx, planning_inputs=planning_dict)
+                    data_dict = generated.model_dump(mode="json")
+                    data_dict["framework_type"] = framework_type
+                    data_dict["planning_inputs"] = planning_dict or {}
                 elif module_type == "tech_stack":
                     generated = ai_service.generate_tech_stack(proj_info, brief, cross_module_context=cross_ctx, planning_inputs=planning_dict)
                     data_dict = generated.model_dump()

@@ -29,7 +29,7 @@ vi.mock('../services/queryCache', () => ({
 const mockProject: Project = {
   id: 'proj-123',
   name: 'Venture Test',
-  stage: 'Seed',
+  stage: 'MVP',
   industry: 'FinTech',
   active_module: 'bmc',
   tasks_count: 0,
@@ -57,7 +57,7 @@ const baseBMCData: BMCData = {
 const mockModuleDetail: ModuleDetail<BMCData> = {
   module_type: 'bmc',
   active_version_name: 'V1',
-  versions: [{ id: 'v1', version_number: 1, name: 'V1', is_active: true, created_at: '2026-10-28T00:00:00Z' }],
+  versions: [{ id: 'v1', version_number: 1, version_name: 'V1', is_active: true, created_at: '2026-10-28T00:00:00Z' }],
   data: baseBMCData,
 };
 
@@ -77,6 +77,10 @@ describe('Truthful Canvas Actions and Epistemic Badges', () => {
         project={mockProject}
         moduleDetail={mockModuleDetail}
         onGenerate={vi.fn()}
+        onModify={vi.fn()}
+        onRenameVersion={vi.fn()}
+        onDeleteVersion={vi.fn()}
+        onRestoreVersion={vi.fn()}
         onExportPdf={vi.fn()}
         isLoading={false}
       />
@@ -106,6 +110,10 @@ describe('Truthful Canvas Actions and Epistemic Badges', () => {
         project={mockProject}
         moduleDetail={{ ...mockModuleDetail, data: dataWithMetadata }}
         onGenerate={vi.fn()}
+        onModify={vi.fn()}
+        onRenameVersion={vi.fn()}
+        onDeleteVersion={vi.fn()}
+        onRestoreVersion={vi.fn()}
         onExportPdf={vi.fn()}
         isLoading={false}
       />
@@ -127,6 +135,10 @@ describe('Truthful Canvas Actions and Epistemic Badges', () => {
         project={mockProject}
         moduleDetail={mockModuleDetail}
         onGenerate={vi.fn()}
+        onModify={vi.fn()}
+        onRenameVersion={vi.fn()}
+        onDeleteVersion={vi.fn()}
+        onRestoreVersion={vi.fn()}
         onExportPdf={vi.fn()}
         isLoading={false}
       />
@@ -172,6 +184,10 @@ describe('Truthful Canvas Actions and Epistemic Badges', () => {
         project={mockProject}
         moduleDetail={mockModuleDetail}
         onGenerate={vi.fn()}
+        onModify={vi.fn()}
+        onRenameVersion={vi.fn()}
+        onDeleteVersion={vi.fn()}
+        onRestoreVersion={vi.fn()}
         onExportPdf={vi.fn()}
         isLoading={false}
       />

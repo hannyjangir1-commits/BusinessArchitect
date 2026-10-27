@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Project, ModuleDetail, BMCData, BusinessModelFramework, EpistemicStatus } from '../types';
 import { RadialBMCInfographic } from './RadialBMCInfographic';
 import { VersionToolbar } from './VersionToolbar';
@@ -15,12 +15,12 @@ import {
 interface Props {
   project: Project;
   moduleDetail: ModuleDetail<BMCData> | null;
-  onGenerate: () => Promise<void>;
+  onGenerate: (inputs?: any) => Promise<void>;
   onModify: (instruction: string) => Promise<void>;
   onRenameVersion: (newName: string) => Promise<void>;
   onDeleteVersion: (versionId: string) => Promise<void>;
   onRestoreVersion: (versionId: string) => Promise<void>;
-  onCreateNew?: () => Promise<void>;
+  onCreateNew?: (inputs?: any) => Promise<void>;
   onDeleteModule?: () => Promise<void>;
   onExportPdf: () => void;
   isLoading: boolean;
@@ -55,7 +55,19 @@ export const BMCModule: React.FC<Props> = ({
     }
   });
 
-  const [framework, setFramework] = useState<BusinessModelFramework>('standard_bmc');
+  const activeFramework: BusinessModelFramework =
+    ((moduleDetail?.data as any)?.framework_type as BusinessModelFramework) ||
+    ((moduleDetail as any)?.framework_type as BusinessModelFramework) ||
+    'standard_bmc';
+
+  const [framework, setFramework] = useState<BusinessModelFramework>(activeFramework);
+
+  useEffect(() => {
+    if (activeFramework) {
+      setFramework(activeFramework);
+    }
+  }, [activeFramework, moduleDetail?.active_version_id]);
+
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [activeItemMenu, setActiveItemMenu] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -274,22 +286,56 @@ export const BMCModule: React.FC<Props> = ({
   };
 
   if (!bmcData) {
+    const frameworkTitles = {
+      standard_bmc: 'Standard Business Model Canvas (9 Blocks)',
+      lean_canvas: 'Lean Canvas (Problem-Solution Validation)',
+      value_prop_canvas: 'Value Proposition Canvas (Customer Profile & Value Map)'
+    };
+
     return (
       <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-subtle)', color: 'var(--primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
           <Compass size={28} />
         </div>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
-          {isGenerating ? 'Synthesizing Business Model Canvas…' : 'Business Model Canvas Not Yet Generated'}
+          {isGenerating ? `Synthesizing ${frameworkTitles[framework]}…` : `${frameworkTitles[framework]} Not Yet Generated`}
         </h3>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px auto' }}>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 16px auto' }}>
           {isGenerating
             ? 'Analyzing your project parameters, stage, and customer value proposition…'
-            : `Generate Alexander Osterwalder's 9-block Business Model Canvas synthesized specifically for ${project.name}.`}
+            : `Select a framework and synthesize an architecture structured specifically for ${project.name}.`}
         </p>
+
+        {/* Framework Selection before first generation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-main)' }}>Framework:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-subtle)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 10px' }}>
+            <Layers size={14} color="var(--primary-color, #2563eb)" />
+            <select
+              value={framework}
+              onChange={e => setFramework(e.target.value as BusinessModelFramework)}
+              disabled={isLoading || isGenerating || isGenerateDisabled}
+              aria-label="Framework selection"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-main)',
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+            >
+              <option value="standard_bmc">Standard BMC (9 Blocks)</option>
+              <option value="lean_canvas">Lean Canvas</option>
+              <option value="value_prop_canvas">Value Proposition Canvas</option>
+            </select>
+          </div>
+        </div>
+
         <button
           type="button"
-          onClick={onGenerate}
+          onClick={() => onGenerate({ framework_type: framework })}
           className="btn-primary"
           disabled={isLoading || isGenerating || isGenerateDisabled}
           style={{ margin: '0 auto' }}
@@ -303,7 +349,7 @@ export const BMCModule: React.FC<Props> = ({
             </span>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <CirclePlus size={16} /> Generate Business Model Canvas
+              <CirclePlus size={16} /> Generate {framework === 'lean_canvas' ? 'Lean Canvas' : framework === 'value_prop_canvas' ? 'Value Proposition Canvas' : 'Business Model Canvas'}
             </span>
           )}
         </button>
@@ -362,27 +408,27 @@ export const BMCModule: React.FC<Props> = ({
     revenue: { title: '9. Revenue Streams', items: bmcData.revenue_streams || [], color: 'var(--text-muted)' }
   };
 
-  // Lean Canvas adaptation
+  // Lean Canvas mapping from real persisted fields
   const leanBlocks = {
-    problem: { title: '1. Problem', items: bmcData.assumptions?.slice(0, 3) || ['High service coordination friction', 'Unpredictable pricing', 'Slow response times'], color: '#ef4444' },
-    solution: { title: '2. Solution', items: bmcData.key_activities?.slice(0, 3) || ['Direct on-site dispatch', 'Digital status tracker', 'Flat-rate guarantee'], color: '#10b981' },
-    metrics: { title: '3. Key Metrics', items: ['Activation rate', 'Monthly active clients', 'Referral velocity'], color: '#3b82f6' },
-    uvp: { title: '4. Unique Value Prop', items: bmcData.value_propositions || [], color: '#8b5cf6' },
-    advantage: { title: '5. Unfair Advantage', items: ['Direct local community presence', 'Proprietary network density'], color: '#f59e0b' },
-    channels: { title: '6. Channels', items: bmcData.channels || [], color: '#06b6d4' },
-    segments: { title: '7. Customer Segments', items: bmcData.customer_segments || [], color: '#3b82f6' },
-    costs: { title: '8. Cost Structure', items: bmcData.cost_structure || [], color: '#64748b' },
-    revenue: { title: '9. Revenue Streams', items: bmcData.revenue_streams || [], color: '#10b981' }
+    problem: { title: '1. Problem', items: (bmcData as any).problem || [], color: '#ef4444' },
+    solution: { title: '2. Solution', items: (bmcData as any).solution || [], color: '#10b981' },
+    metrics: { title: '3. Key Metrics', items: (bmcData as any).key_metrics || [], color: '#3b82f6' },
+    uvp: { title: '4. Unique Value Prop', items: (bmcData as any).unique_value_proposition || bmcData.value_propositions || [], color: '#8b5cf6' },
+    advantage: { title: '5. Unfair Advantage', items: (bmcData as any).unfair_advantage || [], color: '#f59e0b' },
+    channels: { title: '6. Channels', items: (bmcData as any).channels || [], color: '#06b6d4' },
+    segments: { title: '7. Customer Segments', items: (bmcData as any).customer_segments || [], color: '#3b82f6' },
+    costs: { title: '8. Cost Structure', items: (bmcData as any).cost_structure || [], color: '#64748b' },
+    revenue: { title: '9. Revenue Streams', items: (bmcData as any).revenue_streams || [], color: '#10b981' }
   };
 
-  // Value Proposition Canvas (Customer Profile vs Value Map)
+  // Value Proposition Canvas mapping from real persisted fields
   const valuePropBlocks = {
-    jobs: { title: 'Customer Jobs', items: (bmcData.customer_segments || []).map(s => `Job to be done for ${s}`), color: '#3b82f6' },
-    pains: { title: 'Customer Pains', items: ['High costs', 'Inconvenient scheduling', 'Unclear outcomes'], color: '#ef4444' },
-    gains: { title: 'Customer Gains', items: ['Time saved', 'Peace of mind', 'Transparent pricing'], color: '#10b981' },
-    products: { title: 'Products & Services', items: bmcData.key_activities || ['Core Service Offering'], color: '#8b5cf6' },
-    relievers: { title: 'Pain Relievers', items: (bmcData.value_propositions || []).slice(0, 2), color: '#f59e0b' },
-    creators: { title: 'Gain Creators', items: (bmcData.value_propositions || []).slice(2), color: '#06b6d4' }
+    jobs: { title: 'Customer Jobs', items: (bmcData as any).customer_jobs || [], color: '#3b82f6' },
+    pains: { title: 'Customer Pains', items: (bmcData as any).customer_pains || (bmcData as any).pains || [], color: '#ef4444' },
+    gains: { title: 'Customer Gains', items: (bmcData as any).customer_gains || (bmcData as any).gains || [], color: '#10b981' },
+    products: { title: 'Products & Services', items: (bmcData as any).products_and_services || [], color: '#8b5cf6' },
+    relievers: { title: 'Pain Relievers', items: (bmcData as any).pain_relievers || [], color: '#f59e0b' },
+    creators: { title: 'Gain Creators', items: (bmcData as any).gain_creators || [], color: '#06b6d4' }
   };
 
   const renderCard = (block: { title: string; items: string[]; color: string }, gridArea?: string, minHeight = 170) => (
@@ -610,9 +656,9 @@ export const BMCModule: React.FC<Props> = ({
               </span>
             </h2>
             <p>
-              {framework === 'standard_bmc' && "Alexander Osterwalder's 9-block business model architecture"}
-              {framework === 'lean_canvas' && "Ash Maurya's Lean Canvas for fast problem-solution validation"}
-              {framework === 'value_prop_canvas' && "Value Proposition Canvas: Customer Profile vs Value Map"}
+              {activeFramework === 'standard_bmc' && "Alexander Osterwalder's 9-block business model architecture"}
+              {activeFramework === 'lean_canvas' && "Ash Maurya's Lean Canvas for fast problem-solution validation"}
+              {activeFramework === 'value_prop_canvas' && "Value Proposition Canvas: Customer Profile vs Value Map"}
             </p>
           </div>
         </div>
@@ -624,6 +670,7 @@ export const BMCModule: React.FC<Props> = ({
             <select
               value={framework}
               onChange={e => setFramework(e.target.value as BusinessModelFramework)}
+              aria-label="Framework switcher"
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -661,7 +708,7 @@ export const BMCModule: React.FC<Props> = ({
             onDelete={onDeleteVersion}
             onRestore={onRestoreVersion}
             onExportPdf={onExportPdf}
-            onCreateNew={onCreateNew}
+            onCreateNew={onCreateNew ? () => onCreateNew({ framework_type: framework }) : undefined}
             onDeleteModule={onDeleteModule}
             createLabel="Generate New Canvas"
             isBusy={isLoading || isGenerating}
@@ -669,6 +716,46 @@ export const BMCModule: React.FC<Props> = ({
           />
         </div>
       </div>
+
+      {framework !== activeFramework && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 8,
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+          fontSize: 13
+        }}>
+          <div>
+            <strong>Framework preview:</strong> Active version was generated under{' '}
+            <strong>{activeFramework === 'standard_bmc' ? 'Standard BMC' : activeFramework === 'lean_canvas' ? 'Lean Canvas' : 'Value Proposition Canvas'}</strong>.
+            Generating will create a new version under <strong>{framework === 'standard_bmc' ? 'Standard BMC' : framework === 'lean_canvas' ? 'Lean Canvas' : 'Value Proposition Canvas'}</strong> without modifying previous versions.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setFramework(activeFramework)}
+              style={{ fontSize: 12, padding: '4px 10px' }}
+            >
+              Reset to Active
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onGenerate({ framework_type: framework })}
+              disabled={isLoading || isGenerating || isGenerateDisabled}
+              style={{ fontSize: 12, padding: '4px 12px' }}
+            >
+              Generate {framework === 'standard_bmc' ? 'Standard BMC' : framework === 'lean_canvas' ? 'Lean Canvas' : 'Value Proposition Canvas'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Subtabs bar: Toggle View */}
       <div className="subtabs-bar">
@@ -705,7 +792,7 @@ export const BMCModule: React.FC<Props> = ({
               stage={project.stage}
               data={bmcData}
             />
-          ) : framework === 'standard_bmc' ? (
+          ) : activeFramework === 'standard_bmc' ? (
             /* Canonical 9-Box Osterwalder Canvas Desktop Layout */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div
@@ -764,7 +851,7 @@ export const BMCModule: React.FC<Props> = ({
                 {renderCard(standardBlocks.revenue)}
               </div>
             </div>
-          ) : framework === 'lean_canvas' ? (
+          ) : activeFramework === 'lean_canvas' ? (
             /* Lean Canvas Layout */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div

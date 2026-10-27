@@ -51,6 +51,7 @@ export interface VersionItem {
 
 export interface ModuleDetail<T = any> {
   module_type: string;
+  framework_type?: string;
   active_version_id?: string;
   active_version_name?: string;
   active_version_number?: number;
@@ -62,13 +63,14 @@ export interface ModuleDetail<T = any> {
   context_metadata?: Record<string, any>;
 }
 
-export type BusinessModelFramework = 'standard_bmc' | 'lean_canvas' | 'value_prop_canvas' | 'custom_canvas';
+export type BusinessModelFramework = 'standard_bmc' | 'lean_canvas' | 'value_prop_canvas';
 
 export type EpistemicStatus = 'user_supplied' | 'hypothesis' | 'evidence_supported' | 'unknown' | 'not_applicable';
 
 export interface CanvasItemMetadata {
   epistemic_status: EpistemicStatus;
   evidence_link?: string;
+  evidence_ids?: string[];
   is_assumption?: boolean;
   linked_task_code?: string;
 }

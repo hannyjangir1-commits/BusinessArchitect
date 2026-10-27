@@ -196,9 +196,18 @@ class PDFService:
 
         # Table of contents preview
         story.append(Paragraph("Table of Contents", styles["SubHeading"]))
+        bmc_data_raw = modules_data.get("bmc")
+        bmc_framework = (bmc_data_raw.get("framework_type") if isinstance(bmc_data_raw, dict) else None) or "standard_bmc"
+        if bmc_framework == "lean_canvas":
+            bmc_section_title = "2. Lean Canvas"
+        elif bmc_framework == "value_prop_canvas":
+            bmc_section_title = "2. Value Proposition Canvas"
+        else:
+            bmc_section_title = "2. Nine-Block Business Model Canvas"
+
         toc_items = [
             "1. Executive Project Overview",
-            "2. Nine-Block Business Model Canvas",
+            bmc_section_title,
             "3. Technology Stack & Architectural Blueprint",
             "4. Idea Validator & Feasibility Assessment",
             "5. Market Intelligence & Competitor Analysis",
@@ -241,44 +250,70 @@ class PDFService:
         story.append(t_overview)
         story.append(Spacer(1, 20))
 
-        # --- SECTION 2: BUSINESS MODEL CANVAS ---
+        # --- SECTION 2: BUSINESS MODEL CANVAS / FRAMEWORK ---
         bmc = modules_data.get("bmc")
         if bmc and isinstance(bmc, dict):
             story.append(PageBreak())
-            story.append(Paragraph("2. Nine-Block Business Model Canvas", styles["SectionHeading"]))
+            story.append(Paragraph(bmc_section_title, styles["SectionHeading"]))
             story.append(HRFlowable(width="100%", thickness=0.8, color=BORDER_COLOR, spaceAfter=10))
             if bmc.get("tagline"):
                 story.append(Paragraph(f"<i>Tagline: {bmc.get('tagline')}</i>", styles["BodyDark"]))
                 story.append(Spacer(1, 10))
 
-            blocks = [
-                ("1. Key Partnerships", bmc.get("key_partnerships", [])),
-                ("2. Key Activities", bmc.get("key_activities", [])),
-                ("3. Key Resources", bmc.get("key_resources", [])),
-                ("4. Value Propositions", bmc.get("value_propositions", [])),
-                ("5. Customer Relationships", bmc.get("customer_relationships", [])),
-                ("6. Channels", bmc.get("channels", [])),
-                ("7. Customer Segments", bmc.get("customer_segments", [])),
-                ("8. Cost Structure", bmc.get("cost_structure", [])),
-                ("9. Revenue Streams", bmc.get("revenue_streams", []))
-            ]
+            if bmc_framework == "lean_canvas":
+                blocks = [
+                    ("1. Problem", bmc.get("problem", [])),
+                    ("2. Solution", bmc.get("solution", [])),
+                    ("3. Key Metrics", bmc.get("key_metrics", [])),
+                    ("4. Unique Value Proposition", bmc.get("unique_value_proposition", [])),
+                    ("5. Unfair Advantage", bmc.get("unfair_advantage", [])),
+                    ("6. Channels", bmc.get("channels", [])),
+                    ("7. Customer Segments", bmc.get("customer_segments", [])),
+                    ("8. Cost Structure", bmc.get("cost_structure", [])),
+                    ("9. Revenue Streams", bmc.get("revenue_streams", []))
+                ]
+                col_widths = [175, 175, 180]
+                cols_per_row = 3
+            elif bmc_framework == "value_prop_canvas":
+                blocks = [
+                    ("1. Customer Jobs", bmc.get("customer_jobs", [])),
+                    ("2. Customer Pains", bmc.get("customer_pains") or bmc.get("pains") or []),
+                    ("3. Customer Gains", bmc.get("customer_gains") or bmc.get("gains") or []),
+                    ("4. Products & Services", bmc.get("products_and_services", [])),
+                    ("5. Pain Relievers", bmc.get("pain_relievers", [])),
+                    ("6. Gain Creators", bmc.get("gain_creators", []))
+                ]
+                col_widths = [265, 265]
+                cols_per_row = 2
+            else:
+                blocks = [
+                    ("1. Key Partnerships", bmc.get("key_partnerships", [])),
+                    ("2. Key Activities", bmc.get("key_activities", [])),
+                    ("3. Key Resources", bmc.get("key_resources", [])),
+                    ("4. Value Propositions", bmc.get("value_propositions", [])),
+                    ("5. Customer Relationships", bmc.get("customer_relationships", [])),
+                    ("6. Channels", bmc.get("channels", [])),
+                    ("7. Customer Segments", bmc.get("customer_segments", [])),
+                    ("8. Cost Structure", bmc.get("cost_structure", [])),
+                    ("9. Revenue Streams", bmc.get("revenue_streams", []))
+                ]
+                col_widths = [175, 175, 180]
+                cols_per_row = 3
 
-            # Render 9 blocks in a 3-column structured grid
             grid_data = []
-            for i in range(0, len(blocks), 3):
-                row_blocks = blocks[i:i+3]
+            for i in range(0, len(blocks), cols_per_row):
+                row_blocks = blocks[i:i+cols_per_row]
                 row_cells = []
                 for title, items in row_blocks:
                     content_p = [Paragraph(f"<b>{title}</b>", styles["SubHeading"])]
                     for it in (items if isinstance(items, list) else [str(items)]):
                         content_p.append(Paragraph(f"• {it}", styles["BulletText"]))
                     row_cells.append(content_p)
-                # Pad to 3 columns if needed
-                while len(row_cells) < 3:
+                while len(row_cells) < cols_per_row:
                     row_cells.append([Paragraph("", styles["TableCell"])])
                 grid_data.append(row_cells)
 
-            t_bmc = Table(grid_data, colWidths=[175, 175, 180])
+            t_bmc = Table(grid_data, colWidths=col_widths)
             t_bmc.setStyle(TableStyle([
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
                 ('BACKGROUND', (0,0), (-1,-1), CARD_BG),
