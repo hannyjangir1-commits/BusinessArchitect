@@ -237,6 +237,7 @@ def get_module(
 
     return ModuleDetailResponse(
         module_type=module_type,
+        framework_type=getattr(active_ver, "framework_type", getattr(module, "framework_type", "standard")) if active_ver else (getattr(module, "framework_type", "standard") if module else "standard"),
         active_version_id=active_ver.id if active_ver else None,
         active_version_name=active_ver.version_name if active_ver else None,
         active_version_number=active_ver.version_number if active_ver else None,

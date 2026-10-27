@@ -7,13 +7,15 @@ from typing import List, Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
-from app.models.all_models import Project, CopilotMessage, CopilotOperation, User
+from app.models.all_models import Project, CopilotMessage, CopilotOperation, User, ModuleContent, ModuleVersion
 from app.schemas.copilot import (
     CopilotChatRequest,
     CopilotMessageResponse,
     CopilotHistoryPageResponse,
     CopilotSendResponse,
-    CopilotOperationStatusResponse
+    CopilotOperationStatusResponse,
+    CopilotProposalRequest,
+    CopilotProposalResponse,
 )
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
@@ -457,3 +459,79 @@ def send_chat_message(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Planning Copilot failed to process the request. Please retry shortly."
         ) from e
+
+
+@router.post("/propose", response_model=CopilotProposalResponse)
+def propose_change(
+    req: CopilotProposalRequest,
+    project: Project = Depends(get_user_project),
+    csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a non-destructive structured proposal preview of changes to a module.
+    Does NOT modify the project or save any changes to the database.
+    """
+    check_ai_rate_limit(project.user_id)
+
+    target_module = req.target_module
+    if target_module == "detailed_roadmap":
+        target_module = "execution_roadmap"
+
+    module = db.query(ModuleContent).filter(
+        ModuleContent.project_id == project.id,
+        ModuleContent.module_type == target_module
+    ).first()
+
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module '{target_module}' has not been generated for this project yet. Please generate it first."
+        )
+
+    active_ver = db.query(ModuleVersion).filter(
+        ModuleVersion.module_content_id == module.id,
+        ModuleVersion.is_active.is_(True)
+    ).first()
+
+    curr_data = active_ver.data if (active_ver and isinstance(active_ver.data, dict)) else {}
+    if not curr_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Module '{target_module}' has no existing content to propose changes against."
+        )
+
+    from app.services.project_context_service import read_project_context
+    active_module_summaries, _ = read_project_context(db, project.id, exclude_module=target_module)
+
+    proj_info = {
+        "name": project.name,
+        "stage": normalize_business_stage(project.stage),
+        "industry": project.industry,
+        "description": project.description,
+        "goals": project.goals,
+        "budget": project.budget,
+        "business_context": project.business_context,
+        "existing_stack": project.existing_stack,
+        "target_customers": project.target_customers,
+    }
+
+    db.close()
+
+    try:
+        proposal = ai_service.propose_module_change(
+            module_type=target_module,
+            current_data=curr_data,
+            instruction=req.instruction,
+            project_info=proj_info,
+            cross_module_context=active_module_summaries
+        )
+        return CopilotProposalResponse.model_validate(proposal)
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        logger.error("Error generating Copilot proposal: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate change proposal. Please retry with a more specific instruction."
+        )

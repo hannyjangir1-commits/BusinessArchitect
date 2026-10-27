@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Project } from '../types';
 import {
   Layers, ChevronLeft, ChevronRight, LayoutDashboard, Compass, Cpu, CheckCircle2,
-  TrendingUp, Calendar, Bot, ArrowRight, Plus, Check
+  TrendingUp, Calendar, Bot, ArrowRight, Plus, Check, Calculator
 } from 'lucide-react';
 
 export type ModuleBadgeStatus = 'unknown' | 'loading' | 'generated' | 'not-generated' | 'error';
@@ -36,6 +36,7 @@ export const Sidebar: React.FC<Props> = ({
     { id: 'tech_stack', label: 'Technology Stack', icon: Cpu },
     { id: 'idea_validator', label: 'Idea Validator', icon: CheckCircle2 },
     { id: 'market_research', label: 'Market Research', icon: TrendingUp },
+    { id: 'financials', label: 'Financial Worksheet', icon: Calculator },
     { id: 'execution_roadmap', label: 'Roadmap & Execution Plan', icon: Calendar },
     { id: 'blueprint_copilot', label: 'Planning Copilot', icon: Bot },
   ];
@@ -112,9 +113,10 @@ export const Sidebar: React.FC<Props> = ({
           const badge = moduleVersionBadges[item.id];
           const isCopilot = item.id === 'blueprint_copilot';
           const isOverview = item.id === 'overview';
+          const isFinancials = item.id === 'financials';
 
           let status: ModuleBadgeStatus = 'unknown';
-          if (isOverview) {
+          if (isOverview || isFinancials) {
             status = 'generated';
           } else if (badge?.status) {
             status = badge.status;

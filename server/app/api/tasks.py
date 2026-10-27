@@ -184,6 +184,12 @@ def create_task(
             department=req.department,
             steps=req.steps or [],
             is_overloaded=req.is_overloaded or False,
+            branch_type=req.branch_type or "core",
+            parent_outcome=req.parent_outcome,
+            definition_of_done=req.definition_of_done,
+            acceptance_criteria=req.acceptance_criteria or [],
+            edge_type=req.edge_type or "prerequisite",
+            roadmap_mode=req.roadmap_mode or "execution",
             is_ai_generated=False
         )
         db.add(task)
@@ -293,6 +299,18 @@ def update_task(
             task.steps = req.steps
         if req.is_overloaded is not None:
             task.is_overloaded = req.is_overloaded
+        if req.branch_type is not None:
+            task.branch_type = req.branch_type
+        if req.parent_outcome is not None:
+            task.parent_outcome = req.parent_outcome
+        if req.definition_of_done is not None:
+            task.definition_of_done = req.definition_of_done
+        if req.acceptance_criteria is not None:
+            task.acceptance_criteria = req.acceptance_criteria
+        if req.edge_type is not None:
+            task.edge_type = req.edge_type
+        if req.roadmap_mode is not None:
+            task.roadmap_mode = req.roadmap_mode
 
         # Apply rewritten dependencies to incoming dependents atomically
         for dep_t in dependent_tasks:

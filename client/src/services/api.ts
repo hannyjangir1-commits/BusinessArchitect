@@ -1,4 +1,9 @@
-import { SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary, CopilotMessage, CopilotSendResult, CopilotOperationStatus, RoadmapPlanningInputs, TechStackPlanningInputs } from '../types';
+import {
+  SessionData, Project, ModuleDetail, RoadmapTask, RoadmapSummary,
+  CopilotMessage, CopilotSendResult, CopilotOperationStatus,
+  RoadmapPlanningInputs, TechStackPlanningInputs,
+  ProjectKnowledgeItem, KnowledgeLink, FinancialWorksheet, CopilotProposalResponse
+} from '../types';
 
 let csrfTokenCache = '';
 
@@ -389,7 +394,53 @@ export const api = {
       }),
 
     getOperationStatus: (projectId: string, clientMsgId: string): Promise<CopilotOperationStatus> =>
-      request<CopilotOperationStatus>(`/api/projects/${projectId}/copilot/operations/${encodeURIComponent(clientMsgId)}`)
+      request<CopilotOperationStatus>(`/api/projects/${projectId}/copilot/operations/${encodeURIComponent(clientMsgId)}`),
+
+    proposeChange: (projectId: string, target_module: string, instruction: string): Promise<CopilotProposalResponse> =>
+      request<CopilotProposalResponse>(`/api/projects/${projectId}/copilot/propose`, {
+        method: 'POST',
+        body: JSON.stringify({ target_module, instruction })
+      })
+  },
+
+  knowledge: {
+    list: (projectId: string, itemType?: string): Promise<ProjectKnowledgeItem[]> => {
+      const qs = itemType ? `?item_type=${encodeURIComponent(itemType)}` : '';
+      return request<ProjectKnowledgeItem[]>(`/api/projects/${projectId}/knowledge${qs}`);
+    },
+    create: (projectId: string, data: Partial<ProjectKnowledgeItem>): Promise<ProjectKnowledgeItem> =>
+      request<ProjectKnowledgeItem>(`/api/projects/${projectId}/knowledge`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+    update: (projectId: string, itemId: string, data: Partial<ProjectKnowledgeItem>): Promise<ProjectKnowledgeItem> =>
+      request<ProjectKnowledgeItem>(`/api/projects/${projectId}/knowledge/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      }),
+    delete: (projectId: string, itemId: string): Promise<void> =>
+      request<void>(`/api/projects/${projectId}/knowledge/${itemId}`, {
+        method: 'DELETE'
+      }),
+    createLink: (projectId: string, data: { source_id: string; target_id: string; relationship: string }): Promise<KnowledgeLink> =>
+      request<KnowledgeLink>(`/api/projects/${projectId}/knowledge/links`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+    deleteLink: (projectId: string, linkId: string): Promise<void> =>
+      request<void>(`/api/projects/${projectId}/knowledge/links/${linkId}`, {
+        method: 'DELETE'
+      }),
+  },
+
+  financials: {
+    get: (projectId: string): Promise<FinancialWorksheet> =>
+      request<FinancialWorksheet>(`/api/projects/${projectId}/financials`),
+    update: (projectId: string, data: Partial<FinancialWorksheet>): Promise<FinancialWorksheet> =>
+      request<FinancialWorksheet>(`/api/projects/${projectId}/financials`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      }),
   },
 
   exports: {

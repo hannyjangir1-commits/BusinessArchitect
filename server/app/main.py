@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine, SessionLocal
 from app.core.admin_provisioning import provision_initial_admin
-from app.api import auth, projects, modules, tasks, copilot, exports
+from app.api import auth, projects, modules, tasks, copilot, exports, knowledge, financials
 from app.api.admin import admin_router
 
 # In development with SQLite, ensure tables exist; in production, Alembic handles migrations
@@ -383,6 +383,8 @@ api_v1.include_router(modules.router)
 api_v1.include_router(tasks.router)
 api_v1.include_router(copilot.router)
 api_v1.include_router(exports.router)
+api_v1.include_router(knowledge.router)
+api_v1.include_router(financials.router)
 api_v1.include_router(admin_router)
 
 @api_v1.get("/health")

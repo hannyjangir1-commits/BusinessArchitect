@@ -63,8 +63,9 @@ export const IdeaValidatorModule: React.FC<Props> = ({
     );
   }
 
-  const score = data.overall_viability_score ?? 85;
-  const scoreColor = score >= 80 ? 'var(--primary-text)' : score >= 60 ? 'var(--primary-text)' : 'var(--danger-text)';
+  const score = data.overall_viability_score;
+  const isAssessed = score !== null && score !== undefined;
+  const scoreColor = isAssessed ? (score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444') : 'var(--text-muted)';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -104,15 +105,21 @@ export const IdeaValidatorModule: React.FC<Props> = ({
 
       {/* Viability Score & Core Highlights Banner */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 28, padding: 24, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 140 }}>
-          <div style={{ fontSize: 36, fontWeight: 900, color: scoreColor }}>
-            {score}<span style={{ fontSize: 18, color: 'var(--text-muted)' }}>/100</span>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 150 }}>
+          {isAssessed ? (
+            <div style={{ fontSize: 36, fontWeight: 900, color: scoreColor }}>
+              {score}<span style={{ fontSize: 18, color: 'var(--text-muted)' }}>/100</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>
+              Not Assessed
+            </div>
+          )}
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 2 }}>
             Viability Score
           </div>
           <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', marginTop: 6, textAlign: 'center' }}>
-            Preliminary AI assessment — not market validation
+            {isAssessed ? 'Evidence-weighted score' : 'Awaiting primary customer evidence'}
           </span>
         </div>
 
@@ -126,9 +133,11 @@ export const IdeaValidatorModule: React.FC<Props> = ({
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--primary-text)', fontWeight: 600 }}>
             ICP: {data.customer_fit}
           </div>
-          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-            Score Rubric: Weighted across problem urgency (30%), customer willingness to pay (30%), feasibility & execution (25%), and practical differentiation (15%).
-          </div>
+          {data.biggest_uncertainty && (
+            <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 6, background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', fontSize: 12, color: '#d97706' }}>
+              <b>Biggest Uncertainty:</b> {data.biggest_uncertainty}
+            </div>
+          )}
         </div>
       </div>
 

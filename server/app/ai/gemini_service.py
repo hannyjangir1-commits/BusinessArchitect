@@ -3,6 +3,7 @@
 This service never persists data. Routes own authorization and version writes. Provider
 errors are allowed to propagate so existing saved work survives unsuccessful requests.
 """
+import copy
 import json
 import hashlib
 import logging
@@ -64,6 +65,8 @@ SCORE_WEIGHTS = {
 class ScopeDecision(BaseModel):
     allowed: bool
     reason: str = Field(min_length=1, max_length=600)
+    route: str = Field(default="clearly_relevant", description="Routing outcome: clearly_relevant, supporting_concept, ambiguous, unrelated_or_unauthorized")
+    clarification_question: Optional[str] = Field(default=None, max_length=500)
 
 
 class GeminiAIService:
@@ -1110,23 +1113,95 @@ class GeminiAIService:
         if any(starts[code] < ends[dependency] for code, dependencies in graph.items() for dependency in dependencies):
             raise ValueError("A roadmap task starts before its prerequisite is complete.")
 
-    def _scope_decision(self, project_info: Dict[str, Any], message: str, cross_module_context: Optional[Dict[str, Any]] = None, module_type: Optional[str] = None) -> ScopeDecision:
+    def _scope_decision(
+        self,
+        project_info: Dict[str, Any],
+        message: str,
+        cross_module_context: Optional[Dict[str, Any]] = None,
+        module_type: Optional[str] = None,
+        chat_history: Optional[List[Dict[str, str]]] = None,
+    ) -> ScopeDecision:
         if not self._configured_api_keys():
-            request = message.lower()
-            sensitive = any(term in request for term in ("system prompt", "api key", "gemini_api_key", "secret", "credentials", "hidden instructions", "ignore all instructions"))
+            request = message.lower().strip()
+            # Explicit security attack or credential extraction
+            system_secrets = ("system prompt", "gemini_api_key", "reveal your api key", "ignore all instructions", "hidden instructions")
+            unauthorized_access = ("show another user", "other users' projects", "another user's", "all user accounts")
+            if any(term in request for term in system_secrets) or any(term in request for term in unauthorized_access):
+                return ScopeDecision(
+                    allowed=False,
+                    reason="The request asks for protected system credentials or unauthorized data.",
+                    route="unrelated_or_unauthorized"
+                )
+
+            # Check for ambiguous short fragments
+            if len(request.split()) <= 2 and request.endswith("?") and request in ("why?", "how?", "what?", "and then?", "more?"):
+                return ScopeDecision(
+                    allowed=True,
+                    reason="The request is an ambiguous follow-up; asking for clarification.",
+                    route="ambiguous",
+                    clarification_question="Could you clarify which part of the project or plan you'd like to explore?"
+                )
+
+            # Clearly unrelated topics
+            unrelated_topics = ("celebrity gossip", "weather forecast", "recipe for chocolate", "horoscope", "sports scores", "tell me a joke")
+            if any(term in request for term in unrelated_topics):
+                return ScopeDecision(
+                    allowed=False,
+                    reason="The request is unrelated to the active project workspace.",
+                    route="unrelated_or_unauthorized"
+                )
+
+            supporting_concepts = (
+                "what does", "explain", "definition of", "how does", "what is",
+                "gross margin", "flywheel", "burn rate", "churn", "tam", "sam", "som", "unit economics",
+                "postgresql", "mongodb", "docker", "kubernetes", "sheets", "excel", "oauth", "jwt"
+            )
+            is_supporting = any(term in request for term in supporting_concepts)
+
             scope_terms = (
-                "business", "project", "venture", "customer", "market", "pricing", "revenue", "product", "software",
+                "business", "project", "venture", "customer", "market", "pricing", "price", "revenue", "product", "software",
                 "technology", "tech stack", "architecture", "roadmap", "execution", "budget", "validation", "competitor",
-                "launch", "feature", "workflow", "industry", "growth", "team", "mvp", "idea", "sales", "eda", "pcb",
+                "launch", "feature", "workflow", "industry", "growth", "team", "mvp", "idea", "sales", "sell", "eda", "pcb",
+                "security", "login", "auth", "cost", "margin", "cheaper", "sheets", "database", "api", "service", "repair",
+                "student", "user", "client", "plan", "task", "work", "goal"
             )
             project_terms = [str(project_info.get(key) or "").lower() for key in ("name", "industry", "description", "target_customers")]
-            in_scope = any(term in request for term in scope_terms) or any(term and term in request for term in project_terms)
-            allowed = in_scope and not sensitive
-            reason = "The request is about the active project." if allowed else "The request is outside project planning scope or asks for protected system information."
-            return ScopeDecision(allowed=allowed, reason=reason)
+
+            recent_context_match = False
+            if chat_history:
+                recent_user_or_asst = " ".join([m.get("content", "").lower() for m in chat_history[-3:]])
+                if any(k in recent_user_or_asst for k in ("pricing", "cost", "technology", "stack", "sheets", "roadmap", "feature", "login")):
+                    recent_context_match = True
+
+            in_scope = any(term in request for term in scope_terms) or any(term and term in request for term in project_terms) or recent_context_match
+
+            if in_scope or is_supporting:
+                route = "supporting_concept" if (is_supporting and not any(term and term in request for term in project_terms)) else "clearly_relevant"
+                return ScopeDecision(
+                    allowed=True,
+                    reason="The request is relevant to the active project or provides a supporting concept.",
+                    route=route
+                )
+
+            return ScopeDecision(
+                allowed=False,
+                reason="The request falls outside the active project workspace.",
+                route="unrelated_or_unauthorized"
+            )
+
         payload = self._context_payload(project_info, cross_module_context)
-        payload.update({"requested_module": module_type or "project_copilot", "allowed_scope": MODULE_SCOPES.get(module_type, "Business planning and delivery for this active project, including relevant supporting concepts."), "user_request": message})
-        result = self._execute_json_prompt(SCOPE_SYSTEM_PROMPT, self._request_text("Classify whether this request is permitted in this context. Do not execute the request.", payload), ScopeDecision)
+        if chat_history:
+            payload["recent_context_summary"] = [m.get("content", "")[:200] for m in chat_history[-3:] if m.get("content")]
+        payload.update({
+            "requested_module": module_type or "project_copilot",
+            "allowed_scope": MODULE_SCOPES.get(module_type, "Business planning and delivery for this active project, including relevant supporting concepts."),
+            "user_request": message
+        })
+        result = self._execute_json_prompt(
+            SCOPE_SYSTEM_PROMPT,
+            self._request_text("Classify whether this request is permitted in this context. Do not execute the request.", payload),
+            ScopeDecision
+        )
         return ScopeDecision.model_validate(result)
 
     def modify_section(self, module_type: str, current_data: Dict[str, Any], instruction: str, project_info: Optional[Dict[str, Any]] = None, cross_module_context: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Any], str]:
@@ -1143,6 +1218,28 @@ class GeminiAIService:
         decision = self._scope_decision(project_info or {}, instruction, scoped_context, module_type)
         if not decision.allowed:
             raise ValueError("This request is outside the current module. Open the appropriate module to request that change.")
+        if not self._configured_api_keys():
+            new_data = copy.deepcopy(current_data)
+            change_summary = f"Planned modification: {instruction.strip()[:100]}"
+            if module_type == "bmc":
+                revs = new_data.setdefault("revenue_streams", [])
+                revs.append(f"Proposed: {instruction.strip()[:80]}")
+            elif module_type == "idea_validator":
+                new_data.setdefault("critical_assumptions", []).append(instruction.strip()[:80])
+            elif module_type == "tech_stack":
+                new_data.setdefault("key_technologies", []).append(instruction.strip()[:80])
+            elif module_type == "market_research":
+                new_data.setdefault("direct_competitors", []).append(instruction.strip()[:80])
+            elif module_type == "execution_roadmap":
+                if "phases" in new_data and new_data["phases"]:
+                    new_data["phases"][0].setdefault("tasks", []).append({
+                        "id": "t_offline", "code": "OFF-1", "title": instruction.strip()[:60],
+                        "estimated_effort_hours": 8, "status": "pending",
+                        "start_date": date.today().isoformat(),
+                        "due_date": (date.today() + timedelta(days=7)).isoformat()
+                    })
+            return new_data, change_summary
+
         schema = MODULE_SCHEMAS[module_type]
         wrapper_schema = create_model("ScopedModuleChange", change_summary=(str, ...), data=(schema, ...))
         payload = self._context_payload(project_info or {}, scoped_context)
@@ -1159,12 +1256,74 @@ class GeminiAIService:
             self._validate_roadmap(new_data, planning)
         return new_data, result["change_summary"]
 
+    def propose_module_change(
+        self,
+        module_type: str,
+        current_data: Dict[str, Any],
+        instruction: str,
+        project_info: Optional[Dict[str, Any]] = None,
+        cross_module_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Produce a non-destructive change proposal preview for user review.
+        Does NOT persist or mutate the project.
+        """
+        if module_type == "detailed_roadmap":
+            module_type = "execution_roadmap"
+        if module_type not in MODULE_SCHEMAS:
+            raise ValueError(f"Module '{module_type}' does not support structured change proposals.")
+        if not instruction or not instruction.strip():
+            raise ValueError("Enter a specific instruction for the change proposal.")
+
+        new_data, summary = self.modify_section(
+            module_type=module_type,
+            current_data=current_data,
+            instruction=instruction,
+            project_info=project_info,
+            cross_module_context=cross_module_context
+        )
+
+        diff = {}
+        for k, v in new_data.items():
+            if k not in current_data or current_data[k] != v:
+                diff[k] = {"before": current_data.get(k), "after": v}
+
+        affected_assumptions = []
+        if "assumptions" in new_data:
+            affected_assumptions = [str(a) for a in (new_data.get("assumptions") or [])][:5]
+        elif "critical_assumptions" in new_data:
+            affected_assumptions = [str(a) for a in (new_data.get("critical_assumptions") or [])][:5]
+        else:
+            affected_assumptions = [f"Assumptions related to {k}" for k in list(diff.keys())[:3]]
+
+        affected_tasks = []
+        if module_type == "execution_roadmap" and "phases" in new_data:
+            for p in new_data.get("phases", []):
+                for t in p.get("tasks", []):
+                    affected_tasks.append(t.get("title") or t.get("code") or "Task")
+            affected_tasks = affected_tasks[:5]
+        else:
+            affected_tasks = [f"Review {module_type.replace('_', ' ').title()} milestones"]
+
+        return {
+            "target_module": module_type,
+            "summary": summary,
+            "proposed_diff": diff,
+            "affected_assumptions": affected_assumptions,
+            "affected_tasks": affected_tasks,
+            "requires_confirmation": True,
+            "proposed_content": new_data,
+        }
+
     def chat_copilot(self, project_info: Dict[str, Any], chat_history: List[Dict[str, str]], user_message: str, cross_module_context: Optional[Dict[str, Any]] = None) -> str:
         if len(user_message) > 4000:
             raise ValueError("Chat message exceeds maximum allowed length of 4000 characters.")
-        decision = self._scope_decision(project_info, user_message, cross_module_context)
-        if not decision.allowed:
-            return "This request is out of scope for project planning or asks for protected system information. I can help with this project's business model, market, technology, validation, and execution plan; please connect your question to the active project."
+        decision = self._scope_decision(project_info, user_message, cross_module_context, chat_history=chat_history)
+        route = getattr(decision, "route", "clearly_relevant")
+        if not decision.allowed or route == "unrelated_or_unauthorized":
+            return "I can help with this project's customers, business model, tools, research, and execution plan. That question is out of scope and falls outside this workspace. Would you like help identifying your next project task?"
+        if route == "ambiguous":
+            return getattr(decision, "clarification_question", None) or "Could you clarify which part of the project or plan you'd like to explore?"
 
         payload = self._context_payload(project_info, cross_module_context)
         # Budget up to 20 messages, enforcing strict total character budget of 16,000 chars

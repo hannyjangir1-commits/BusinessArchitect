@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, CopilotMessage } from '../types';
-import { Bot, Send, User, Sparkles, Loader2 } from 'lucide-react';
+import { Project, CopilotMessage, CopilotProposalResponse } from '../types';
+import {
+  Bot, Send, User, Sparkles, Loader2, GitPullRequest, MessageSquare,
+  CheckCircle2, ArrowRight, X, AlertTriangle
+} from 'lucide-react';
 import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
+import { api } from '../services/api';
+import { Dialog } from './common/Dialog';
 
 interface Props {
   project: Project;
@@ -10,6 +15,7 @@ interface Props {
   onLoadOlderMessages?: () => Promise<void>;
   onRefreshMessages?: () => Promise<void>;
   onCheckStatus?: (clientMsgId: string) => Promise<void>;
+  onApplyProposal?: (targetModule: string, instruction: string) => Promise<void>;
   hasMoreOlder?: boolean;
   isLoadingOlder?: boolean;
   isLoading: boolean;
@@ -322,6 +328,7 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   onLoadOlderMessages,
   onRefreshMessages,
   onCheckStatus,
+  onApplyProposal,
   hasMoreOlder = false,
   isLoadingOlder = false,
   isLoading,
@@ -335,6 +342,94 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
   const shouldScrollToBottomRef = useRef(false);
   const isInitialLoadRef = useRef(true);
   const scrollSnapshotRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+
+  // Proposal Workflow State
+  const [copilotMode, setCopilotMode] = useState<'ask' | 'propose'>('ask');
+  const [proposalTargetModule, setProposalTargetModule] = useState<string>('bmc');
+  const [proposalInput, setProposalInput] = useState<string>('');
+  const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [currentProposal, setCurrentProposal] = useState<CopilotProposalResponse | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isApplyingProposal, setIsApplyingProposal] = useState(false);
+  const [applySuccessMessage, setApplySuccessMessage] = useState<string | null>(null);
+  const [lastProposedInstruction, setLastProposedInstruction] = useState<string>('');
+
+  const PROPOSAL_MODULE_OPTIONS = [
+    { id: 'bmc', label: 'Business Model Canvas' },
+    { id: 'tech_stack', label: 'Technology Stack' },
+    { id: 'execution_roadmap', label: 'Roadmap & Tasks' },
+    { id: 'idea_validator', label: 'Idea Validator' },
+    { id: 'market_research', label: 'Market Research' },
+  ];
+
+  const handleGenerateProposal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proposalInput.trim() || isGeneratingProposal) return;
+    setIsGeneratingProposal(true);
+    setProposalError(null);
+    setApplySuccessMessage(null);
+    const instruction = proposalInput.trim();
+    setLastProposedInstruction(instruction);
+
+    try {
+      const proposal = await api.copilot.proposeChange(project.id, proposalTargetModule, instruction);
+      setCurrentProposal(proposal);
+      setIsReviewOpen(true);
+    } catch (err: any) {
+      setProposalError(err.message || 'Failed to generate proposal preview.');
+    } finally {
+      setIsGeneratingProposal(false);
+    }
+  };
+
+  const handleApplyProposal = async () => {
+    if (!currentProposal) return;
+    setIsApplyingProposal(true);
+    setProposalError(null);
+    try {
+      if (onApplyProposal) {
+        await onApplyProposal(currentProposal.target_module, lastProposedInstruction);
+      } else {
+        await api.modules.modify(project.id, currentProposal.target_module, lastProposedInstruction);
+      }
+      setApplySuccessMessage(`Successfully updated ${currentProposal.target_module.replaceAll('_', ' ')}! A new version has been saved.`);
+      setIsReviewOpen(false);
+      setProposalInput('');
+    } catch (err: any) {
+      setProposalError(err.message || 'Failed to apply change to module.');
+    } finally {
+      setIsApplyingProposal(false);
+    }
+  };
+
+  const formatDiffValue = (val: any) => {
+    if (val === undefined || val === null) {
+      return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 13 }}>None</span>;
+    }
+    if (Array.isArray(val)) {
+      if (val.length === 0) {
+        return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 13 }}>Empty list</span>;
+      }
+      return (
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {val.map((item, idx) => (
+            <li key={idx}>
+              {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    if (typeof val === 'object') {
+      return (
+        <pre style={{ margin: 0, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace' }}>
+          {JSON.stringify(val, null, 2)}
+        </pre>
+      );
+    }
+    return <span style={{ fontSize: 13 }}>{String(val)}</span>;
+  };
 
   // Deduplicate messages by id preserving chronological order
   const displayMessages = React.useMemo(() => {
@@ -470,10 +565,69 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
             </p>
           </div>
         </div>
-        <span className="stage-badge-purple">Context Active: {project.stage}</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* Mode Switcher */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            padding: 3,
+            gap: 2
+          }}>
+            <button
+              type="button"
+              onClick={() => setCopilotMode('ask')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: copilotMode === 'ask' ? 'var(--primary)' : 'transparent',
+                color: copilotMode === 'ask' ? '#fff' : 'var(--text-muted)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <MessageSquare size={13} />
+              <span>Ask</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCopilotMode('propose')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: copilotMode === 'propose' ? 'var(--primary)' : 'transparent',
+                color: copilotMode === 'propose' ? '#fff' : 'var(--text-muted)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <GitPullRequest size={13} />
+              <span>Propose Change</span>
+            </button>
+          </div>
+
+          <span className="stage-badge-purple">Context Active: {project.stage}</span>
+        </div>
       </div>
 
-      {/* Messages Stream */}
+      {copilotMode === 'ask' ? (
+        <>
+          {/* Messages Stream */}
       <div
         ref={scrollContainerRef}
         style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}
@@ -737,6 +891,457 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
           {isLoading || isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </form>
+    </>
+  ) : (
+    /* Propose Change View */
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      <div style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 840, margin: '0 auto', width: '100%' }}>
+        {/* Informational Guidance Banner */}
+        <div style={{
+          background: 'var(--bg-subtle)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 12,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 14
+        }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgb(69 60 55 / 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <GitPullRequest size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>
+              Non-Destructive Module Proposals
+            </h4>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Instruct Copilot to draft updates for your business modules. You will receive an interactive before-and-after diff with impacted assumptions and tasks to inspect before confirming.
+            </p>
+          </div>
+        </div>
+
+        {/* Success notice */}
+        {applySuccessMessage && (
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: 8,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            color: 'var(--success-text, #10b981)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <CheckCircle2 size={18} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{applySuccessMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setApplySuccessMessage(null)}
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Error notice */}
+        {proposalError && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 8,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            color: 'var(--danger-text, #ef4444)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <AlertTriangle size={18} />
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{proposalError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProposalError(null)}
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Pending proposal ready banner */}
+        {currentProposal && (
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--primary)',
+            borderRadius: 10,
+            padding: '14px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12
+          }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: 0.5 }}>
+                Pending Proposal Ready
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)', marginTop: 2 }}>
+                {currentProposal.target_module.replaceAll('_', ' ')} · {currentProposal.summary}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setIsReviewOpen(true)}
+              style={{ fontSize: 12, padding: '7px 16px', gap: 6 }}
+            >
+              <span>Review Diff</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Target Module Selection */}
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-main)', marginBottom: 8 }}>
+            Target Module to Update:
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            {PROPOSAL_MODULE_OPTIONS.map((opt) => {
+              const isSel = proposalTargetModule === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setProposalTargetModule(opt.id)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: isSel ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
+                    background: isSel ? 'rgba(69, 60, 55, 0.08)' : 'var(--bg-card)',
+                    color: isSel ? 'var(--primary)' : 'var(--text-main)',
+                    fontWeight: isSel ? 700 : 500,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Instruction Composer */}
+        <div>
+          <label htmlFor="proposal-instruction-input" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-main)', marginBottom: 8 }}>
+            Proposed Changes / Instructions:
+          </label>
+          <textarea
+            id="proposal-instruction-input"
+            className="form-input"
+            rows={4}
+            value={proposalInput}
+            onChange={(e) => setProposalInput(e.target.value)}
+            placeholder={`Describe the updates for ${PROPOSAL_MODULE_OPTIONS.find(o => o.id === proposalTargetModule)?.label}... (e.g. "Add university bike co-ops to key partners and adjust pricing strategy for students")`}
+            style={{ width: '100%', resize: 'vertical', fontSize: 13, padding: 12 }}
+            disabled={isGeneratingProposal}
+          />
+        </div>
+
+        {/* Starter Suggestion Chips */}
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+            Suggested Modifications
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              `Add 2 enterprise pilot milestones and test SLAs`,
+              `Introduce high-margin subscription tier with onboarding fee`,
+              `Add competitive differentiation against incumbent legacy vendors`,
+              `Incorporate automated security compliance tasks in Q2`
+            ].map((sugg, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setProposalInput(sugg)}
+                style={{
+                  background: 'var(--bg-subtle)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 16,
+                  padding: '5px 12px',
+                  fontSize: 12,
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                + {sugg}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Action Bar */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleGenerateProposal}
+            disabled={isGeneratingProposal || !proposalInput.trim()}
+            style={{ gap: 8, padding: '10px 22px', fontSize: 13 }}
+          >
+            {isGeneratingProposal ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Analyzing & Drafting Preview...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} />
+                <span>Generate Proposal Preview</span>
+              </>
+            )}
+          </button>
+        </div>
+
+      </div>
     </div>
-  );
+  )}
+
+  {/* Proposal Review Modal */}
+  {isReviewOpen && currentProposal && (
+    <Dialog
+      isOpen={true}
+      onClose={() => setIsReviewOpen(false)}
+      dismissible={!isApplyingProposal}
+      showCloseButton={false}
+      ariaLabelledBy="proposal-review-title"
+      maxWidth={820}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingBottom: 14,
+          borderBottom: '1px solid var(--border-color)',
+          marginBottom: 16
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              background: 'rgb(69 60 55 / 0.12)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <GitPullRequest size={18} />
+            </div>
+            <div>
+              <h3 id="proposal-review-title" style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-main)' }}>
+                Review Change Proposal
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                Target: <b>{currentProposal.target_module.replaceAll('_', ' ').toUpperCase()}</b> · Non-destructive preview
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsReviewOpen(false)}
+            disabled={isApplyingProposal}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}
+            aria-label="Close proposal review"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Scrollable Modal Content */}
+        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Summary */}
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            padding: '12px 16px'
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>
+              Summary of Changes
+            </div>
+            <div style={{ fontSize: 13.5, color: 'var(--text-main)', lineHeight: 1.45 }}>
+              {currentProposal.summary}
+            </div>
+          </div>
+
+          {/* Side-by-Side Diff Sections */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>
+              Detailed Changes (Before vs After)
+            </div>
+            {Object.keys(currentProposal.proposed_diff || {}).length === 0 ? (
+              <div style={{ padding: 14, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+                No direct field changes detected. Content is aligned.
+              </div>
+            ) : (
+              Object.entries(currentProposal.proposed_diff).map(([key, diff]) => (
+                <div
+                  key={key}
+                  style={{
+                    marginBottom: 14,
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 8,
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div style={{
+                    background: 'var(--bg-subtle)',
+                    padding: '8px 12px',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    borderBottom: '1px solid var(--border-color)',
+                    color: 'var(--text-main)'
+                  }}>
+                    {key.replaceAll('_', ' ').toUpperCase()}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(239, 68, 68, 0.04)',
+                      borderRight: '1px solid var(--border-color)'
+                    }}>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: 'var(--danger-text, #ef4444)',
+                        marginBottom: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <span>&minus; Current</span>
+                      </div>
+                      {formatDiffValue(diff.before)}
+                    </div>
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(16, 185, 129, 0.04)'
+                    }}>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: 'var(--success-text, #10b981)',
+                        marginBottom: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <span>+ Proposed</span>
+                      </div>
+                      {formatDiffValue(diff.after)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Impact Analysis */}
+          {(currentProposal.affected_assumptions?.length > 0 || currentProposal.affected_tasks?.length > 0) && (
+            <div style={{
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 8,
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
+            }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                Impacted Blueprint Entities
+              </div>
+              {currentProposal.affected_assumptions?.length > 0 && (
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-main)' }}>
+                    Affected Assumptions ({currentProposal.affected_assumptions.length}):
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                    {currentProposal.affected_assumptions.map((a, i) => (
+                      <span key={i} style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {currentProposal.affected_tasks?.length > 0 && (
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-main)' }}>
+                    Affected Roadmap Tasks ({currentProposal.affected_tasks.length}):
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                    {currentProposal.affected_tasks.map((t, i) => (
+                      <span key={i} style={{ fontSize: 12, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingTop: 16,
+          borderTop: '1px solid var(--border-color)',
+          marginTop: 16
+        }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setIsReviewOpen(false)}
+            disabled={isApplyingProposal}
+          >
+            Dismiss Preview
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleApplyProposal}
+            disabled={isApplyingProposal}
+            style={{ gap: 8 }}
+          >
+            {isApplyingProposal ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Applying Changes...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={16} />
+                <span>Apply Changes to Module</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  )}
+</div>
+);
 };

@@ -365,6 +365,7 @@ export const ExecutionRoadmapModule: React.FC<Props> = ({
               stage={project.stage}
               phases={phases}
               tasks={tasks}
+              onUpdateTask={onUpdateTask}
             />
           )}
 

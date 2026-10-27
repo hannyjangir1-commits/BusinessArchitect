@@ -11,6 +11,7 @@ const searchableModules = [
   { id: 'tech_stack', label: 'Technology Stack' },
   { id: 'idea_validator', label: 'Idea Validator' },
   { id: 'market_research', label: 'Market Research' },
+  { id: 'financials', label: 'Financial Worksheet' },
   { id: 'execution_roadmap', label: 'Roadmap & Execution Plan' },
   { id: 'blueprint_copilot', label: 'Planning Copilot' },
 ];
@@ -64,7 +65,7 @@ export const Header: React.FC<Props> = ({ project, user, onLogout, onEditProject
 
         const generated = new Set((project.generated_modules || []).map((type) => type === 'detailed_roadmap' ? 'execution_roadmap' : type));
         if (project.active_module) generated.add(project.active_module);
-        const readableModules = searchableModules.filter((module) => generated.has(module.id) && !['overview', 'blueprint_copilot'].includes(module.id));
+        const readableModules = searchableModules.filter((module) => generated.has(module.id) && !['overview', 'blueprint_copilot', 'financials'].includes(module.id));
         const [taskResult, ...moduleResults] = await Promise.allSettled([
           api.tasks.list(project.id, { search: searchQuery.trim() }),
           ...readableModules.map((module) => api.modules.get(project.id, module.id))

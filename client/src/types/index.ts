@@ -62,8 +62,20 @@ export interface ModuleDetail<T = any> {
   context_metadata?: Record<string, any>;
 }
 
+export type BusinessModelFramework = 'standard_bmc' | 'lean_canvas' | 'value_prop_canvas' | 'custom_canvas';
+
+export type EpistemicStatus = 'user_supplied' | 'hypothesis' | 'evidence_supported' | 'unknown' | 'not_applicable';
+
+export interface CanvasItemMetadata {
+  epistemic_status: EpistemicStatus;
+  evidence_link?: string;
+  is_assumption?: boolean;
+  linked_task_code?: string;
+}
+
 export interface BMCData {
   tagline?: string;
+  framework_type?: BusinessModelFramework;
   customer_segments: string[];
   value_propositions: string[];
   channels: string[];
@@ -71,10 +83,45 @@ export interface BMCData {
   revenue_streams: string[];
   key_resources: string[];
   key_activities: string[];
-  key_partnerships: string[];
+  key_partnerships?: string[];
+  key_partners?: string[];
   cost_structure: string[];
   actionable_guidance?: Record<string, string>;
   assumptions?: string[];
+  item_metadata?: Record<string, CanvasItemMetadata>;
+}
+
+export interface LeanCanvasData {
+  tagline?: string;
+  framework_type?: BusinessModelFramework;
+  problem: string[];
+  customer_segments: string[];
+  unique_value_proposition: string[];
+  solution: string[];
+  channels: string[];
+  revenue_streams: string[];
+  cost_structure: string[];
+  key_metrics: string[];
+  unfair_advantage: string[];
+  existing_alternatives?: string[];
+  early_adopters?: string[];
+  high_level_concept?: string;
+  actionable_guidance?: Record<string, string>;
+  assumptions?: string[];
+  item_metadata?: Record<string, CanvasItemMetadata>;
+}
+
+export interface ValuePropositionCanvasData {
+  framework_type?: BusinessModelFramework;
+  customer_jobs: string[];
+  customer_pains: string[];
+  customer_gains: string[];
+  products_and_services: string[];
+  pain_relievers: string[];
+  gain_creators: string[];
+  fit_assessment?: string;
+  assumptions?: string[];
+  item_metadata?: Record<string, CanvasItemMetadata>;
 }
 
 export interface TechItem {
@@ -88,6 +135,8 @@ export interface TechItem {
   role_description?: string;
   implementation_guidance?: string;
   estimated_cost_tier?: string;
+  alternative?: string;
+  revisit_trigger?: string;
 }
 
 export interface TechStackData {
@@ -128,12 +177,21 @@ export interface ValidationRisk {
 
 export interface ValidationExperiment {
   experiment: string;
-  metric: string;
-  target_criteria: string;
+  metric?: string;
+  target_criteria?: string;
+  hypothesis?: string;
+  target_participants?: string;
+  method?: string;
+  sample_size?: string;
+  cost_estimate?: string;
+  success_threshold?: string;
+  failure_interpretation?: string;
+  evidence_to_collect?: string;
+  next_decision?: string;
 }
 
 export interface IdeaValidatorData {
-  overall_viability_score: number;
+  overall_viability_score?: number | null;
   problem_clarity: string;
   customer_fit: string;
   value_proposition: string;
@@ -148,6 +206,10 @@ export interface IdeaValidatorData {
   score_factors?: Record<string, number>;
   evidence_note?: string;
   source_references?: ResearchSource[];
+  critical_assumptions?: string[];
+  available_evidence?: string[];
+  biggest_uncertainty?: string;
+  recommended_decision?: 'continue' | 'revise' | 'pause' | 'investigate_further';
 }
 
 export interface ResearchSource {
@@ -224,6 +286,12 @@ export interface RoadmapTask {
   department?: string;
   steps?: string[];
   is_overloaded?: boolean;
+  branch_type?: 'core_spine' | 'parallel_work' | 'optional_branch' | 'alternative';
+  parent_outcome?: string;
+  definition_of_done?: string;
+  acceptance_criteria?: string[];
+  edge_type?: 'prerequisite' | 'parent_group' | 'optional_branch' | 'alternative' | 'related_info';
+  roadmap_mode?: 'execution' | 'learning';
   created_at?: string;
   updated_at?: string;
 }
@@ -301,4 +369,100 @@ export interface CopilotOperationStatus {
   user_message?: CopilotMessage;
   assistant_message?: CopilotMessage;
   error_detail?: string;
+}
+
+export type KnowledgeItemType = 'fact' | 'assumption' | 'evidence' | 'decision' | 'experiment' | 'open_question';
+
+export interface KnowledgeLink {
+  id: string;
+  project_id: string;
+  source_id: string;
+  target_id: string;
+  relationship: string;
+  created_at: string;
+}
+
+export interface ProjectKnowledgeItem {
+  id: string;
+  project_id: string;
+  item_type: KnowledgeItemType;
+  title: string;
+  content: string;
+  status: string;
+  epistemic_status: EpistemicStatus;
+  source_reference?: string | null;
+  linked_module?: string | null;
+  metadata_json?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  outgoing_links?: KnowledgeLink[];
+  incoming_links?: KnowledgeLink[];
+}
+
+export interface StartupCostItem {
+  category: string;
+  item: string;
+  amount: number;
+  is_confirmed?: boolean;
+}
+
+export interface FixedCostItem {
+  category: string;
+  item: string;
+  monthly_amount: number;
+  frequency?: string;
+}
+
+export interface VariableCostItem {
+  item: string;
+  unit_cost: number;
+  notes?: string;
+}
+
+export interface RevenueModelConfig {
+  model_type: string;
+  price_per_unit: number;
+  expected_volume_monthly?: number | null;
+}
+
+export interface FinancialMetrics {
+  total_startup_cost: number;
+  monthly_fixed_cost: number;
+  unit_variable_cost: number;
+  price_per_unit: number;
+  unit_contribution_margin: number;
+  contribution_margin_ratio: number;
+  breakeven_units_monthly?: number | null;
+  breakeven_revenue_monthly?: number | null;
+  monthly_burn_rate: number;
+  runway_months?: number | null;
+}
+
+export interface FinancialWorksheet {
+  id: string;
+  project_id: string;
+  currency: string;
+  startup_costs: StartupCostItem[];
+  fixed_costs: FixedCostItem[];
+  variable_costs: VariableCostItem[];
+  revenue_model: RevenueModelConfig;
+  cash_available: number;
+  metrics: FinancialMetrics;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CopilotProposalRequest {
+  target_module: string;
+  instruction: string;
+}
+
+export interface CopilotProposalResponse {
+  target_module: string;
+  summary: string;
+  proposed_diff: Record<string, { before: any; after: any }>;
+  affected_assumptions: string[];
+  affected_tasks: string[];
+  requires_confirmation: boolean;
+  proposed_content: Record<string, any>;
 }

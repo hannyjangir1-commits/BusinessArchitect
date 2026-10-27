@@ -105,6 +105,8 @@ class Project(Base):
     modules = relationship("ModuleContent", back_populates="project", cascade="all, delete-orphan")
     tasks = relationship("RoadmapTask", back_populates="project", cascade="all, delete-orphan")
     copilot_messages = relationship("CopilotMessage", back_populates="project", cascade="all, delete-orphan")
+    knowledge_items = relationship("ProjectKnowledgeItem", back_populates="project", cascade="all, delete-orphan")
+    financial_worksheet = relationship("FinancialWorksheet", back_populates="project", uselist=False, cascade="all, delete-orphan")
 
 class ModuleContent(Base):
     __tablename__ = "module_contents"
@@ -115,6 +117,7 @@ class ModuleContent(Base):
     id = Column(String(36), primary_key=True, default=lambda: gen_id("mod_"))
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     module_type = Column(String(64), nullable=False)  # bmc, tech_stack, idea_validator, market_research, execution_roadmap, overview
+    framework_type = Column(String(64), default="standard", server_default="standard", nullable=False)  # standard_bmc, lean_canvas, value_prop_canvas, custom_canvas
     active_version_id = Column(String(36), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
@@ -129,6 +132,7 @@ class ModuleVersion(Base):
     module_content_id = Column(String(36), ForeignKey("module_contents.id", ondelete="CASCADE"), nullable=False, index=True)
     version_number = Column(Integer, nullable=False)  # 1 to 5
     version_name = Column(String(128), nullable=False)  # Editable display name: "BMC V1", "Subscription Pivot", etc.
+    framework_type = Column(String(64), default="standard", server_default="standard", nullable=False)
     data = Column(JSON, nullable=False)
     change_summary = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -160,6 +164,15 @@ class RoadmapTask(Base):
     is_overloaded = Column(Boolean, default=False, server_default=false(), nullable=False)
     order_index = Column(Integer, default=0, nullable=False)
     is_ai_generated = Column(Boolean, default=False, nullable=False)
+
+    # Roadmap.sh enhancements
+    branch_type = Column(String(32), default="core", server_default="core", nullable=False)  # core, parallel, optional, alternative, learning
+    parent_outcome = Column(String(128), nullable=True)
+    definition_of_done = Column(Text, nullable=True)
+    acceptance_criteria = Column(JSON, default=list, server_default=text("'[]'"), nullable=False)
+    edge_type = Column(String(32), default="prerequisite", server_default="prerequisite", nullable=False)  # prerequisite, parent_group, optional_branch, alternative, related_info
+    roadmap_mode = Column(String(32), default="execution", server_default="execution", nullable=False)  # execution, learning
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
@@ -168,6 +181,50 @@ class RoadmapTask(Base):
     )
 
     project = relationship("Project", back_populates="tasks")
+
+class ProjectKnowledgeItem(Base):
+    __tablename__ = "project_knowledge_items"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("kno_"))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_type = Column(String(32), nullable=False, index=True)  # fact, assumption, evidence, decision, experiment, open_question
+    title = Column(String(256), nullable=False)
+    content = Column(Text, nullable=False)
+    status = Column(String(32), default="active", server_default="active", nullable=False)  # draft, active, validated, invalidated, resolved
+    epistemic_status = Column(String(32), default="hypothesis", server_default="hypothesis", nullable=False)  # user_supplied, hypothesis, evidence_supported, unknown, not_applicable
+    source_reference = Column(Text, nullable=True)
+    linked_module = Column(String(64), nullable=True)
+    metadata_json = Column(JSON, default=dict, server_default=text("'{}'"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    project = relationship("Project", back_populates="knowledge_items")
+
+class KnowledgeLink(Base):
+    __tablename__ = "knowledge_links"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("knl_"))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id = Column(String(36), ForeignKey("project_knowledge_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_id = Column(String(36), ForeignKey("project_knowledge_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship = Column(String(32), nullable=False)  # supports, tests, contradicts, derives_from, blocks
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class FinancialWorksheet(Base):
+    __tablename__ = "financial_worksheets"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("fin_"))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    currency = Column(String(8), default="USD", server_default="USD", nullable=False)
+    startup_costs = Column(JSON, default=list, server_default=text("'[]'"), nullable=False)  # [{ category, item, amount, is_confirmed }]
+    fixed_costs = Column(JSON, default=list, server_default=text("'[]'"), nullable=False)    # [{ category, item, monthly_amount, frequency }]
+    variable_costs = Column(JSON, default=list, server_default=text("'[]'"), nullable=False) # [{ item, unit_cost, notes }]
+    revenue_model = Column(JSON, default=dict, server_default=text("'{}'"), nullable=False)   # { model_type, price_per_unit, expected_volume_monthly }
+    cash_available = Column(Float, default=0.0, server_default="0.0", nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    project = relationship("Project", back_populates="financial_worksheet")
 
 class CopilotMessage(Base):
     __tablename__ = "copilot_messages"

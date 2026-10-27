@@ -17,20 +17,56 @@ class GenerationBrief(BaseModel):
     feasibility_flags: List[str] = Field(default_factory=list)
     custom_instructions: Optional[str] = None
 
-# --- BMC Schemas ---
+# --- BMC & Business Model Framework Schemas ---
+class CanvasItemState(BaseModel):
+    text: str
+    state: str = "hypothesis"  # user_supplied, hypothesis, evidence_supported, unknown, not_applicable
+    reason: Optional[str] = None
+    evidence_ref: Optional[str] = None
+    assumption_id: Optional[str] = None
+
 class BMCData(BaseModel):
+    framework_type: str = "standard_bmc"
     tagline: Optional[str] = "A practical solution for its target customers"
-    customer_segments: List[str] = Field(..., min_length=1)
-    value_propositions: List[str] = Field(..., min_length=1)
-    channels: List[str] = Field(..., min_length=1)
-    customer_relationships: List[str] = Field(..., min_length=1)
-    revenue_streams: List[str] = Field(..., min_length=1)
-    key_resources: List[str] = Field(..., min_length=1)
-    key_activities: List[str] = Field(..., min_length=1)
-    key_partnerships: List[str] = Field(..., min_length=1)
-    cost_structure: List[str] = Field(..., min_length=1)
+    customer_segments: List[str] = Field(min_length=1)
+    value_propositions: List[str] = Field(min_length=1)
+    channels: List[str] = Field(default_factory=list)
+    customer_relationships: List[str] = Field(default_factory=list)
+    revenue_streams: List[str] = Field(default_factory=list)
+    key_resources: List[str] = Field(default_factory=list)
+    key_activities: List[str] = Field(default_factory=list)
+    key_partnerships: List[str] = Field(default_factory=list)
+    cost_structure: List[str] = Field(default_factory=list)
     actionable_guidance: Optional[Dict[str, str]] = Field(default_factory=dict)
     assumptions: Optional[List[str]] = Field(default_factory=list)
+    item_metadata: Optional[Dict[str, List[CanvasItemState]]] = Field(default_factory=dict)
+
+class LeanCanvasData(BaseModel):
+    framework_type: str = "lean_canvas"
+    tagline: Optional[str] = None
+    problem: List[str] = Field(default_factory=list)
+    existing_alternatives: List[str] = Field(default_factory=list)
+    solution: List[str] = Field(default_factory=list)
+    key_metrics: List[str] = Field(default_factory=list)
+    unique_value_proposition: List[str] = Field(default_factory=list)
+    high_level_concept: Optional[str] = None
+    unfair_advantage: List[str] = Field(default_factory=list)
+    channels: List[str] = Field(default_factory=list)
+    customer_segments: List[str] = Field(default_factory=list)
+    early_adopters: List[str] = Field(default_factory=list)
+    cost_structure: List[str] = Field(default_factory=list)
+    revenue_streams: List[str] = Field(default_factory=list)
+    item_metadata: Optional[Dict[str, List[CanvasItemState]]] = Field(default_factory=dict)
+
+class ValuePropositionCanvasData(BaseModel):
+    framework_type: str = "value_prop_canvas"
+    customer_jobs: List[str] = Field(default_factory=list)
+    pains: List[str] = Field(default_factory=list)
+    gains: List[str] = Field(default_factory=list)
+    products_and_services: List[str] = Field(default_factory=list)
+    pain_relievers: List[str] = Field(default_factory=list)
+    gain_creators: List[str] = Field(default_factory=list)
+    item_metadata: Optional[Dict[str, List[CanvasItemState]]] = Field(default_factory=dict)
 
 # --- Tech Stack Schemas ---
 class TechItem(BaseModel):
@@ -43,6 +79,8 @@ class TechItem(BaseModel):
     role_description: Optional[str] = None
     implementation_guidance: Optional[str] = None
     estimated_cost_tier: Optional[str] = "Low / Free Tier"  # Low, Moderate, High
+    alternatives: Optional[List[str]] = Field(default_factory=list)
+    revisit_triggers: Optional[List[str]] = Field(default_factory=list)
 
     @property
     def name(self) -> str:
@@ -84,15 +122,22 @@ class ValidationExperiment(BaseModel):
     experiment: str
     metric: str
     target_criteria: str
-
+    hypothesis: Optional[str] = None
+    target_participants: Optional[str] = None
+    method: Optional[str] = None
+    sample_size: Optional[str] = None
+    cost_estimate: Optional[str] = None
+    success_threshold: Optional[str] = None
+    failure_interpretation: Optional[str] = None
+    evidence_to_collect: Optional[str] = None
+    next_decision: Optional[str] = None
 
 class ResearchSource(BaseModel):
     title: str
     url: str
 
-
 class IdeaValidatorData(BaseModel):
-    overall_viability_score: int = Field(default=85, ge=0, le=100)
+    overall_viability_score: Optional[int] = Field(default=None, ge=0, le=100)
     problem_clarity: str
     customer_fit: str
     value_proposition: str
@@ -102,6 +147,10 @@ class IdeaValidatorData(BaseModel):
     risks: List[ValidationRisk]
     validation_experiments: List[ValidationExperiment]
     suggested_next_actions: List[str]
+    critical_assumptions: List[str] = Field(default_factory=list)
+    available_evidence: List[str] = Field(default_factory=list)
+    biggest_uncertainty: Optional[str] = None
+    recommended_decision: Optional[str] = None  # continue, revise, pause, investigate
     budget_feasibility: Optional[str] = None
     scope_reduction_alternatives: Optional[List[str]] = Field(default_factory=list)
     score_factors: Optional[Dict[str, int]] = Field(default_factory=dict)
@@ -109,7 +158,7 @@ class IdeaValidatorData(BaseModel):
     source_references: List[ResearchSource] = Field(default_factory=list)
 
     @property
-    def score(self) -> int:
+    def score(self) -> Optional[int]:
         return self.overall_viability_score
 
     @property
@@ -223,6 +272,7 @@ class VersionItemResponse(BaseModel):
 
 class ModuleDetailResponse(BaseModel):
     module_type: str
+    framework_type: Optional[str] = "standard"
     active_version_id: Optional[str] = None
     active_version_name: Optional[str] = None
     active_version_number: Optional[int] = None

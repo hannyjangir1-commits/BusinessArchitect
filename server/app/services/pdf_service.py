@@ -338,8 +338,9 @@ class PDFService:
             story.append(Paragraph("4. Idea Validator & Feasibility Assessment", styles["SectionHeading"]))
             story.append(HRFlowable(width="100%", thickness=0.8, color=BORDER_COLOR, spaceAfter=10))
 
-            score = iv.get("overall_viability_score", 85)
-            story.append(Paragraph(f"<b>Overall Viability Score: {score}/100</b>", styles["SubHeading"]))
+            score = iv.get("overall_viability_score")
+            score_text = f"Overall Viability Score: {score}/100" if score is not None else "Overall Viability Score: Not assessed"
+            story.append(Paragraph(f"<b>{score_text}</b>", styles["SubHeading"]))
             story.append(Paragraph(f"<b>Problem Clarity:</b> {iv.get('problem_clarity', '')}", styles["BodyDark"]))
             story.append(Paragraph(f"<b>Customer Fit:</b> {iv.get('customer_fit', '')}", styles["BodyDark"]))
             story.append(Paragraph(f"<b>Value Proposition:</b> {iv.get('value_proposition', '')}", styles["BodyDark"]))

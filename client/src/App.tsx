@@ -19,6 +19,7 @@ const TechStackModule = lazy(() => import('./components/TechStackModule').then(m
 const IdeaValidatorModule = lazy(() => import('./components/IdeaValidatorModule').then(module => ({ default: module.IdeaValidatorModule })));
 const MarketResearchModule = lazy(() => import('./components/MarketResearchModule').then(module => ({ default: module.MarketResearchModule })));
 const ExecutionRoadmapModule = lazy(() => import('./components/ExecutionRoadmapModule').then(module => ({ default: module.ExecutionRoadmapModule })));
+const FinancialWorksheetModule = lazy(() => import('./components/FinancialWorksheetModule').then(module => ({ default: module.FinancialWorksheetModule })));
 const BlueprintCopilotModule = lazy(() => import('./components/BlueprintCopilotModule').then(module => ({ default: module.BlueprintCopilotModule })));
 const NewProjectWizard = lazy(() => import('./components/NewProjectWizard').then(module => ({ default: module.NewProjectWizard })));
 const VersionConflictModal = lazy(() => import('./components/VersionConflictModal').then(module => ({ default: module.VersionConflictModal })));
@@ -29,7 +30,7 @@ import { Loader2, AlertCircle, X } from 'lucide-react';
 import { WizardLoadingShell, WizardErrorBoundary } from './components/WizardLoadingShell';
 import './styles/index.css';
 
-const MODULE_TYPES = new Set(['overview', 'bmc', 'tech_stack', 'idea_validator', 'market_research', 'execution_roadmap', 'blueprint_copilot']);
+const MODULE_TYPES = new Set(['overview', 'bmc', 'tech_stack', 'idea_validator', 'market_research', 'financials', 'execution_roadmap', 'blueprint_copilot']);
 const normalizeModuleType = (moduleType: string) => {
   const canonical = moduleType === 'detailed_roadmap' ? 'execution_roadmap' : moduleType;
   return MODULE_TYPES.has(canonical) ? canonical : 'overview';
@@ -61,6 +62,7 @@ const INITIAL_MODULE_BADGES: Record<string, ModuleBadgeState> = {
   tech_stack: { version: 'V1', status: 'unknown' },
   idea_validator: { version: 'V1', status: 'unknown' },
   market_research: { version: 'V1', status: 'unknown' },
+  financials: { version: 'V1', isGenerated: true, status: 'generated' },
   execution_roadmap: { version: 'V1', status: 'unknown' },
   blueprint_copilot: { version: 'V1', status: 'generated' }
 };
@@ -734,7 +736,7 @@ export const App: React.FC = () => {
     setModuleError(null);
 
     try {
-      if (!['overview', 'blueprint_copilot'].includes(moduleType)) {
+      if (!['overview', 'blueprint_copilot', 'financials'].includes(moduleType)) {
         const detail = await queryCache.fetchWithCache(
           cacheKey,
           () => api.modules.get(projectId, moduleType),
@@ -1511,6 +1513,12 @@ export const App: React.FC = () => {
                   />
                 )}
 
+                {activeModule === 'financials' && (
+                  <FinancialWorksheetModule
+                    project={currentProject}
+                  />
+                )}
+
                 {activeModule === 'execution_roadmap' && (
                   <ExecutionRoadmapModule
                     project={currentProject}
@@ -1544,6 +1552,10 @@ export const App: React.FC = () => {
                     onLoadOlderMessages={handleLoadOlderCopilot}
                     onRefreshMessages={handleRefreshCopilot}
                     onCheckStatus={handleCheckCopilotStatus}
+                    onApplyProposal={async (targetModule, instruction) => {
+                      await api.modules.modify(currentProject.id, targetModule, instruction);
+                      queryCache.invalidate(`module:${currentProject.id}:${targetModule}`);
+                    }}
                     onSendMessage={async (msg, clientMsgId) => {
                       const projectId = currentProject.id;
                       const navigation = navigationRef.current;

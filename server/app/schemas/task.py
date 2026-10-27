@@ -20,6 +20,12 @@ class TaskCreateRequest(BaseModel):
     department: Optional[str] = None
     steps: Optional[List[str]] = Field(default_factory=list)
     is_overloaded: Optional[bool] = False
+    branch_type: Optional[str] = "core"  # core, parallel, optional, alternative, learning
+    parent_outcome: Optional[str] = None
+    definition_of_done: Optional[str] = None
+    acceptance_criteria: Optional[List[str]] = Field(default_factory=list)
+    edge_type: Optional[str] = "prerequisite"  # prerequisite, parent_group, optional_branch, alternative, related_info
+    roadmap_mode: Optional[str] = "execution"  # execution, learning
 
 class TaskUpdateRequest(BaseModel):
     task_code: Optional[str] = None
@@ -39,6 +45,12 @@ class TaskUpdateRequest(BaseModel):
     department: Optional[str] = None
     steps: Optional[List[str]] = None
     is_overloaded: Optional[bool] = None
+    branch_type: Optional[str] = None
+    parent_outcome: Optional[str] = None
+    definition_of_done: Optional[str] = None
+    acceptance_criteria: Optional[List[str]] = None
+    edge_type: Optional[str] = None
+    roadmap_mode: Optional[str] = None
 
 class TaskResponse(BaseModel):
     id: str
@@ -60,6 +72,12 @@ class TaskResponse(BaseModel):
     department: Optional[str] = None
     steps: Optional[List[str]] = Field(default_factory=list)
     is_overloaded: Optional[bool] = False
+    branch_type: str = "core"
+    parent_outcome: Optional[str] = None
+    definition_of_done: Optional[str] = None
+    acceptance_criteria: List[str] = Field(default_factory=list)
+    edge_type: str = "prerequisite"
+    roadmap_mode: str = "execution"
     created_at: datetime
     updated_at: datetime
 

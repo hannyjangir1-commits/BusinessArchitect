@@ -40,3 +40,18 @@ class CopilotOperationStatusResponse(BaseModel):
     error_detail: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class CopilotProposalRequest(BaseModel):
+    target_module: str = Field(..., pattern="^(bmc|lean_canvas|value_prop|market_research|tech_stack|idea_validator|detailed_roadmap|execution_roadmap)$")
+    instruction: str = Field(..., min_length=3, max_length=4000)
+
+class CopilotProposalResponse(BaseModel):
+    target_module: str
+    summary: str
+    proposed_diff: dict
+    affected_assumptions: List[str] = []
+    affected_tasks: List[str] = []
+    requires_confirmation: bool = True
+    proposed_content: dict
+
+    model_config = ConfigDict(from_attributes=True)

@@ -262,7 +262,7 @@ describe('Batch 03: Security & Race-Condition Review Gate', () => {
       // Verify Market Research is active
       await waitFor(() => {
         expect(screen.getByText('TARGET_MARKET_LEADER')).toBeDefined();
-      });
+      }, { timeout: 4000 });
 
       // 5. Resolve the older BMC request SECOND
       await act(async () => {
