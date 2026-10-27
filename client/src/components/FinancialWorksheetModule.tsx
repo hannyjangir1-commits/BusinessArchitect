@@ -64,23 +64,44 @@ export const FinancialWorksheetModule: React.FC<Props> = ({ project }) => {
       breakevenRevenue = Math.round((breakevenUnits * price) * 100) / 100;
     }
 
+    const expectedVolume = Number(worksheet.revenue_model?.expected_volume_monthly) || 0;
+    const monthlyOperatingRevenue = Math.round((price * expectedVolume) * 100) / 100;
+    const totalOperatingVariable = Math.round((unitVariable * expectedVolume) * 100) / 100;
+    const monthlyOperatingResult = Math.round((monthlyOperatingRevenue - totalOperatingVariable - monthlyFixed) * 100) / 100;
+    const monthlyNetBurn = Math.round(Math.max(0, -monthlyOperatingResult) * 100) / 100;
+    const fixedCostBurn = Math.round(monthlyFixed * 100) / 100;
+
     const cash = Number(worksheet.cash_available) || 0;
-    const monthlyBurn = Math.round(monthlyFixed * 100) / 100;
+    const monthlyBurn = fixedCostBurn;
     let runwayMonths: number | null = null;
     if (monthlyBurn > 0 && cash > 0) {
       runwayMonths = Math.round((cash / monthlyBurn) * 10) / 10;
     }
 
+    let salesCoverageRunwayMonths: number | null = null;
+    if (cash > 0) {
+      if (monthlyNetBurn > 0) {
+        salesCoverageRunwayMonths = Math.round((cash / monthlyNetBurn) * 10) / 10;
+      } else if (monthlyOperatingResult >= 0 && expectedVolume > 0) {
+        salesCoverageRunwayMonths = null;
+      }
+    }
+
     return {
       totalStartup,
-      monthlyFixed: Math.round(monthlyFixed * 100) / 100,
+      monthlyFixed: fixedCostBurn,
       unitVariable: Math.round(unitVariable * 100) / 100,
       unitMargin,
       marginRatio,
       breakevenUnits,
       breakevenRevenue,
       monthlyBurn,
-      runwayMonths
+      runwayMonths,
+      monthlyNetBurn,
+      monthlyOperatingRevenue,
+      monthlyOperatingResult,
+      fixedCostBurn,
+      salesCoverageRunwayMonths
     };
   }, [worksheet]);
 

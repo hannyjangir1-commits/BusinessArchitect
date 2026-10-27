@@ -438,6 +438,11 @@ export interface FinancialMetrics {
   breakeven_revenue_monthly?: number | null;
   monthly_burn_rate: number;
   runway_months?: number | null;
+  monthly_net_burn?: number;
+  monthly_operating_revenue?: number;
+  monthly_operating_result?: number;
+  fixed_cost_burn?: number;
+  sales_coverage_runway_months?: number | null;
 }
 
 export interface FinancialWorksheet {

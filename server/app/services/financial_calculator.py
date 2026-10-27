@@ -42,11 +42,31 @@ def calculate_financial_metrics(
         breakeven_units = math.ceil(monthly_fixed / unit_margin)
         breakeven_revenue = round(breakeven_units * price, 2)
 
-    # 6. Burn Rate & Runway
+    # 6. Authoritative Unit Economics & Operating Calculations
+    # revenue = price * expected_volume_monthly
+    # variable_cost = unit_cost * expected_volume_monthly
+    # operating_result = revenue - variable - fixed
+    # net_burn = max(0, -operating_result)
+    # fixed_burn = fixed_costs
+    expected_vol = float(revenue_model.get("expected_volume_monthly") or 0.0)
+    monthly_operating_revenue = round(price * expected_vol, 2)
+    total_operating_variable = round(unit_variable * expected_vol, 2)
+    monthly_operating_result = round(monthly_operating_revenue - total_operating_variable - monthly_fixed, 2)
+    monthly_net_burn = round(max(0.0, -monthly_operating_result), 2)
+    fixed_cost_burn = round(monthly_fixed, 2)
+
+    # 7. Burn Rate & Runway
     monthly_burn = round(monthly_fixed, 2)
     runway_months: Optional[float] = None
     if monthly_burn > 0.0 and cash_available > 0.0:
         runway_months = round(cash_available / monthly_burn, 1)
+
+    sales_coverage_runway_months: Optional[float] = None
+    if cash_available > 0.0:
+        if monthly_net_burn > 0.0:
+            sales_coverage_runway_months = round(cash_available / monthly_net_burn, 1)
+        elif monthly_operating_result >= 0.0 and expected_vol > 0.0:
+            sales_coverage_runway_months = None
 
     return FinancialMetrics(
         total_startup_cost=round(total_startup, 2),
@@ -58,7 +78,12 @@ def calculate_financial_metrics(
         breakeven_units_monthly=breakeven_units,
         breakeven_revenue_monthly=breakeven_revenue,
         monthly_burn_rate=monthly_burn,
-        runway_months=runway_months
+        runway_months=runway_months,
+        monthly_net_burn=monthly_net_burn,
+        monthly_operating_revenue=monthly_operating_revenue,
+        monthly_operating_result=monthly_operating_result,
+        fixed_cost_burn=fixed_cost_burn,
+        sales_coverage_runway_months=sales_coverage_runway_months
     )
 
 
