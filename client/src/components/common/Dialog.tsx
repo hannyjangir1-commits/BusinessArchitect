@@ -134,9 +134,12 @@ export function useDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const id = useId();
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   const dismissCallback = useCallback(() => {
-    onDismiss();
-  }, [onDismiss]);
+    onDismissRef.current();
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -153,8 +156,12 @@ export function useDialog({
       opener
     });
 
-    // Initial focus placement
+    // Initial focus placement only when opened
     const timeout = setTimeout(() => {
+      // Do not steal focus if user has already focused inside dialog
+      if (currentRoot.contains(document.activeElement)) {
+        return;
+      }
       if (initialFocusRef?.current && initialFocusRef.current.isConnected) {
         initialFocusRef.current.focus();
       } else {
@@ -171,7 +178,7 @@ export function useDialog({
       clearTimeout(timeout);
       unregisterDialog(id);
     };
-  }, [isOpen, id, dismissCallback, dismissible, initialFocusRef]);
+  }, [isOpen, id, dismissible, dismissCallback, initialFocusRef]);
 
   return { dialogRef };
 }

@@ -3,10 +3,13 @@ import { Project, ModuleDetail, BMCData, BusinessModelFramework, EpistemicStatus
 import { RadialBMCInfographic } from './RadialBMCInfographic';
 import { VersionToolbar } from './VersionToolbar';
 import { ContextualAssistant } from './ContextualAssistant';
+import { Dialog } from './common/Dialog';
+import { api } from '../services/api';
+import { queryCache } from '../services/queryCache';
 import {
   Compass, CirclePlus, LayoutGrid, Eye, Loader2, MessageCircle,
   HelpCircle, CheckCircle2, Bookmark, ExternalLink,
-  ChevronDown, Layers, FileText
+  ChevronDown, Layers, FileText, AlertCircle, Plus
 } from 'lucide-react';
 
 interface Props {
@@ -57,6 +60,67 @@ export const BMCModule: React.FC<Props> = ({
   const [activeItemMenu, setActiveItemMenu] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
+  // Real action modal states
+  const [taskDialog, setTaskDialog] = useState<{
+    isOpen: boolean;
+    itemText: string;
+    title: string;
+    phase: string;
+    timeline: string;
+    startDate: string;
+    endDate: string;
+    priority: string;
+    deliverables: string;
+    isSubmitting: boolean;
+    error: string | null;
+  }>({
+    isOpen: false,
+    itemText: '',
+    title: '',
+    phase: 'Core Implementation',
+    timeline: '30-day',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+    priority: 'Medium',
+    deliverables: '',
+    isSubmitting: false,
+    error: null
+  });
+
+  const [experimentDialog, setExperimentDialog] = useState<{
+    isOpen: boolean;
+    itemText: string;
+    title: string;
+    notes: string;
+    isSubmitting: boolean;
+    error: string | null;
+  }>({
+    isOpen: false,
+    itemText: '',
+    title: '',
+    notes: '',
+    isSubmitting: false,
+    error: null
+  });
+
+  const [evidenceDialog, setEvidenceDialog] = useState<{
+    isOpen: boolean;
+    itemText: string;
+    title: string;
+    sourceRef: string;
+    notes: string;
+    isSubmitting: boolean;
+    error: string | null;
+  }>({
+    isOpen: false,
+    itemText: '',
+    title: '',
+    sourceRef: '',
+    notes: '',
+    isSubmitting: false,
+    error: null
+  });
+
   const setViewMode = (mode: 'grid' | 'radial') => {
     setViewModeState(mode);
     try {
@@ -68,10 +132,146 @@ export const BMCModule: React.FC<Props> = ({
 
   const showFeedback = (msg: string) => {
     setActionNotice(msg);
-    setTimeout(() => setActionNotice(null), 3000);
+    setTimeout(() => setActionNotice(null), 3500);
   };
 
   const bmcData = moduleDetail?.data;
+
+  // Real Roadmap Task Creation
+  const openTaskDialog = (canvasItemText: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const twoWeeks = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    setTaskDialog({
+      isOpen: true,
+      itemText: canvasItemText,
+      title: `Deliver: ${canvasItemText.slice(0, 80)}`,
+      phase: 'Core Implementation',
+      timeline: '30-day',
+      startDate: today,
+      endDate: twoWeeks,
+      priority: 'Medium',
+      deliverables: canvasItemText,
+      isSubmitting: false,
+      error: null
+    });
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (taskDialog.isSubmitting) return;
+    if (taskDialog.title.trim().length < 2) {
+      setTaskDialog(prev => ({ ...prev, error: 'Task title must be at least 2 characters.' }));
+      return;
+    }
+    setTaskDialog(prev => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      await api.tasks.create(project.id, {
+        title: taskDialog.title.trim(),
+        phase: taskDialog.phase,
+        timeline: taskDialog.timeline,
+        start_date: taskDialog.startDate,
+        end_date: taskDialog.endDate,
+        priority: taskDialog.priority,
+        deliverables: taskDialog.deliverables.trim() || undefined,
+        description: `Originated from Business Model Canvas: "${taskDialog.itemText}"`,
+        is_ai_generated: false,
+        status: 'Pending'
+      });
+      // Invalidate tasks cache to trigger immediate background refresh for mounted consumers
+      queryCache.invalidate(new RegExp(`^tasks:.*:${project.id}`));
+      setTaskDialog(prev => ({ ...prev, isOpen: false, isSubmitting: false }));
+      showFeedback('Task created and added to Delivery Roadmap.');
+    } catch (err: any) {
+      // Preserve form values on error!
+      setTaskDialog(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.message || 'Failed to create roadmap task. Please try again.'
+      }));
+    }
+  };
+
+  // Real Validation Experiment Creation
+  const openExperimentDialog = (canvasItemText: string) => {
+    setExperimentDialog({
+      isOpen: true,
+      itemText: canvasItemText,
+      title: `Test Assumption: ${canvasItemText.slice(0, 60)}`,
+      notes: `Validate core assumption from Business Model Canvas: "${canvasItemText}"`,
+      isSubmitting: false,
+      error: null
+    });
+  };
+
+  const handleCreateExperiment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (experimentDialog.isSubmitting) return;
+    if (experimentDialog.title.trim().length < 2) {
+      setExperimentDialog(prev => ({ ...prev, error: 'Experiment title must be at least 2 characters.' }));
+      return;
+    }
+    setExperimentDialog(prev => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      await api.knowledge.create(project.id, {
+        item_type: 'experiment',
+        title: experimentDialog.title.trim(),
+        content: experimentDialog.notes.trim() || `Validation experiment for: "${experimentDialog.itemText}"`,
+        status: 'active',
+        epistemic_status: 'hypothesis',
+        linked_module: 'bmc'
+      });
+      setExperimentDialog(prev => ({ ...prev, isOpen: false, isSubmitting: false }));
+      showFeedback('Validation experiment created in Project Knowledge Base.');
+    } catch (err: any) {
+      setExperimentDialog(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.message || 'Failed to record experiment.'
+      }));
+    }
+  };
+
+  // Real Evidence Attachment
+  const openEvidenceDialog = (canvasItemText: string) => {
+    setEvidenceDialog({
+      isOpen: true,
+      itemText: canvasItemText,
+      title: `Evidence for: ${canvasItemText.slice(0, 50)}`,
+      sourceRef: '',
+      notes: `Supporting evidence for: "${canvasItemText}"`,
+      isSubmitting: false,
+      error: null
+    });
+  };
+
+  const handleAttachEvidence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (evidenceDialog.isSubmitting) return;
+    if (evidenceDialog.title.trim().length < 2) {
+      setEvidenceDialog(prev => ({ ...prev, error: 'Evidence title must be at least 2 characters.' }));
+      return;
+    }
+    setEvidenceDialog(prev => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      await api.knowledge.create(project.id, {
+        item_type: 'evidence',
+        title: evidenceDialog.title.trim(),
+        content: evidenceDialog.notes.trim() || `Market evidence supporting: "${evidenceDialog.itemText}"`,
+        source_reference: evidenceDialog.sourceRef.trim() || undefined,
+        status: 'active',
+        epistemic_status: 'evidence_supported',
+        linked_module: 'bmc'
+      });
+      setEvidenceDialog(prev => ({ ...prev, isOpen: false, isSubmitting: false }));
+      showFeedback('Market evidence attached in Project Knowledge Base.');
+    } catch (err: any) {
+      setEvidenceDialog(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.message || 'Failed to attach evidence.'
+      }));
+    }
+  };
 
   if (!bmcData) {
     return (
@@ -111,18 +311,26 @@ export const BMCModule: React.FC<Props> = ({
     );
   }
 
-  // Helper to determine epistemic status of an item
-  const getItemEpistemic = (itemText: string): EpistemicStatus => {
-    const lower = itemText.toLowerCase();
-    if (lower.includes('assume') || lower.includes('hypothesis') || lower.includes('tier') || lower.includes('pilot')) {
-      return 'hypothesis';
+  // Epistemic status derived STRICTLY from explicit structured metadata, never keyword matching.
+  // Epistemic state comes from explicit structured metadata, never keyword matching.
+  // Legacy string-only records render safely as unverified/hypothesis.
+  const getItemEpistemic = (itemText: string, blockKey?: string, idx?: number): EpistemicStatus => {
+    const key = blockKey && idx !== undefined ? `${blockKey}-${idx}` : undefined;
+    const meta = bmcData.item_metadata
+      ? (key && bmcData.item_metadata[key] ? bmcData.item_metadata[key] : bmcData.item_metadata[itemText])
+      : undefined;
+
+    if (meta?.epistemic_status) {
+      // evidence_supported requires linked evidence or confirmed record
+      if (meta.epistemic_status === 'evidence_supported') {
+        const hasEvidence = Boolean(meta.evidence_link || (meta.evidence_ids && meta.evidence_ids.length > 0));
+        if (!hasEvidence) {
+          return 'hypothesis';
+        }
+      }
+      return meta.epistemic_status;
     }
-    if (lower.includes('report') || lower.includes('confirmed') || lower.includes('verified') || lower.includes('evidence')) {
-      return 'evidence_supported';
-    }
-    if (lower.includes('user') || lower.includes('provided') || lower.includes('specified')) {
-      return 'user_supplied';
-    }
+    // Default safely to hypothesis. NEVER use keyword heuristics!
     return 'hypothesis';
   };
 
@@ -214,12 +422,12 @@ export const BMCModule: React.FC<Props> = ({
           color: 'var(--text-muted)',
           fontSize: 12
         }}>
-          <em>Truthful Unknown: No strategic partnerships established yet.</em>
+          <em>No items recorded yet for {block.title.replace(/^\d+\.\s*/, '')}.</em>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {block.items.map((it, idx) => {
-            const epistemic = getItemEpistemic(it);
+            const epistemic = getItemEpistemic(it, block.title, idx);
             const badge = getEpistemicBadge(epistemic);
             const itemKey = `${block.title}-${idx}`;
             const isMenuOpen = activeItemMenu === itemKey;
@@ -282,15 +490,16 @@ export const BMCModule: React.FC<Props> = ({
                     borderRadius: 8,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
                     padding: 4,
-                    minWidth: 180,
+                    minWidth: 190,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 2
                   }}>
                     <button
+                      type="button"
                       onClick={() => {
                         setActiveItemMenu(null);
-                        showFeedback(`Created milestone task in roadmap for: "${it.slice(0, 30)}..."`);
+                        openTaskDialog(it);
                       }}
                       style={{
                         padding: '6px 10px',
@@ -309,9 +518,10 @@ export const BMCModule: React.FC<Props> = ({
                       <CheckCircle2 size={12} color="#10b981" /> Add to Delivery Roadmap
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setActiveItemMenu(null);
-                        showFeedback(`Marked as validation experiment in Idea Validator: "${it.slice(0, 30)}..."`);
+                        openExperimentDialog(it);
                       }}
                       style={{
                         padding: '6px 10px',
@@ -330,9 +540,10 @@ export const BMCModule: React.FC<Props> = ({
                       <Bookmark size={12} color="#f59e0b" /> Test in Idea Validator
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setActiveItemMenu(null);
-                        showFeedback(`Attached research question in Market Research: "${it.slice(0, 30)}..."`);
+                        openEvidenceDialog(it);
                       }}
                       style={{
                         padding: '6px 10px',
@@ -613,6 +824,343 @@ export const BMCModule: React.FC<Props> = ({
           </aside>
         )}
       </div>
+
+      {/* Real Task Create Dialog */}
+      <Dialog
+        isOpen={taskDialog.isOpen}
+        onClose={() => setTaskDialog(prev => ({ ...prev, isOpen: false }))}
+        title="Create Roadmap Task"
+        description="Configure and save a real roadmap execution task from this canvas item."
+        maxWidth={520}
+      >
+        <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {taskDialog.error && (
+            <div style={{
+              padding: '8px 12px',
+              borderRadius: 6,
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <AlertCircle size={14} />
+              <span>{taskDialog.error}</span>
+            </div>
+          )}
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Task Title *
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={taskDialog.title}
+              onChange={e => setTaskDialog(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g. Set up partner agreements"
+              required
+              style={{ width: '100%', fontSize: 13 }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+                Phase
+              </label>
+              <select
+                className="input"
+                value={taskDialog.phase}
+                onChange={e => setTaskDialog(prev => ({ ...prev, phase: e.target.value }))}
+                style={{ width: '100%', fontSize: 13 }}
+              >
+                <option value="Planning & Research">Planning & Research</option>
+                <option value="Architecture & Design">Architecture & Design</option>
+                <option value="Core Implementation">Core Implementation</option>
+                <option value="Validation & Pilot">Validation & Pilot</option>
+                <option value="Launch & Operations">Launch & Operations</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+                Timeline / Horizon
+              </label>
+              <select
+                className="input"
+                value={taskDialog.timeline}
+                onChange={e => setTaskDialog(prev => ({ ...prev, timeline: e.target.value }))}
+                style={{ width: '100%', fontSize: 13 }}
+              >
+                <option value="30-day">30-day (Immediate)</option>
+                <option value="60-day">60-day (Near term)</option>
+                <option value="90-day">90-day (Medium term)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                className="input"
+                value={taskDialog.startDate}
+                onChange={e => setTaskDialog(prev => ({ ...prev, startDate: e.target.value }))}
+                style={{ width: '100%', fontSize: 13 }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+                End Date
+              </label>
+              <input
+                type="date"
+                className="input"
+                value={taskDialog.endDate}
+                onChange={e => setTaskDialog(prev => ({ ...prev, endDate: e.target.value }))}
+                style={{ width: '100%', fontSize: 13 }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Priority
+            </label>
+            <select
+              className="input"
+              value={taskDialog.priority}
+              onChange={e => setTaskDialog(prev => ({ ...prev, priority: e.target.value }))}
+              style={{ width: '100%', fontSize: 13 }}
+            >
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Deliverables / Acceptance Criteria
+            </label>
+            <textarea
+              className="input"
+              rows={2}
+              value={taskDialog.deliverables}
+              onChange={e => setTaskDialog(prev => ({ ...prev, deliverables: e.target.value }))}
+              placeholder="Concrete outcome when this task is complete"
+              style={{ width: '100%', fontSize: 12.5 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setTaskDialog(prev => ({ ...prev, isOpen: false }))}
+              disabled={taskDialog.isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={taskDialog.isSubmitting}
+            >
+              {taskDialog.isSubmitting ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Loader2 size={14} className="animate-spin" /> Creating Task…
+                </span>
+              ) : (
+                'Create Task'
+              )}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Real Validation Experiment Dialog */}
+      <Dialog
+        isOpen={experimentDialog.isOpen}
+        onClose={() => setExperimentDialog(prev => ({ ...prev, isOpen: false }))}
+        title="Record Validation Experiment"
+        description="Create an experiment in Project Knowledge Base to validate this assumption."
+        maxWidth={480}
+      >
+        <form onSubmit={handleCreateExperiment} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {experimentDialog.error && (
+            <div style={{
+              padding: '8px 12px',
+              borderRadius: 6,
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <AlertCircle size={14} />
+              <span>{experimentDialog.error}</span>
+            </div>
+          )}
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Experiment Title *
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={experimentDialog.title}
+              onChange={e => setExperimentDialog(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g. Test willingness-to-pay via landing page"
+              required
+              style={{ width: '100%', fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Validation Method & Notes
+            </label>
+            <textarea
+              className="input"
+              rows={3}
+              value={experimentDialog.notes}
+              onChange={e => setExperimentDialog(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="How will this hypothesis be tested?"
+              style={{ width: '100%', fontSize: 12.5 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setExperimentDialog(prev => ({ ...prev, isOpen: false }))}
+              disabled={experimentDialog.isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={experimentDialog.isSubmitting}
+            >
+              {experimentDialog.isSubmitting ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Loader2 size={14} className="animate-spin" /> Recording…
+                </span>
+              ) : (
+                'Save Experiment'
+              )}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Real Evidence Attachment Dialog */}
+      <Dialog
+        isOpen={evidenceDialog.isOpen}
+        onClose={() => setEvidenceDialog(prev => ({ ...prev, isOpen: false }))}
+        title="Attach Grounded Evidence"
+        description="Record verified market evidence supporting this item in the Project Knowledge Base."
+        maxWidth={480}
+      >
+        <form onSubmit={handleAttachEvidence} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {evidenceDialog.error && (
+            <div style={{
+              padding: '8px 12px',
+              borderRadius: 6,
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <AlertCircle size={14} />
+              <span>{evidenceDialog.error}</span>
+            </div>
+          )}
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Evidence Title *
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={evidenceDialog.title}
+              onChange={e => setEvidenceDialog(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g. Industry Benchmark Report 2026"
+              required
+              style={{ width: '100%', fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Source Reference / URL
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={evidenceDialog.sourceRef}
+              onChange={e => setEvidenceDialog(prev => ({ ...prev, sourceRef: e.target.value }))}
+              placeholder="https://... or Publication / Document Citation"
+              style={{ width: '100%', fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-main)', marginBottom: 4 }}>
+              Findings & Notes
+            </label>
+            <textarea
+              className="input"
+              rows={3}
+              value={evidenceDialog.notes}
+              onChange={e => setEvidenceDialog(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="What verified facts support this canvas element?"
+              style={{ width: '100%', fontSize: 12.5 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setEvidenceDialog(prev => ({ ...prev, isOpen: false }))}
+              disabled={evidenceDialog.isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={evidenceDialog.isSubmitting}
+            >
+              {evidenceDialog.isSubmitting ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Loader2 size={14} className="animate-spin" /> Attaching…
+                </span>
+              ) : (
+                'Attach Evidence'
+              )}
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 };
