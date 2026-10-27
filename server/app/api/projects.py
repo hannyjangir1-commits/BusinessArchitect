@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.models.all_models import User, Project, RoadmapTask, ModuleContent, ModuleVersion, CopilotMessage
+from app.models.all_models import (
+    User, Project, RoadmapTask, ModuleContent, ModuleVersion, CopilotMessage,
+    FinancialWorksheet, ProjectKnowledgeItem, KnowledgeLink
+)
 from app.schemas.project import (
     ProjectCreateRequest, ProjectUpdateRequest, ProjectResponse, ActiveModuleUpdateRequest,
     BulkDeleteProjectsRequest, BulkDeleteProjectsResponse
@@ -301,7 +304,13 @@ def update_project(
                     steps=list(st.steps or []),
                     is_overloaded=st.is_overloaded,
                     order_index=st.order_index,
-                    is_ai_generated=st.is_ai_generated
+                    is_ai_generated=st.is_ai_generated,
+                    branch_type=st.branch_type or "core",
+                    parent_outcome=st.parent_outcome,
+                    definition_of_done=st.definition_of_done,
+                    acceptance_criteria=list(st.acceptance_criteria or []),
+                    edge_type=st.edge_type or "prerequisite",
+                    roadmap_mode=st.roadmap_mode or "execution",
                 )
                 db.add(new_task)
 
@@ -314,6 +323,50 @@ def update_project(
                     content=smsg.content
                 )
                 db.add(new_msg)
+
+            # 4. Clone FinancialWorksheet if present
+            source_ws = db.query(FinancialWorksheet).filter(FinancialWorksheet.project_id == project.id).first()
+            if source_ws:
+                new_ws = FinancialWorksheet(
+                    project_id=new_project.id,
+                    currency=source_ws.currency,
+                    startup_costs=copy.deepcopy(source_ws.startup_costs),
+                    fixed_costs=copy.deepcopy(source_ws.fixed_costs),
+                    variable_costs=copy.deepcopy(source_ws.variable_costs),
+                    revenue_model=copy.deepcopy(source_ws.revenue_model),
+                    cash_available=source_ws.cash_available,
+                )
+                db.add(new_ws)
+
+            # 5. Clone ProjectKnowledgeItem and KnowledgeLink rows
+            source_k_items = db.query(ProjectKnowledgeItem).filter(ProjectKnowledgeItem.project_id == project.id).all()
+            k_id_map: dict[str, str] = {}
+            for sk in source_k_items:
+                nk = ProjectKnowledgeItem(
+                    project_id=new_project.id,
+                    item_type=sk.item_type,
+                    title=sk.title,
+                    content=sk.content,
+                    status=sk.status,
+                    epistemic_status=sk.epistemic_status,
+                    source_reference=sk.source_reference,
+                    linked_module=sk.linked_module,
+                    metadata_json=copy.deepcopy(sk.metadata_json) if isinstance(sk.metadata_json, dict) else {},
+                )
+                db.add(nk)
+                db.flush()
+                k_id_map[sk.id] = nk.id
+
+            source_links = db.query(KnowledgeLink).filter(KnowledgeLink.project_id == project.id).all()
+            for sl in source_links:
+                if sl.source_id in k_id_map and sl.target_id in k_id_map:
+                    nl = KnowledgeLink(
+                        project_id=new_project.id,
+                        source_id=k_id_map[sl.source_id],
+                        target_id=k_id_map[sl.target_id],
+                        relationship=sl.relationship,
+                    )
+                    db.add(nl)
 
             db.commit()
             db.refresh(new_project)

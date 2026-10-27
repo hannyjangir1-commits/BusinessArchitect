@@ -5,7 +5,7 @@ import json
 from typing import Any
 from sqlalchemy.orm import Session
 from app.core.module_types import normalize_module_type
-from app.models.all_models import ModuleContent, ModuleVersion, Project, RoadmapTask
+from app.models.all_models import ModuleContent, ModuleVersion, Project, RoadmapTask, ProjectKnowledgeItem
 
 
 def project_fingerprint(project: Project) -> str:
@@ -44,7 +44,13 @@ def current_module_data(db: Session, module: ModuleContent, version: ModuleVersi
     tasks = db.query(RoadmapTask).filter(RoadmapTask.project_id == module.project_id).order_by(
         RoadmapTask.order_index.asc(), RoadmapTask.created_at.asc()
     ).all()
-    fields = ("task_code", "phase", "title", "description", "timeline", "start_date", "end_date", "priority", "status", "dependencies", "deliverables", "effort", "assigned_to", "assigned_role", "department", "steps", "is_overloaded")
+    fields = (
+        "task_code", "phase", "title", "description", "timeline", "start_date", "end_date",
+        "priority", "status", "dependencies", "deliverables", "effort", "assigned_to",
+        "assigned_role", "department", "steps", "is_overloaded",
+        "branch_type", "parent_outcome", "definition_of_done", "acceptance_criteria",
+        "edge_type", "roadmap_mode",
+    )
     data["tasks"] = [{field: copy.deepcopy(getattr(task, field)) for field in fields} for task in tasks]
     phases = {phase.get("name"): dict(phase) for phase in data.get("phases", []) if isinstance(phase, dict)}
     groups: dict[str, list] = {}
@@ -88,4 +94,35 @@ def read_project_context(db: Session, project_id: str, exclude_module: str | Non
             "origin": "generated_recommendation",
             "content_fingerprint": hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest(),
         })
+
+    # Include active project knowledge items if present
+    knowledge_items = db.query(ProjectKnowledgeItem).filter(
+        ProjectKnowledgeItem.project_id == project_id,
+        ProjectKnowledgeItem.status == "active",
+    ).order_by(ProjectKnowledgeItem.created_at.asc()).all()
+    if knowledge_items:
+        k_data = [
+            {
+                "id": item.id,
+                "item_type": item.item_type,
+                "title": item.title,
+                "content": item.content,
+                "status": item.status,
+                "epistemic_status": item.epistemic_status,
+                "source_reference": item.source_reference,
+                "linked_module": item.linked_module,
+                "metadata_json": copy.deepcopy(item.metadata_json) if isinstance(item.metadata_json, dict) else {},
+            }
+            for item in knowledge_items
+        ]
+        context["knowledge_base"] = k_data
+        sources.append({
+            "project_id": project_id,
+            "module_type": "knowledge_base",
+            "access": "read_only",
+            "origin": "project_knowledge_items",
+            "count": len(k_data),
+            "content_fingerprint": hashlib.sha256(json.dumps(k_data, sort_keys=True, default=str).encode()).hexdigest(),
+        })
+
     return context, sources

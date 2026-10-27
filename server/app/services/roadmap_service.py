@@ -263,6 +263,12 @@ class RoadmapDomainService:
                 canonical_t["start_date"] = s_date_obj.isoformat()
                 canonical_t["end_date"] = e_date_obj.isoformat()
                 canonical_t["dependencies"] = clean_deps
+                canonical_t["branch_type"] = t.get("branch_type", "core")
+                canonical_t["parent_outcome"] = t.get("parent_outcome")
+                canonical_t["definition_of_done"] = t.get("definition_of_done")
+                canonical_t["acceptance_criteria"] = list(t.get("acceptance_criteria") or [])
+                canonical_t["edge_type"] = t.get("edge_type", "prerequisite")
+                canonical_t["roadmap_mode"] = t.get("roadmap_mode", "execution")
                 canonical_tasks.append(canonical_t)
 
             return canonical_tasks
@@ -413,9 +419,16 @@ class RoadmapDomainService:
                         cur.department = t.get("department")
                     cur.steps = t.get("steps", cur.steps or [])
                     cur.is_overloaded = t.get("is_overloaded", cur.is_overloaded or False)
+                    cur.branch_type = t.get("branch_type", cur.branch_type or "core")
+                    cur.parent_outcome = t.get("parent_outcome", cur.parent_outcome)
+                    cur.definition_of_done = t.get("definition_of_done", cur.definition_of_done)
+                    cur.acceptance_criteria = t.get("acceptance_criteria", cur.acceptance_criteria or [])
+                    cur.edge_type = t.get("edge_type", cur.edge_type or "prerequisite")
+                    cur.roadmap_mode = t.get("roadmap_mode", cur.roadmap_mode or "execution")
                     cur.order_index = idx
                     flag_modified(cur, "dependencies")
                     flag_modified(cur, "steps")
+                    flag_modified(cur, "acceptance_criteria")
                 else:
                     raw_st = t.get("status", "Pending")
                     st_val = "In Progress" if raw_st in ("In Progress", "Ongoing") else raw_st
@@ -440,6 +453,12 @@ class RoadmapDomainService:
                         is_overloaded=t.get("is_overloaded", False),
                         order_index=idx,
                         is_ai_generated=True,
+                        branch_type=t.get("branch_type", "core"),
+                        parent_outcome=t.get("parent_outcome"),
+                        definition_of_done=t.get("definition_of_done"),
+                        acceptance_criteria=t.get("acceptance_criteria", []),
+                        edge_type=t.get("edge_type", "prerequisite"),
+                        roadmap_mode=t.get("roadmap_mode", "execution"),
                     )
                     db.add(new_task)
 

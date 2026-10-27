@@ -1,15 +1,20 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
 
+KnowledgeItemType = Literal["fact", "assumption", "evidence", "decision", "experiment", "open_question"]
+EpistemicStatusType = Literal["user_supplied", "hypothesis", "evidence_supported", "unknown", "not_applicable"]
+KnowledgeStatusType = Literal["draft", "active", "validated", "invalidated", "resolved"]
+RelationshipType = Literal["supports", "tests", "contradicts", "derives_from", "blocks"]
+
 class KnowledgeItemBase(BaseModel):
-    item_type: str = Field(..., description="fact, assumption, evidence, decision, experiment, open_question")
+    item_type: KnowledgeItemType = Field(..., description="fact, assumption, evidence, decision, experiment, open_question")
     title: str = Field(..., min_length=1, max_length=256)
     content: str = Field(..., min_length=1)
-    status: str = Field(default="active", max_length=32)
-    epistemic_status: str = Field(default="hypothesis", description="user_supplied, hypothesis, evidence_supported, unknown, not_applicable")
-    source_reference: Optional[str] = None
-    linked_module: Optional[str] = None
+    status: KnowledgeStatusType = Field(default="active", description="draft, active, validated, invalidated, resolved")
+    epistemic_status: EpistemicStatusType = Field(default="hypothesis", description="user_supplied, hypothesis, evidence_supported, unknown, not_applicable")
+    source_reference: Optional[str] = Field(None, max_length=1000)
+    linked_module: Optional[str] = Field(None, max_length=64)
     metadata_json: Dict[str, Any] = Field(default_factory=dict)
 
 class KnowledgeItemCreate(KnowledgeItemBase):
@@ -17,11 +22,11 @@ class KnowledgeItemCreate(KnowledgeItemBase):
 
 class KnowledgeItemUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=256)
-    content: Optional[str] = None
-    status: Optional[str] = None
-    epistemic_status: Optional[str] = None
-    source_reference: Optional[str] = None
-    linked_module: Optional[str] = None
+    content: Optional[str] = Field(None, min_length=1)
+    status: Optional[KnowledgeStatusType] = None
+    epistemic_status: Optional[EpistemicStatusType] = None
+    source_reference: Optional[str] = Field(None, max_length=1000)
+    linked_module: Optional[str] = Field(None, max_length=64)
     metadata_json: Optional[Dict[str, Any]] = None
 
 class KnowledgeLinkResponse(BaseModel):
@@ -45,6 +50,6 @@ class KnowledgeItemResponse(KnowledgeItemBase):
     model_config = ConfigDict(from_attributes=True)
 
 class KnowledgeLinkCreate(BaseModel):
-    source_id: str
-    target_id: str
-    relationship: str = Field(..., description="supports, tests, contradicts, derives_from, blocks")
+    source_id: str = Field(..., min_length=1, max_length=64)
+    target_id: str = Field(..., min_length=1, max_length=64)
+    relationship: RelationshipType = Field(..., description="supports, tests, contradicts, derives_from, blocks")

@@ -12,10 +12,20 @@ from app.api.deps import get_user_project, verify_csrf
 
 router = APIRouter(prefix="/projects/{project_id}/knowledge", tags=["Shared Knowledge Model"])
 
-def _format_knowledge_item(item: ProjectKnowledgeItem, db: Session) -> KnowledgeItemResponse:
-    out_links = db.query(KnowledgeLink).filter(KnowledgeLink.source_id == item.id).all()
-    in_links = db.query(KnowledgeLink).filter(KnowledgeLink.target_id == item.id).all()
-    
+def _format_knowledge_item(
+    item: ProjectKnowledgeItem,
+    db: Optional[Session] = None,
+    out_links: Optional[List[KnowledgeLink]] = None,
+    in_links: Optional[List[KnowledgeLink]] = None
+) -> KnowledgeItemResponse:
+    if out_links is None and db is not None:
+        out_links = db.query(KnowledgeLink).filter(KnowledgeLink.source_id == item.id).all()
+    if in_links is None and db is not None:
+        in_links = db.query(KnowledgeLink).filter(KnowledgeLink.target_id == item.id).all()
+
+    out_links = out_links or []
+    in_links = in_links or []
+
     return KnowledgeItemResponse(
         id=item.id,
         project_id=item.project_id,
@@ -50,7 +60,28 @@ def list_knowledge_items(
         query = query.filter(ProjectKnowledgeItem.linked_module == linked_module)
         
     items = query.order_by(ProjectKnowledgeItem.created_at.desc()).all()
-    return [_format_knowledge_item(i, db) for i in items]
+    if not items:
+        return []
+
+    item_ids = [i.id for i in items]
+    links = db.query(KnowledgeLink).filter(
+        (KnowledgeLink.source_id.in_(item_ids)) | (KnowledgeLink.target_id.in_(item_ids))
+    ).all()
+
+    out_by_source: dict[str, list[KnowledgeLink]] = {}
+    in_by_target: dict[str, list[KnowledgeLink]] = {}
+    for link in links:
+        out_by_source.setdefault(link.source_id, []).append(link)
+        in_by_target.setdefault(link.target_id, []).append(link)
+
+    return [
+        _format_knowledge_item(
+            i,
+            out_links=out_by_source.get(i.id, []),
+            in_links=in_by_target.get(i.id, [])
+        )
+        for i in items
+    ]
 
 @router.post("", response_model=KnowledgeItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_csrf)])
 def create_knowledge_item(
@@ -72,7 +103,7 @@ def create_knowledge_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return _format_knowledge_item(item, db)
+    return _format_knowledge_item(item, db=db)
 
 @router.get("/{item_id}", response_model=KnowledgeItemResponse)
 def get_knowledge_item(
@@ -86,7 +117,7 @@ def get_knowledge_item(
     ).first()
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge item not found.")
-    return _format_knowledge_item(item, db)
+    return _format_knowledge_item(item, db=db)
 
 @router.put("/{item_id}", response_model=KnowledgeItemResponse, dependencies=[Depends(verify_csrf)])
 def update_knowledge_item(
@@ -120,7 +151,7 @@ def update_knowledge_item(
     item.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(item)
-    return _format_knowledge_item(item, db)
+    return _format_knowledge_item(item, db=db)
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(verify_csrf)])
 def delete_knowledge_item(
@@ -157,6 +188,16 @@ def create_knowledge_link(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source or target knowledge item not found in project.")
     if source.id == target.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot link knowledge item to itself.")
+
+    # Idempotently return existing link if identical link already exists
+    existing_link = db.query(KnowledgeLink).filter(
+        KnowledgeLink.project_id == project.id,
+        KnowledgeLink.source_id == source.id,
+        KnowledgeLink.target_id == target.id,
+        KnowledgeLink.relationship == req.relationship
+    ).first()
+    if existing_link:
+        return KnowledgeLinkResponse.model_validate(existing_link)
         
     link = KnowledgeLink(
         project_id=project.id,

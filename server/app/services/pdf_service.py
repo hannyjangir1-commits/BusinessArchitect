@@ -476,7 +476,16 @@ class PDFService:
                  Paragraph("<b>Status</b>", styles["TableHeader"])]
             ]
             for t in tasks_list:
-                deliverable_text = f"<br/><i>Deliverable: {t.get('deliverables')}</i>" if t.get("deliverables") else ""
+                details = []
+                if t.get("branch_type") and t.get("branch_type") != "core":
+                    details.append(f"Branch: {t.get('branch_type')}")
+                if t.get("parent_outcome"):
+                    details.append(f"Outcome: {t.get('parent_outcome')}")
+                if t.get("deliverables"):
+                    details.append(f"Deliverable: {t.get('deliverables')}")
+                if t.get("definition_of_done"):
+                    details.append(f"DoD: {t.get('definition_of_done')}")
+                deliverable_text = f"<br/><i>{'; '.join(details)}</i>" if details else ""
                 task_rows.append([
                     Paragraph(t.get("task_code", ""), styles["TableCell"]),
                     Paragraph(t.get("phase", ""), styles["TableCell"]),
