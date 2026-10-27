@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { saveDraft, getDraft, clearDraft } from '../services/draftStorage';
 import { api } from '../services/api';
+import { queryCache } from '../services/queryCache';
 import { Dialog } from './common/Dialog';
 
 interface Props {
@@ -15,7 +16,7 @@ interface Props {
   onLoadOlderMessages?: () => Promise<void>;
   onRefreshMessages?: () => Promise<void>;
   onCheckStatus?: (clientMsgId: string) => Promise<void>;
-  onApplyProposal?: (targetModule: string, instruction: string) => Promise<void>;
+  onApplyProposal?: (targetModule: string, instruction: string, proposalId?: string) => Promise<void>;
   hasMoreOlder?: boolean;
   isLoadingOlder?: boolean;
   isLoading: boolean;
@@ -389,10 +390,19 @@ export const BlueprintCopilotModule: React.FC<Props> = ({
     setProposalError(null);
     try {
       if (onApplyProposal) {
-        await onApplyProposal(currentProposal.target_module, lastProposedInstruction);
+        if (currentProposal.id) {
+          await onApplyProposal(currentProposal.target_module, lastProposedInstruction, currentProposal.id);
+        } else {
+          await onApplyProposal(currentProposal.target_module, lastProposedInstruction);
+        }
+      } else if (currentProposal.id) {
+        await api.copilot.applyProposal(project.id, currentProposal.id);
       } else {
         await api.modules.modify(project.id, currentProposal.target_module, lastProposedInstruction);
       }
+      queryCache.invalidate(new RegExp(`^module:${project.id}:${currentProposal.target_module}`));
+      queryCache.invalidate(new RegExp(`^tasks:${project.id}`));
+      queryCache.invalidate(new RegExp(`^overview:${project.id}`));
       setApplySuccessMessage(`Successfully updated ${currentProposal.target_module.replaceAll('_', ' ')}! A new version has been saved.`);
       setIsReviewOpen(false);
       setProposalInput('');

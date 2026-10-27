@@ -59,6 +59,10 @@ class QueryCache {
       signal
     } = options;
 
+    if (signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    }
+
     const now = Date.now();
     const cached = this.cache.get(key);
 
@@ -270,6 +274,11 @@ class QueryCache {
         }
       }
     }
+  }
+
+  invalidatePrefix(prefix: string): void {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    this.invalidate(new RegExp(`^${escaped}`));
   }
 
   abortKey(key: string): void {

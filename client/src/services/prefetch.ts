@@ -170,10 +170,10 @@ export function prefetchModuleData(projectId: string, moduleType: string, userSc
       });
     }
   } else if (moduleType === 'blueprint_copilot') {
-    const copilotKey = `copilot:history:${projectId}`;
+    const copilotKey = `copilot:page:${projectId}`;
     if (!queryCache.isFresh(copilotKey)) {
       schedulePrefetch(copilotKey, async (signal) => {
-        await queryCache.fetchWithCache(copilotKey, (s) => api.copilot.getLatestHistory(projectId), {
+        await queryCache.fetchWithCache(copilotKey, (s) => api.copilot.getPage(projectId, undefined, 50, { signal: s }), {
           staleTimeMs: 30000,
           userScope,
           signal

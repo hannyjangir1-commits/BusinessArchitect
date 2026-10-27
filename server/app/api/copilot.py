@@ -1,13 +1,15 @@
 import base64
 import hashlib
 import hmac
+import json
 import logging
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
-from app.models.all_models import Project, CopilotMessage, CopilotOperation, User, ModuleContent, ModuleVersion
+from app.models.all_models import Project, CopilotMessage, CopilotOperation, User, ModuleContent, ModuleVersion, CopilotProposal
 from app.schemas.copilot import (
     CopilotChatRequest,
     CopilotMessageResponse,
@@ -16,6 +18,7 @@ from app.schemas.copilot import (
     CopilotOperationStatusResponse,
     CopilotProposalRequest,
     CopilotProposalResponse,
+    CopilotApplyProposalResponse,
 )
 from app.ai.gemini_service import ai_service
 from app.api.deps import get_user_project, verify_csrf
@@ -231,6 +234,7 @@ def send_chat_message(
 
     client_msg_id = (req.client_msg_id or "").strip() or None
     msg_hash = hashlib.sha256(msg_text.encode("utf-8")).hexdigest()
+    attempt_id = f"att_{uuid.uuid4().hex[:16]}"
 
     user_msg: Optional[CopilotMessage] = None
     operation_to_update_id: Optional[str] = None
@@ -301,6 +305,7 @@ def send_chat_message(
                     db.flush()
                     existing_op.user_message_id = user_msg.id
 
+                existing_op.owner_attempt_id = attempt_id
                 existing_op.status = "pending"
                 existing_op.updated_at = datetime.now(timezone.utc)
                 db.commit()
@@ -318,6 +323,7 @@ def send_chat_message(
                     user_id=project.user_id,
                     client_msg_id=client_msg_id,
                     message_hash=msg_hash,
+                    owner_attempt_id=attempt_id,
                     status="pending",
                     user_message_id=user_msg.id
                 )
@@ -410,7 +416,7 @@ def send_chat_message(
 
             if operation_to_update_id:
                 op_rec = persist_db.get(CopilotOperation, operation_to_update_id)
-                if op_rec:
+                if op_rec and op_rec.owner_attempt_id == attempt_id:
                     op_rec.status = "completed"
                     op_rec.assistant_message_id = assistant_msg.id
                     op_rec.updated_at = datetime.now(timezone.utc)
@@ -436,9 +442,9 @@ def send_chat_message(
             try:
                 with SessionLocal() as fail_db:
                     op_rec = fail_db.query(CopilotOperation).get(operation_to_update_id)
-                    if op_rec:
+                    if op_rec and op_rec.status == "pending" and op_rec.owner_attempt_id == attempt_id:
                         op_rec.status = "failed"
-                        op_rec.error_detail = str(http_exc.detail)
+                        op_rec.error_detail = "Failed to process chat message."
                         fail_db.commit()
             except Exception:
                 pass
@@ -449,9 +455,9 @@ def send_chat_message(
             try:
                 with SessionLocal() as fail_db:
                     op_rec = fail_db.query(CopilotOperation).get(operation_to_update_id)
-                    if op_rec:
+                    if op_rec and op_rec.status == "pending" and op_rec.owner_attempt_id == attempt_id:
                         op_rec.status = "failed"
-                        op_rec.error_detail = type(e).__name__
+                        op_rec.error_detail = "Failed to process chat message."
                         fail_db.commit()
             except Exception:
                 pass
@@ -470,7 +476,7 @@ def propose_change(
 ):
     """
     Generate a non-destructive structured proposal preview of changes to a module.
-    Does NOT modify the project or save any changes to the database.
+    Persists the proposal snapshot with a fingerprint for atomic, exact application.
     """
     check_ai_rate_limit(project.user_id)
 
@@ -501,6 +507,10 @@ def propose_change(
             detail=f"Module '{target_module}' has no existing content to propose changes against."
         )
 
+    source_ver_id = active_ver.id if active_ver else None
+    source_content_fingerprint = hashlib.sha256(json.dumps(curr_data, sort_keys=True).encode()).hexdigest()
+    active_fw_type = getattr(active_ver, "framework_type", None) or curr_data.get("framework_type")
+
     from app.services.project_context_service import read_project_context
     active_module_summaries, _ = read_project_context(db, project.id, exclude_module=target_module)
 
@@ -526,7 +536,6 @@ def propose_change(
             project_info=proj_info,
             cross_module_context=active_module_summaries
         )
-        return CopilotProposalResponse.model_validate(proposal)
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
@@ -534,4 +543,142 @@ def propose_change(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate change proposal. Please retry with a more specific instruction."
+        )
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(hours=1)
+    with SessionLocal() as save_db:
+        proposal_rec = CopilotProposal(
+            project_id=project.id,
+            user_id=project.user_id,
+            target_module=target_module,
+            source_version_id=source_ver_id,
+            source_content_fingerprint=source_content_fingerprint,
+            framework_type=active_fw_type,
+            instruction=req.instruction,
+            summary=proposal.get("summary", ""),
+            proposed_diff=proposal.get("proposed_diff", {}),
+            proposed_content=proposal.get("proposed_content", {}),
+            status="pending",
+            expires_at=expires_at,
+            created_at=now
+        )
+        save_db.add(proposal_rec)
+        save_db.commit()
+        save_db.refresh(proposal_rec)
+
+        return CopilotProposalResponse(
+            id=proposal_rec.id,
+            target_module=proposal.get("target_module", target_module),
+            summary=proposal.get("summary", ""),
+            proposed_diff=proposal.get("proposed_diff", {}),
+            affected_assumptions=proposal.get("affected_assumptions", []),
+            affected_tasks=proposal.get("affected_tasks", []),
+            requires_confirmation=proposal.get("requires_confirmation", True),
+            proposed_content=proposal.get("proposed_content", {}),
+            status=proposal_rec.status,
+            expires_at=proposal_rec.expires_at
+        )
+
+
+@router.post("/proposals/{proposal_id}/apply", response_model=CopilotApplyProposalResponse)
+def apply_proposal(
+    proposal_id: str,
+    project: Project = Depends(get_user_project),
+    csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db)
+):
+    """
+    Atomically apply an approved proposal to create a new module version without re-prompting external AI.
+    Verifies that the underlying module has not mutated since the proposal was generated.
+    """
+    with project_first_lock(db, project.id):
+        proposal = db.query(CopilotProposal).filter(
+            CopilotProposal.id == proposal_id,
+            CopilotProposal.project_id == project.id
+        ).first()
+
+        if not proposal:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found.")
+        if proposal.user_id != project.user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this proposal.")
+
+        if proposal.status == "applied":
+            res_ver = db.get(ModuleVersion, proposal.result_version_id) if proposal.result_version_id else None
+            if res_ver:
+                return CopilotApplyProposalResponse(
+                    success=True,
+                    message="Proposal already applied",
+                    target_module=proposal.target_module,
+                    proposal_id=proposal.id,
+                    version_id=res_ver.id,
+                    version_number=res_ver.version_number,
+                    version_name=res_ver.version_name,
+                    data=res_ver.data if isinstance(res_ver.data, dict) else {}
+                )
+
+        now = datetime.now(timezone.utc)
+        exp = proposal.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if now > exp:
+            proposal.status = "expired"
+            db.commit()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Proposal has expired. Please generate a new proposal.")
+
+        if proposal.status != "pending":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Proposal cannot be applied (status: {proposal.status}).")
+
+        target_module = proposal.target_module
+        module = db.query(ModuleContent).filter(
+            ModuleContent.project_id == project.id,
+            ModuleContent.module_type == target_module
+        ).first()
+        if not module:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Module '{target_module}' not found.")
+
+        active_ver = db.query(ModuleVersion).filter(
+            ModuleVersion.module_content_id == module.id,
+            ModuleVersion.is_active.is_(True)
+        ).first()
+        if not active_ver:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Module '{target_module}' has no active version to update.")
+
+        active_data = active_ver.data if isinstance(active_ver.data, dict) else {}
+        active_fp = hashlib.sha256(json.dumps(active_data, sort_keys=True).encode()).hexdigest()
+        if active_fp != proposal.source_content_fingerprint:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The underlying module has changed since this proposal was created. Please generate a new proposal."
+            )
+
+        from app.services.version_service import VersionService
+        VersionService.assert_version_capacity(db, module)
+
+        new_ver = VersionService.save_new_version(
+            db=db,
+            module=module,
+            data=proposal.proposed_content,
+            change_summary=f"Applied proposal: {proposal.summary[:100]}",
+            commit=False
+        )
+
+        if target_module in ("execution_roadmap", "detailed_roadmap"):
+            VersionService.sync_roadmap_working_tasks_to_active_version(db, module, project)
+
+        proposal.status = "applied"
+        proposal.result_version_id = new_ver.id
+        proposal.applied_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(new_ver)
+
+        return CopilotApplyProposalResponse(
+            success=True,
+            message="Proposal applied successfully",
+            target_module=target_module,
+            proposal_id=proposal.id,
+            version_id=new_ver.id,
+            version_number=new_ver.version_number,
+            version_name=new_ver.version_name,
+            data=new_ver.data if isinstance(new_ver.data, dict) else {}
         )

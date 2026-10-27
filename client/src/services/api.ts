@@ -400,6 +400,11 @@ export const api = {
       request<CopilotProposalResponse>(`/api/projects/${projectId}/copilot/propose`, {
         method: 'POST',
         body: JSON.stringify({ target_module, instruction })
+      }),
+
+    applyProposal: (projectId: string, proposalId: string): Promise<any> =>
+      request<any>(`/api/projects/${projectId}/copilot/proposals/${encodeURIComponent(proposalId)}/apply`, {
+        method: 'POST'
       })
   },
 

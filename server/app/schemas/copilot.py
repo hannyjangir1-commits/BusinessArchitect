@@ -46,6 +46,7 @@ class CopilotProposalRequest(BaseModel):
     instruction: str = Field(..., min_length=3, max_length=4000)
 
 class CopilotProposalResponse(BaseModel):
+    id: Optional[str] = None
     target_module: str
     summary: str
     proposed_diff: dict
@@ -53,5 +54,19 @@ class CopilotProposalResponse(BaseModel):
     affected_tasks: List[str] = []
     requires_confirmation: bool = True
     proposed_content: dict
+    status: Optional[str] = "pending"
+    expires_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CopilotApplyProposalResponse(BaseModel):
+    success: bool
+    message: str
+    target_module: str
+    proposal_id: str
+    version_id: str
+    version_number: int
+    version_name: str
+    data: dict
 
     model_config = ConfigDict(from_attributes=True)

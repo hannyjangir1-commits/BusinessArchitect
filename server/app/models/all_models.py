@@ -245,6 +245,7 @@ class CopilotOperation(Base):
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     client_msg_id = Column(String(128), nullable=False)
     message_hash = Column(String(64), nullable=False)
+    owner_attempt_id = Column(String(64), nullable=True)
     status = Column(String(32), default="pending", nullable=False)  # pending, completed, failed
     user_message_id = Column(String(36), ForeignKey("copilot_messages.id", ondelete="SET NULL"), nullable=True)
     assistant_message_id = Column(String(36), ForeignKey("copilot_messages.id", ondelete="SET NULL"), nullable=True)
@@ -255,6 +256,29 @@ class CopilotOperation(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "client_msg_id", name="uq_copilot_operations_project_client_msg_id"),
     )
+
+class CopilotProposal(Base):
+    __tablename__ = "copilot_proposals"
+
+    id = Column(String(36), primary_key=True, default=lambda: gen_id("prop_"))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_module = Column(String(64), nullable=False)
+    source_version_id = Column(String(36), nullable=True)
+    source_content_fingerprint = Column(String(64), nullable=False)
+    framework_type = Column(String(64), nullable=True)
+    instruction = Column(Text, nullable=False)
+    summary = Column(Text, nullable=False)
+    proposed_diff = Column(JSON, nullable=False)
+    proposed_content = Column(JSON, nullable=False)
+    status = Column(String(32), default="pending", nullable=False)  # pending, applied, expired
+    result_version_id = Column(String(36), nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    applied_at = Column(DateTime, nullable=True)
+
+    project = relationship("Project")
+    user = relationship("User")
 
 class AIOperation(Base):
     __tablename__ = "ai_operations"

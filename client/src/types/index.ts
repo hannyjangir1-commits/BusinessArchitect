@@ -460,6 +460,7 @@ export interface CopilotProposalRequest {
 }
 
 export interface CopilotProposalResponse {
+  id?: string;
   target_module: string;
   summary: string;
   proposed_diff: Record<string, { before: any; after: any }>;
@@ -467,4 +468,6 @@ export interface CopilotProposalResponse {
   affected_tasks: string[];
   requires_confirmation: boolean;
   proposed_content: Record<string, any>;
+  status?: string;
+  expires_at?: string;
 }

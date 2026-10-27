@@ -1552,9 +1552,15 @@ export const App: React.FC = () => {
                     onLoadOlderMessages={handleLoadOlderCopilot}
                     onRefreshMessages={handleRefreshCopilot}
                     onCheckStatus={handleCheckCopilotStatus}
-                    onApplyProposal={async (targetModule, instruction) => {
-                      await api.modules.modify(currentProject.id, targetModule, instruction);
+                    onApplyProposal={async (targetModule, instruction, proposalId) => {
+                      if (proposalId) {
+                        await api.copilot.applyProposal(currentProject.id, proposalId);
+                      } else {
+                        await api.modules.modify(currentProject.id, targetModule, instruction);
+                      }
                       queryCache.invalidate(`module:${currentProject.id}:${targetModule}`);
+                      queryCache.invalidate(new RegExp(`^tasks:${currentProject.id}`));
+                      queryCache.invalidate(new RegExp(`^overview:${currentProject.id}`));
                     }}
                     onSendMessage={async (msg, clientMsgId) => {
                       const projectId = currentProject.id;
