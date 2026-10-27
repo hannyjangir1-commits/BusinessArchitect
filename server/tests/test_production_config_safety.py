@@ -214,6 +214,7 @@ def test_ci_database_schema_and_alembic_head():
             "auth_rate_limit_events",
             "alembic_version",
             "copilot_operations",
+            "copilot_proposals",
             "project_knowledge_items",
             "knowledge_links",
             "financial_worksheets"
@@ -231,6 +232,6 @@ def test_ci_database_schema_and_alembic_head():
         # Check alembic_version has head revision
         from sqlalchemy import text
         res = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert res == "d3e4f5a6b7c8", f"Expected Alembic head revision 'd3e4f5a6b7c8', got '{res}'"
+        assert res == "e4f5a6b7c8d9", f"Expected Alembic head revision 'e4f5a6b7c8d9', got '{res}'"
     finally:
         db.close()
