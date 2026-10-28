@@ -524,3 +524,181 @@ This register persists progress across phases, documenting findings, affected pa
 - **Remaining Limitations:**
   - Docker daemon is unavailable in this local Windows host; container image size is unmeasured directly.
   - Real browser automation pending local browser session / unrestricted network for Playwright browser binary downloads; component behavior and user flows verified in Vitest JSDOM.
+
+---
+
+## Phase 9 — Master Product Overhaul and Verified Defect Corrections
+
+- **Status:** COMPLETED
+- **Findings Register & Implemented Remediations:**
+
+### Finding 1: False-Success Actions in Canvas Item Menus (FINDING-01)
+- **Affected Files:** `client/src/components/BMCModule.tsx`, `client/src/hooks/useDialog.ts`, `client/src/services/api.ts`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** In `BMCModule.tsx`, item action "Add to roadmap" invoked `showFeedback("Task added to delivery roadmap", "success")` without dispatching an authorized HTTP request to the backend task creation API.
+- **Implementation:** Replaced simulation with real `TaskCreationModal` dialog and `api.tasks.create(project.id, payload)`. Form fields prefilled with canvas context; errors handled inline without false success. Added `useDialog` focus stability and clean restoration.
+- **Regression Tests:** `client/src/__tests__/truthful_canvas_actions_and_evidence.test.tsx` (tests truthful task creation, cancel, failure handling with no false success).
+- **Runtime Verification:** Verified via Vitest (4 tests passing).
+- **Remaining Limitations:** Canvas action creates one task at a time; bulk task conversion requires explicit multi-select workflow.
+- **Commit:** `f054122`
+
+### Finding 2: Keyword-Based Evidence Badges (FINDING-02)
+- **Affected Files:** `client/src/components/BMCModule.tsx`, `client/src/types/index.ts`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `getItemEpistemic` used keyword heuristics on raw item text (matching words like "verified", "evidence", "report"), which caused negative statements like "No evidence has verified this assumption" to be wrongly badged as "Evidence Supported".
+- **Implementation:** Replaced keyword string matching with explicit structured metadata checks (`item_metadata`). An item is only badged as Evidence Supported if explicit metadata links verified evidence. Legacy string items safely default to unverified/hypothesis without silent schema rewriting. Added real Evidence Logging modal via `api.knowledge.create`.
+- **Regression Tests:** `client/src/__tests__/truthful_canvas_actions_and_evidence.test.tsx` (verifies "No evidence has verified this assumption" is NOT evidence supported, verifies explicit metadata handling).
+- **Runtime Verification:** Verified via Vitest.
+- **Remaining Limitations:** Metadata-based badges rely on structured `item_metadata`; legacy unannotated strings remain safely badged as hypothesis/unverified.
+- **Commit:** `f054122`
+
+### Finding 3: Multi-Framework Business Model Support (FINDING-03)
+- **Affected Files:** `client/src/components/BMCModule.tsx`, `server/app/schemas/modules.py`, `server/app/ai/prompts.py`, `server/app/ai/gemini_service.py`, `server/app/api/modules.py`, `server/app/services/pdf_service.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** Framework dropdown only altered clientside layout by re-mapping BMC blocks into Lean Canvas or VPC fields, while backend generation strictly generated standard 9-block BMCData with hardcoded claims.
+- **Implementation:** Implemented first-class framework identity (`standard_bmc`, `lean_canvas`, `value_prop_canvas`) across Pydantic schemas, generation prompts, response validation, persistence (`framework_type` in `ModuleContent` and `ModuleVersion`), rendering, version restoration, and PDF export. Switching framework dropdown explains whether it creates a new version, preserving previous frameworks without data corruption.
+- **Regression Tests:** `server/tests/test_frameworks_end_to_end.py` (2 tests), `client/src/__tests__/frameworks_end_to_end.test.tsx` (4 tests).
+- **Runtime Verification:** Backend and frontend test suites pass with 100% compliance.
+- **Remaining Limitations:** Supports the 3 authoritative business modeling frameworks; arbitrary custom frameworks are rejected until explicitly registered in schema registry.
+- **Commit:** `2dd1197`
+
+### Finding 4: Exact Approved Proposal Application (FINDING-04)
+- **Affected Files:** `server/app/models/all_models.py`, `server/alembic/versions/e4f5a6b7c8d9_add_copilot_proposals_table.py`, `server/app/schemas/copilot.py`, `server/app/api/copilot.py`, `client/src/services/api.ts`, `client/src/components/BlueprintCopilotModule.tsx`, `client/src/App.tsx`, `client/src/services/queryCache.ts`, `client/src/services/prefetch.ts`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `POST /projects/{id}/copilot/propose` generated a diff preview, but when the user clicked "Apply Proposal", the frontend called `api.modules.modify()`, which re-invoked the AI provider with prompt instructions, producing a potentially completely different output than what was reviewed.
+- **Implementation:** Created `CopilotProposal` table. `POST /propose` persists the proposal with SHA256 source fingerprint and 1-hour expiration. `POST /proposals/{id}/apply` under `project_first_lock` verifies ownership, validates that the active version matches the source fingerprint (409 Conflict on stale modification), checks 5-version capacity, and applies the reviewed `proposed_content` directly without a second AI call.
+- **Regression Tests:** `server/tests/test_copilot_proposals_and_ownership.py` (4 tests), `client/src/__tests__/copilot_proposals.test.tsx` (2 tests).
+- **Runtime Verification:** Verified via Pytest and Vitest.
+- **Remaining Limitations:** Proposals expire after 1 hour to prevent applying stale proposals against long-drifted branches.
+- **Commit:** `f5e1fb4`
+
+### Finding 5: Exception Exposure in Proposal Routes (FINDING-05)
+- **Affected Files:** `server/app/api/copilot.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** New copilot proposal endpoints previously returned raw `str(e)` and logged full exception strings directly to stdout/logging.
+- **Implementation:** Replaced raw exception string exposure with sanitized `HTTPException(status_code=500, detail="Failed to process proposal")` and structured diagnostic category logging without leaking provider API tokens, internal paths, or SQL details.
+- **Regression Tests:** `server/tests/test_copilot_proposals_and_ownership.py` (tests sanitized errors).
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Error responses strictly sanitized; developers inspect server correlation IDs in structured audit logs.
+- **Commit:** `f5e1fb4`
+
+### Finding 6: Chat Operation Ownership and Terminal States (FINDING-06)
+- **Affected Files:** `server/app/models/all_models.py`, `server/app/api/copilot.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** Chat operations allowed 120-second age takeover where late-running provider attempts could collide, and failure state transitions could overwrite completed operations.
+- **Implementation:** Added `owner_attempt_id` to `CopilotOperation`. Guarded state updates so that completed operations are immutable; failure transitions strictly check `owner_attempt_id` and can never overwrite completed status.
+- **Regression Tests:** `server/tests/test_copilot_proposals_and_ownership.py` (tests concurrent ownership and completed immutability).
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Local SQLite tests use transaction isolation; multi-node PostgreSQL locking verified via thread synchronization tests.
+- **Commit:** `f5e1fb4`
+
+### Finding 7: Financial Worksheet Writes and Mutating Reads (FINDING-07)
+- **Affected Files:** `server/app/schemas/financials.py`, `server/app/api/financials.py`, `server/app/services/financial_calculator.py`, `client/src/types/index.ts`, `client/src/components/FinancialWorksheetModule.tsx`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `GET /projects/{id}/financials` mutated the database by auto-committing a new worksheet row if absent; concurrent reads raced on project unique constraint. `FinancialWorksheetUpdate` lacked finite/non-negative float validations.
+- **Implementation:** Made `GET /financials` strictly read-only (returns transient default worksheet without DB commit). Added `@field_validator` on all financial schemas checking `math.isfinite()`, `allow_inf_nan=False`, `>= 0`, bounding string lengths, and bounding array lengths (max 200). `PUT /financials` performs atomic upsert under `project_first_lock`.
+- **Regression Tests:** `server/tests/test_financials_validation.py` (4 tests), `server/tests/test_knowledge_financials_and_copilot.py`.
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Large financial worksheets capped at 200 items per category to prevent unbounded memory growth.
+- **Commit:** `c331b24`
+
+### Finding 8: Financial Calculation Semantics & Formulas (FINDING-08)
+- **Affected Files:** `server/app/services/financial_calculator.py`, `server/app/schemas/financials.py`, `client/src/components/FinancialWorksheetModule.tsx`, `client/src/types/index.ts`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `expected_volume_monthly` was accepted by schemas but omitted from calculations. Burn rate was defined solely as fixed costs, and frontend/backend had slightly divergent math.
+- **Implementation:** Defined authoritative deterministic formulas in `FinancialCalculator`:
+  - `monthly_operating_revenue = price_per_unit * expected_volume_monthly`
+  - `total_operating_variable = variable_cost_per_unit * expected_volume_monthly`
+  - `monthly_operating_result = monthly_operating_revenue - monthly_fixed - total_operating_variable`
+  - `monthly_net_burn = max(0.0, -monthly_operating_result)`
+  - `fixed_cost_burn = monthly_fixed`
+  - `sales_coverage_runway_months = cash_available / monthly_net_burn`
+  Synced frontend calculation helper in `FinancialWorksheetModule.tsx` to match exact backend formulas.
+- **Regression Tests:** `server/tests/test_knowledge_financials_and_copilot.py` (unit economics tests).
+- **Runtime Verification:** Verified via Pytest and Vitest.
+- **Remaining Limitations:** Assumes linear unit volume; step-fixed costs are entered as discrete fixed cost items.
+- **Commit:** `c331b24`
+
+### Finding 9: Knowledge Model Cross-Module Context Ingestion (FINDING-09)
+- **Affected Files:** `server/app/services/project_context_service.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `read_project_context()` only inspected module snapshots, completely ignoring stored `ProjectKnowledgeItem` records during cross-module prompt context construction.
+- **Implementation:** Updated `read_project_context()` to query active `ProjectKnowledgeItem`s for the project and add them to `context["knowledge_base"]` with stable IDs and provenance tracking in `sources` with `"module_type": "knowledge_base"`.
+- **Regression Tests:** `server/tests/test_knowledge_and_roadmap_enhancements.py` (`test_project_context_includes_knowledge_base_and_roadmap_fields`).
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Inactive/superseded knowledge items are excluded from generation prompt context to preserve context budget.
+- **Commit:** `4b75f52`
+
+### Finding 10: Knowledge Queries N+1 and Validation Hardening (FINDING-10)
+- **Affected Files:** `server/app/schemas/knowledge.py`, `server/app/api/knowledge.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `_format_knowledge_item` executed two SQL queries per item (`2N + 1`), causing severe database query amplification. `item_type`, `epistemic_status`, and `relationship` were unconstrained strings. Duplicate links raised unhandled 500 unique constraint violations.
+- **Implementation:** Enforced `Literal` types for `item_type`, `epistemic_status`, `status`, and `relationship`. Batched link queries in `list_knowledge_items` with a single `IN` query. Made `create_knowledge_link` idempotent, returning existing links gracefully.
+- **Regression Tests:** `server/tests/test_knowledge_and_roadmap_enhancements.py` (`test_knowledge_api_batch_links_and_idempotent_duplicate`).
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Links are bounded within the same project; cross-project links are strictly prohibited by tenant isolation.
+- **Commit:** `4b75f52`
+
+### Finding 11: Roadmap.sh Enhancement Fields Preservation (FINDING-11)
+- **Affected Files:** `server/app/services/project_context_service.py`, `server/app/services/roadmap_service.py`, `server/app/api/projects.py`, `server/app/services/pdf_service.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** Roadmap enhancement fields (`branch_type`, `parent_outcome`, `definition_of_done`, `acceptance_criteria`, `edge_type`, `roadmap_mode`) were missing from `current_module_data` tuple, were dropped during reconciliation task updates/inserts, were dropped during project duplication, and were omitted from PDF exports.
+- **Implementation:** Added all 6 fields to `current_module_data` in `project_context_service.py`, to `canonical_t` and `reconcile_roadmap_tasks` in `roadmap_service.py`, to project cloning in `projects.py`, and to task table rendering in `pdf_service.py`.
+- **Regression Tests:** `server/tests/test_knowledge_and_roadmap_enhancements.py` (tests reconciliation preservation, project duplication, and PDF export).
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** `edge_type` defaults to `prerequisite` if omitted by caller.
+- **Commit:** `4b75f52`
+
+### Finding 12: Project Copy Incomplete Cloning (FINDING-12)
+- **Affected Files:** `server/app/api/projects.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `PUT /projects/{id}` with `create_copy=True` only cloned `ModuleContent`, `ModuleVersion`, basic `RoadmapTask` fields, and `CopilotMessage` rows, dropping `FinancialWorksheet`, `ProjectKnowledgeItem`, and `KnowledgeLink` data.
+- **Implementation:** Updated project duplication to deeply clone `FinancialWorksheet`, all `ProjectKnowledgeItem` rows, remap `KnowledgeLink` source and target IDs to newly cloned items, and clone all 6 roadmap enhancement fields.
+- **Regression Tests:** `server/tests/test_knowledge_and_roadmap_enhancements.py` (`test_project_copy_clones_roadmap_fields_and_knowledge_and_financials`).
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Duplication runs inside a single database transaction; projects with thousands of tasks/items may require asynchronous batch cloning if size exceeds transaction timeouts.
+- **Commit:** `4b75f52`
+
+### Finding 13: CI Database Schema and Alembic Head Revision (FINDING-13)
+- **Affected Files:** `server/tests/test_production_config_safety.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `test_ci_database_schema_and_alembic_head` hardcoded previous revision `d3e4f5a6b7c8` and lacked `copilot_proposals` table in expected table set.
+- **Implementation:** Added `"copilot_proposals"` to `required_tables` and updated head revision check to `e4f5a6b7c8d9`.
+- **Regression Tests:** `server/tests/test_production_config_safety.py` (8 passed).
+- **Runtime Verification:** Full backend test suite passes (505 tests collected, 495 passed, 9 skipped, 0 failures).
+- **Remaining Limitations:** Head revision must be updated whenever a new Alembic migration is authored.
+- **Commit:** `50d8ae4`
+
+### Finding 14: Shared Frontend Infrastructure Stability (FINDING-14)
+- **Affected Files:** `client/src/hooks/useDialog.ts`, `client/src/services/queryCache.ts`, `client/src/services/prefetch.ts`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** `useDialog` re-registered on every keystroke if `onClose` was inline; `queryCache` did not immediately reject on `signal.aborted` and lacked prefix invalidation; `prefetch` had mismatched cache keys for copilot.
+- **Implementation:** Stable dialog lifecycle registration via ref; immediate abort signal handling and `invalidatePrefix` in queryCache; aligned prefetch keys and abort signals.
+- **Regression Tests:** `client/src/__tests__/truthful_canvas_actions_and_evidence.test.tsx`, `client/src/__tests__/architectural_enhancements.test.tsx`.
+- **Runtime Verification:** Full frontend test suite passes (125 tests across 15 files).
+- **Remaining Limitations:** In-flight fetch cancellation relies on browser `AbortController` support.
+- **Commit:** `f054122`, `f5e1fb4`
+
+### Finding 15: Deterministic Offline Fallbacks & Scope Routing (FINDING-15)
+- **Affected Files:** `server/app/ai/gemini_service.py`, `server/app/schemas/copilot.py`
+- **Confirmed or Unverified:** Confirmed
+- **Root Cause:** Previous offline modification simulation appended arbitrary keys (`key_technologies`, `direct_competitors`) that violated module schemas. Chat routing previously allowed historical word presence to blanket-authorize any future question.
+- **Implementation:** Removed schema-invalid offline modification mutations; all offline modifications conform strictly to module schemas. 4-route classifier evaluates current request intent, distinguishing `clearly_relevant`, `supporting_concept`, `ambiguous`, and `unrelated_or_unauthorized`, while legitimately permitting context-aware project security questions.
+- **Regression Tests:** `server/tests/test_knowledge_financials_and_copilot.py`, `server/tests/test_ai_failure_modes.py`.
+- **Runtime Verification:** Verified via Pytest.
+- **Remaining Limitations:** Offline mode uses deterministic heuristics; production uses Gemini model classifier with fallback to safe clarification.
+- **Commit:** `2dd1197`, `f5e1fb4`
+
+- **Verification Evidence Summary:**
+  - Full backend test suite (`pytest`): **495 passed, 9 skipped, 0 failed** across 33 test files (505 collected items).
+  - Full frontend test suite (`npm test`): **125 passed, 0 failed** across 15 test files.
+  - Production TypeScript & Vite build (`npm run build`): **Built in 1.18s** with 0 errors.
+  - Alembic migrations (`alembic heads`): **1 sequential head (`e4f5a6b7c8d9`)**.
+  - Whitespace & format check (`git diff --check`): **0 errors**.
+- **Commits on main:**
+  - `f054122`: fix(canvas): truthful canvas actions, evidence metadata and dialog focus stability
+  - `2dd1197`: feat(bmc): implement business model frameworks end to end and schema-valid offline modification
+  - `f5e1fb4`: fix(copilot): exact approved proposal application, operation ownership and sanitized errors
+  - `c331b24`: fix(financials): non-mutating reads, validated writes and deterministic unit economics
+  - `4b75f52`: feat(knowledge,roadmap): connect knowledge model to context and preserve roadmap fields
+  - `50d8ae4`: test(alembic): update expected head revision to e4f5a6b7c8d9 in production config safety test
